@@ -1,0 +1,7 @@
+project_id = "ynfcgvlqiouvxqzacvrz"
+
+[functions.create-onboarding-account]
+verify_jwt = false
+
+[functions.upsert-onboarding-session]
+verify_jwt = false
