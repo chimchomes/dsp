@@ -3,12 +3,21 @@
 import { createClient } from '@supabase/supabase-js';
 
 // =============================================================================
-// !!! ⚠️ 1. HARDCODED CONFIGURATION: PASTE YOUR KEYS HERE ⚠️ !!!
-// NOTE: These variables are copied from your .env.local file to bypass the loading issue.
-// DELETE THESE VALUES (and the file) immediately after running the script once.
+// ⚠️ SECURITY WARNING: DO NOT COMMIT THIS FILE WITH CREDENTIALS ⚠️
+// 
+// This is a one-time utility script for recreating test users.
+// 
+// ⚠️ NEVER commit this file with real credentials to version control!
+// ⚠️ If you must use this script:
+//    1. Add credentials temporarily
+//    2. Run the script
+//    3. IMMEDIATELY remove credentials
+//    4. Consider deleting this file after use
+//
+// For production, use proper environment variables and secure scripts.
 // =============================================================================
-const supabaseUrl = ""; 
-const supabaseServiceRoleKey = "";
+const supabaseUrl = ""; // ⚠️ DO NOT COMMIT WITH VALUES
+const supabaseServiceRoleKey = ""; // ⚠️ DO NOT COMMIT WITH VALUES
 // =============================================================================
 
 if (!supabaseUrl || !supabaseServiceRoleKey) {

@@ -41,16 +41,28 @@ export default function OnboardingLogin() {
         .select("role")
         .eq("user_id", data.user.id);
 
-      const hasOnboardingRole = roles?.some(r => r.role === "onboarding");
+      let hasOnboardingRole = roles?.some(r => r.role === "onboarding");
       
+      // If user doesn't have onboarding role but is new, assign it
+      // This handles the case where account was created but role wasn't assigned yet
       if (!hasOnboardingRole) {
-        toast({ 
-          title: "Access denied", 
-          description: "This login is only for onboarding applicants",
-          variant: "destructive"
+        const { error: assignError } = await supabase.rpc("assign_user_role", {
+          p_user_id: data.user.id,
+          p_role: "onboarding",
         });
-        setIsLoading(false);
-        return;
+        
+        if (!assignError) {
+          hasOnboardingRole = true;
+        } else {
+          // If they're not an onboarding user and we can't assign the role, deny access
+          toast({ 
+            title: "Access denied", 
+            description: "This login is only for onboarding applicants",
+            variant: "destructive"
+          });
+          setIsLoading(false);
+          return;
+        }
       }
 
       // Check for existing onboarding session
@@ -109,10 +121,7 @@ export default function OnboardingLogin() {
             
             <div className="mb-4 p-3 bg-muted rounded-lg">
               <p className="text-sm text-muted-foreground text-center">
-                <strong>Default password:</strong> <span className="font-mono">Password123</span>
-              </p>
-              <p className="text-xs text-muted-foreground text-center mt-1">
-                (You'll be prompted to change it on first login)
+                Forgot your password? Use the password reset link sent to your email.
               </p>
             </div>
 

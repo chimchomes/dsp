@@ -7,6 +7,44 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// Simple rate limiting (in-memory - for production, use Redis or database)
+// Rate limit: 5 requests per hour per IP
+const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
+const RATE_LIMIT_WINDOW = 60 * 60 * 1000; // 1 hour in milliseconds
+const RATE_LIMIT_MAX_REQUESTS = 5;
+
+function checkRateLimit(ip: string): boolean {
+  const now = Date.now();
+  const record = rateLimitMap.get(ip);
+
+  if (!record || now > record.resetTime) {
+    // Create new record or reset expired one
+    rateLimitMap.set(ip, { count: 1, resetTime: now + RATE_LIMIT_WINDOW });
+    return true;
+  }
+
+  if (record.count >= RATE_LIMIT_MAX_REQUESTS) {
+    return false;
+  }
+
+  record.count++;
+  return true;
+}
+
+function getClientIP(req: Request): string {
+  // Try to get real IP from various headers
+  const forwarded = req.headers.get("x-forwarded-for");
+  if (forwarded) {
+    return forwarded.split(",")[0].trim();
+  }
+  const realIP = req.headers.get("x-real-ip");
+  if (realIP) {
+    return realIP;
+  }
+  // Fallback (for local development)
+  return "unknown";
+}
+
 // Input validation schema
 const onboardingSchema = z.object({
   email: z.string().email().max(255),
@@ -16,23 +54,63 @@ const onboardingSchema = z.object({
   current_step: z.number().int().min(1).max(10).optional(),
   complete: z.boolean().optional(),
   data: z.object({
-    address: z.string().max(500).optional(),
+    // Personal Details
+    first_name: z.string().max(100).optional(),
+    surname: z.string().max(100).optional(),
+    full_name: z.string().max(200).optional(),
     contact_phone: z.string().max(20).optional(),
-    emergency_contact_name: z.string().max(200).optional(),
+    address: z.string().max(500).optional(),
+    address_line_1: z.string().max(200).optional(),
+    address_line_2: z.string().max(200).optional(),
+    address_line_3: z.string().max(200).optional(),
+    post_code: z.string().max(20).optional(),
+    emergency_contact_name: z.string().max(100).optional(),
     emergency_contact_phone: z.string().max(20).optional(),
-    license_number: z.string().max(50).optional(),
-    license_expiry: z.string().optional(),
+    
+    // Driver's License
+    drivers_license_number: z.string().max(50).optional(),
+    license_number: z.string().max(50).optional(), // Legacy field
+    license_expiry_date: z.string().optional(),
+    license_expiry: z.string().optional(), // Legacy field
+    license_picture: z.string().max(500).optional(),
+    license_document_url: z.string().max(500).optional(), // Legacy field
+    
+    // Right to Work
+    national_insurance_number: z.string().max(20).optional(),
+    passport_upload: z.string().max(500).optional(),
+    passport_number: z.string().max(50).optional(),
+    passport_expiry_date: z.string().optional(),
+    right_to_work_url: z.string().max(500).optional(), // Legacy field
+    
+    // Vehicle Details (Own Vehicle)
     vehicle_make: z.string().max(100).optional(),
     vehicle_model: z.string().max(100).optional(),
     vehicle_year: z.union([z.number().int().min(1900).max(2100), z.string()]).optional(),
-    vehicle_registration: z.string().max(50).optional(),
-    preferred_vehicle_type: z.string().max(100).optional(),
-    license_document_url: z.string().max(500).optional(),
+    vehicle_registration_number: z.string().max(50).optional(),
+    vehicle_registration: z.string().max(50).optional(), // Legacy field
+    vehicle_type: z.string().max(100).optional(),
+    vehicle_mileage: z.union([z.number().int().min(0), z.string()]).optional(),
+    
+    // Leased Vehicle Details
+    leased_vehicle_type1: z.string().max(100).optional(),
+    leased_vehicle_type2: z.string().max(100).optional(),
+    leased_vehicle_type3: z.string().max(100).optional(),
+    preferred_vehicle_type: z.string().max(100).optional(), // Legacy field
+    lease_start_date: z.string().optional(),
+    
+    // Identity
+    photo_upload: z.string().max(500).optional(),
+    dvla_code: z.string().max(50).optional(),
+    dbs_check: z.boolean().optional(),
+    
+    // Work Availability
+    driver_availability: z.string().max(50).optional(),
+    
+    // Legacy fields
     proof_of_address_url: z.string().max(500).optional(),
-    right_to_work_url: z.string().max(500).optional(),
     vehicle_insurance_url: z.string().max(500).optional(),
     vehicle_registration_url: z.string().max(500).optional(),
-  }).optional(),
+  }).passthrough().optional(), // Use passthrough to allow additional fields
 });
 
 serve(async (req) => {
@@ -41,6 +119,21 @@ serve(async (req) => {
   }
 
   try {
+    // Rate limiting check
+    const clientIP = getClientIP(req);
+    if (!checkRateLimit(clientIP)) {
+      return new Response(
+        JSON.stringify({ 
+          error: "Too many requests. Please try again later.",
+          retryAfter: Math.ceil(RATE_LIMIT_WINDOW / 1000) // seconds
+        }),
+        { 
+          headers: { ...corsHeaders, "Content-Type": "application/json", "Retry-After": "3600" }, 
+          status: 429 
+        }
+      );
+    }
+
     const body = await req.json();
     
     // Validate input
@@ -113,6 +206,8 @@ serve(async (req) => {
       user_id: targetUserId,
       vehicle_ownership_type: ownershipType,
       current_step: current_step ?? 1,
+      email: email,
+      full_name: fullName || data.full_name || null,
       ...data,
     };
 

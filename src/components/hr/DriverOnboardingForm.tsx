@@ -59,10 +59,8 @@ const DriverOnboardingForm = () => {
 
     if (uploadError) throw uploadError;
 
-    const { data: { publicUrl } } = supabase.storage
-      .from('driver-documents')
-      .getPublicUrl(fileName);
-
+    // Store file path instead of public URL - signed URLs generated on access
+    // This ensures documents are only accessible via RLS policies
     const { data: { user } } = await supabase.auth.getUser();
 
     const { error: dbError } = await supabase
@@ -71,7 +69,7 @@ const DriverOnboardingForm = () => {
         driver_id: driverId,
         document_type: doc.type,
         file_name: doc.file.name,
-        file_url: publicUrl,
+        file_url: fileName, // Store file path, not public URL
         uploaded_by: user?.id,
       });
 

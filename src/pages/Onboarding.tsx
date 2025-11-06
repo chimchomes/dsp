@@ -77,7 +77,19 @@ const Onboarding = () => {
     navigate("/onboarding-login");
   };
 
-  const handleStartNew = (type: VehicleType) => {
+  const handleStartNew = async (type: VehicleType) => {
+    // Check if user is authenticated
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      toast({
+        title: "Authentication required",
+        description: "Please log in to start your onboarding application.",
+        variant: "destructive",
+      });
+      navigate("/onboarding-login");
+      return;
+    }
+    
     // Clear existing session when starting a new application
     setExistingSession(null);
     setSelectedType(type);
@@ -91,6 +103,7 @@ const Onboarding = () => {
     );
   }
 
+  // Forms should only be accessible after login
   if (selectedType) {
     return selectedType === "own" ? (
       <OnboardingFormOwn existingSession={existingSession} />
@@ -128,7 +141,7 @@ const Onboarding = () => {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Button onClick={() => handleStartNew("own")} className="w-full" size="lg">
+              <Button onClick={() => navigate("/create-account?type=own")} className="w-full" size="lg">
                 Get Started
               </Button>
               <ul className="mt-4 space-y-2 text-sm text-muted-foreground">
@@ -150,7 +163,7 @@ const Onboarding = () => {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Button onClick={() => handleStartNew("lease")} className="w-full" size="lg">
+              <Button onClick={() => navigate("/create-account?type=lease")} className="w-full" size="lg">
                 Get Started
               </Button>
               <ul className="mt-4 space-y-2 text-sm text-muted-foreground">
