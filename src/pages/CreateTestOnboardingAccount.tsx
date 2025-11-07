@@ -11,7 +11,10 @@ import { UserPlus } from "lucide-react";
 export default function CreateTestOnboardingAccount() {
   const navigate = useNavigate();
   const [email, setEmail] = useState("tomsmith@gmail.com");
-  const [fullName, setFullName] = useState("Tom Smith");
+  const [firstName, setFirstName] = useState("Tom");
+  const [surname, setSurname] = useState("Smith");
+  const [password, setPassword] = useState("Password123!");
+  const [confirmPassword, setConfirmPassword] = useState("Password123!");
   const [isLoading, setIsLoading] = useState(false);
 
   const handleCreateAccount = async (e: React.FormEvent) => {
@@ -19,21 +22,26 @@ export default function CreateTestOnboardingAccount() {
     setIsLoading(true);
 
     try {
+      if (password !== confirmPassword) {
+        throw new Error("Passwords do not match");
+      }
+
+      const fullName = `${firstName} ${surname}`.trim();
       const { data, error } = await supabase.functions.invoke("create-onboarding-account", {
-        body: { email, fullName }
+        body: { email, fullName, firstName, surname, password }
       });
 
       if (error) throw error;
 
-      if (data.exists) {
+      if (data?.exists) {
         toast({ 
           title: "Account already exists", 
-          description: "This email is already registered. You can log in with password: Password123" 
+          description: "This email is already registered. You can log in now." 
         });
       } else {
         toast({ 
           title: "Account created successfully", 
-          description: "Email: " + email + " | Password: Password123 (must be changed on first login)" 
+          description: "You can log in with your password." 
         });
       }
 
@@ -68,14 +76,16 @@ export default function CreateTestOnboardingAccount() {
         <CardContent>
           <form onSubmit={handleCreateAccount} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="fullName">Full Name</Label>
-              <Input
-                id="fullName"
-                type="text"
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                required
-              />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="firstName">First Name</Label>
+                  <Input id="firstName" type="text" value={firstName} onChange={(e) => setFirstName(e.target.value)} required />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="surname">Surname</Label>
+                  <Input id="surname" type="text" value={surname} onChange={(e) => setSurname(e.target.value)} required />
+                </div>
+              </div>
             </div>
 
             <div className="space-y-2">
@@ -89,13 +99,15 @@ export default function CreateTestOnboardingAccount() {
               />
             </div>
 
-            <div className="p-4 bg-muted rounded-lg">
-              <p className="text-sm text-muted-foreground">
-                Default password: <span className="font-mono font-semibold">Password123</span>
-              </p>
-              <p className="text-sm text-muted-foreground mt-2">
-                User will be prompted to change password on first login
-              </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="password">Password</Label>
+                <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="confirmPassword">Confirm Password</Label>
+                <Input id="confirmPassword" type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required />
+              </div>
             </div>
 
             <Button type="submit" className="w-full" disabled={isLoading}>

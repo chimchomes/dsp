@@ -8,10 +8,11 @@ const corsHeaders = {
 };
 
 // Simple rate limiting (in-memory - for production, use Redis or database)
-// Rate limit: 5 requests per hour per IP
+// Dev-friendly: authenticated calls skip this limit; unauthenticated limited per IP.
+// Rate limit: 50 requests per hour per IP
 const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
 const RATE_LIMIT_WINDOW = 60 * 60 * 1000; // 1 hour in milliseconds
-const RATE_LIMIT_MAX_REQUESTS = 5;
+const RATE_LIMIT_MAX_REQUESTS = 50;
 
 function checkRateLimit(ip: string): boolean {
   const now = Date.now();
@@ -55,61 +56,61 @@ const onboardingSchema = z.object({
   complete: z.boolean().optional(),
   data: z.object({
     // Personal Details
-    first_name: z.string().max(100).optional(),
-    surname: z.string().max(100).optional(),
-    full_name: z.string().max(200).optional(),
-    contact_phone: z.string().max(20).optional(),
-    address: z.string().max(500).optional(),
-    address_line_1: z.string().max(200).optional(),
-    address_line_2: z.string().max(200).optional(),
-    address_line_3: z.string().max(200).optional(),
-    post_code: z.string().max(20).optional(),
-    emergency_contact_name: z.string().max(100).optional(),
-    emergency_contact_phone: z.string().max(20).optional(),
+    first_name: z.string().max(100).nullable().optional(),
+    surname: z.string().max(100).nullable().optional(),
+    full_name: z.string().max(200).nullable().optional(),
+    contact_phone: z.string().max(20).nullable().optional(),
+    address: z.string().max(500).nullable().optional(),
+    address_line_1: z.string().max(200).nullable().optional(),
+    address_line_2: z.string().max(200).nullable().optional(),
+    address_line_3: z.string().max(200).nullable().optional(),
+    post_code: z.string().max(20).nullable().optional(),
+    emergency_contact_name: z.string().max(100).nullable().optional(),
+    emergency_contact_phone: z.string().max(20).nullable().optional(),
     
     // Driver's License
-    drivers_license_number: z.string().max(50).optional(),
-    license_number: z.string().max(50).optional(), // Legacy field
-    license_expiry_date: z.string().optional(),
-    license_expiry: z.string().optional(), // Legacy field
-    license_picture: z.string().max(500).optional(),
-    license_document_url: z.string().max(500).optional(), // Legacy field
+    drivers_license_number: z.string().max(50).nullable().optional(),
+    license_number: z.string().max(50).nullable().optional(), // Legacy field
+    license_expiry_date: z.string().nullable().optional(),
+    license_expiry: z.string().nullable().optional(), // Legacy field
+    license_picture: z.string().max(500).nullable().optional(),
+    license_document_url: z.string().max(500).nullable().optional(), // Legacy field
     
     // Right to Work
-    national_insurance_number: z.string().max(20).optional(),
-    passport_upload: z.string().max(500).optional(),
-    passport_number: z.string().max(50).optional(),
-    passport_expiry_date: z.string().optional(),
-    right_to_work_url: z.string().max(500).optional(), // Legacy field
+    national_insurance_number: z.string().max(20).nullable().optional(),
+    passport_upload: z.string().max(500).nullable().optional(),
+    passport_number: z.string().max(50).nullable().optional(),
+    passport_expiry_date: z.string().nullable().optional(),
+    right_to_work_url: z.string().max(500).nullable().optional(), // Legacy field
     
     // Vehicle Details (Own Vehicle)
-    vehicle_make: z.string().max(100).optional(),
-    vehicle_model: z.string().max(100).optional(),
-    vehicle_year: z.union([z.number().int().min(1900).max(2100), z.string()]).optional(),
-    vehicle_registration_number: z.string().max(50).optional(),
-    vehicle_registration: z.string().max(50).optional(), // Legacy field
-    vehicle_type: z.string().max(100).optional(),
-    vehicle_mileage: z.union([z.number().int().min(0), z.string()]).optional(),
+    vehicle_make: z.string().max(100).nullable().optional(),
+    vehicle_model: z.string().max(100).nullable().optional(),
+    vehicle_year: z.union([z.number().int().min(1900).max(2100), z.string()]).nullable().optional(),
+    vehicle_registration_number: z.string().max(50).nullable().optional(),
+    vehicle_registration: z.string().max(50).nullable().optional(), // Legacy field
+    vehicle_type: z.string().max(100).nullable().optional(),
+    vehicle_mileage: z.union([z.number().int().min(0), z.string()]).nullable().optional(),
     
     // Leased Vehicle Details
-    leased_vehicle_type1: z.string().max(100).optional(),
-    leased_vehicle_type2: z.string().max(100).optional(),
-    leased_vehicle_type3: z.string().max(100).optional(),
-    preferred_vehicle_type: z.string().max(100).optional(), // Legacy field
-    lease_start_date: z.string().optional(),
+    leased_vehicle_type1: z.string().max(100).nullable().optional(),
+    leased_vehicle_type2: z.string().max(100).nullable().optional(),
+    leased_vehicle_type3: z.string().max(100).nullable().optional(),
+    preferred_vehicle_type: z.string().max(100).nullable().optional(), // Legacy field
+    lease_start_date: z.string().nullable().optional(),
     
     // Identity
-    photo_upload: z.string().max(500).optional(),
-    dvla_code: z.string().max(50).optional(),
-    dbs_check: z.boolean().optional(),
+    photo_upload: z.string().max(500).nullable().optional(),
+    dvla_code: z.string().max(50).nullable().optional(),
+    dbs_check: z.boolean().nullable().optional(),
     
     // Work Availability
-    driver_availability: z.string().max(50).optional(),
+    driver_availability: z.string().max(50).nullable().optional(),
     
     // Legacy fields
-    proof_of_address_url: z.string().max(500).optional(),
-    vehicle_insurance_url: z.string().max(500).optional(),
-    vehicle_registration_url: z.string().max(500).optional(),
+    proof_of_address_url: z.string().max(500).nullable().optional(),
+    vehicle_insurance_url: z.string().max(500).nullable().optional(),
+    vehicle_registration_url: z.string().max(500).nullable().optional(),
   }).passthrough().optional(), // Use passthrough to allow additional fields
 });
 
@@ -119,19 +120,22 @@ serve(async (req) => {
   }
 
   try {
-    // Rate limiting check
-    const clientIP = getClientIP(req);
-    if (!checkRateLimit(clientIP)) {
-      return new Response(
-        JSON.stringify({ 
-          error: "Too many requests. Please try again later.",
-          retryAfter: Math.ceil(RATE_LIMIT_WINDOW / 1000) // seconds
-        }),
-        { 
-          headers: { ...corsHeaders, "Content-Type": "application/json", "Retry-After": "3600" }, 
-          status: 429 
-        }
-      );
+    // Rate limiting check (skip if Authorization header present)
+    const hasAuthHeader = !!req.headers.get("authorization");
+    if (!hasAuthHeader) {
+      const clientIP = getClientIP(req);
+      if (!checkRateLimit(clientIP)) {
+        return new Response(
+          JSON.stringify({ 
+            error: "Too many requests. Please try again later.",
+            retryAfter: Math.ceil(RATE_LIMIT_WINDOW / 1000) // seconds
+          }),
+          { 
+            headers: { ...corsHeaders, "Content-Type": "application/json", "Retry-After": String(Math.ceil(RATE_LIMIT_WINDOW / 1000)) }, 
+            status: 429 
+          }
+        );
+      }
     }
 
     const body = await req.json();
@@ -252,15 +256,15 @@ serve(async (req) => {
     );
   } catch (error) {
     console.error("upsert-onboarding-session error", error);
-    
-    // Provide user-friendly error message without exposing internal details
     const errorMessage = error instanceof z.ZodError
       ? "Invalid input data provided"
-      : "An error occurred while processing your request";
-    
+      : (error instanceof Error ? error.message : "An error occurred while processing your request");
+    const status = (error as any)?.status && Number.isFinite((error as any).status)
+      ? (error as any).status
+      : 400;
     return new Response(
       JSON.stringify({ error: errorMessage }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status }
     );
   }
 });

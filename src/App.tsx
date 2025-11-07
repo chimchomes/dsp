@@ -28,6 +28,9 @@ import ProfileScreen from "./pages/ProfileScreen";
 import EarningsScreen from "./pages/EarningsScreen";
 import CostCalculatorScreen from "./pages/CostCalculatorScreen";
 import VehicleManagementScreen from "./pages/VehicleManagementScreen";
+import Inbox from "./pages/Inbox";
+import AdminMessages from "./pages/AdminMessages";
+import HeaderBar from "@/components/HeaderBar";
 
 const queryClient = new QueryClient();
 
@@ -37,6 +40,7 @@ const App = () => (
       <TooltipProvider>
         <Toaster />
         <BrowserRouter>
+          <HeaderBar />
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/login" element={<Login />} />
@@ -61,6 +65,8 @@ const App = () => (
             <Route path="/hr" element={<HRDashboard />} />
             <Route path="/admin" element={<AdminSelector />} />
             <Route path="/admin/control-panel" element={<AdminDashboard />} />
+            <Route path="/inbox" element={<Inbox />} />
+            <Route path="/admin/messages" element={<AdminMessages />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

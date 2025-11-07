@@ -97,6 +97,20 @@ const OnboardingFormOwn = ({ existingSession }: Props) => {
   const totalSteps = 6;
   const progress = (currentStep / totalSteps) * 100;
 
+  const statusBanner = isCompleted ? (
+    <Card className="mb-4">
+      <CardHeader>
+        <CardTitle>Application Submitted</CardTitle>
+        <CardDescription>
+          Current status: <span className="inline-flex px-2 py-1 rounded bg-muted">{existingSession?.status || 'submitted'}</span>
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <p className="text-sm text-muted-foreground">Your application is read-only. You can view details and track status.</p>
+      </CardContent>
+    </Card>
+  ) : null;
+
   const handleFileUpload = async (file: File, fieldName: string) => {
     if (!file) return null;
     
@@ -314,6 +328,7 @@ const OnboardingFormOwn = ({ existingSession }: Props) => {
             <p className="text-sm text-muted-foreground mt-2">Step {currentStep} of {totalSteps}</p>
           </div>
 
+          {statusBanner}
           <form onSubmit={handleSubmit(() => {})} className="space-y-6">
             {/* Page 1 - Personal Details */}
             {currentStep === 1 && (
@@ -596,19 +611,19 @@ const OnboardingFormOwn = ({ existingSession }: Props) => {
 
             <div className="flex gap-4">
               {currentStep > 1 && (
-                <Button type="button" variant="outline" onClick={() => setCurrentStep(currentStep - 1)} disabled={isSubmitting}>
+              <Button type="button" variant="outline" onClick={() => setCurrentStep(currentStep - 1)} disabled={isSubmitting || isCompleted}>
                   Previous
                 </Button>
               )}
-              <Button type="button" variant="outline" onClick={handleSaveProgress} disabled={isSubmitting}>
+              <Button type="button" variant="outline" onClick={handleSaveProgress} disabled={isSubmitting || isCompleted}>
                 <Save className="mr-2 h-4 w-4" />
                 Save Progress
               </Button>
-              <Button type="button" onClick={handleNext} disabled={isSubmitting || (currentStep === totalSteps && isCompleted)} className="ml-auto">
+              <Button type="button" onClick={handleNext} disabled={isSubmitting || isCompleted} className="ml-auto">
                 {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 {currentStep === totalSteps ? (isCompleted ? "Submitted - Awaiting Approval" : "Complete Onboarding") : "Next"}
               </Button>
-              <Button type="button" variant="outline" onClick={handleExit} disabled={isSubmitting}>
+              <Button type="button" variant="outline" onClick={handleExit} disabled={isSubmitting || isCompleted}>
                 <X className="mr-2 h-4 w-4" />
                 Exit
               </Button>

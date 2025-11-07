@@ -1,18 +1,24 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
-import { UserPlus, Mail, ArrowLeft } from "lucide-react";
+import { UserPlus, ArrowLeft } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 
 const accountSchema = z.object({
-  full_name: z.string().min(2, "Name must be at least 2 characters").max(100, "Name is too long"),
+  first_name: z.string().min(2, "First name must be at least 2 characters").max(100, "First name is too long"),
+  surname: z.string().min(2, "Surname must be at least 2 characters").max(100, "Surname is too long"),
   email: z.string().email("Please enter a valid email address").max(255, "Email is too long"),
+  password: z.string().min(8, "Password must be at least 8 characters"),
+  confirm_password: z.string().min(8, "Confirm your password"),
+}).refine((vals) => vals.password === vals.confirm_password, {
+  path: ["confirm_password"],
+  message: "Passwords do not match",
 });
 
 type AccountFormData = z.infer<typeof accountSchema>;
@@ -20,7 +26,7 @@ type AccountFormData = z.infer<typeof accountSchema>;
 export default function CreateOnboardingAccount() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const vehicleType = searchParams.get("type") || "own";
+  const vehicleType = (searchParams.get("type") || "own") as "own" | "lease";
   const [isLoading, setIsLoading] = useState(false);
   
   const { register, handleSubmit, formState: { errors } } = useForm<AccountFormData>({
@@ -31,47 +37,23 @@ export default function CreateOnboardingAccount() {
     setIsLoading(true);
 
     try {
-      // Use signUp instead of edge function for proper email verification
-      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-        email: data.email,
-        password: crypto.randomUUID() + crypto.randomUUID(), // Temporary password - user will set via email
-        options: {
-          data: {
-            full_name: data.full_name,
-            requires_password_change: true,
-          },
-          emailRedirectTo: `${window.location.origin}/onboarding-login`,
-        },
+      // Direct account creation via Edge Function (no email sending)
+      const fullName = `${data.first_name} ${data.surname}`.trim();
+      const { data: fnData, error: fnError } = await supabase.functions.invoke("create-onboarding-account", {
+        body: { email: data.email, fullName, firstName: data.first_name, surname: data.surname, password: data.password },
       });
+      if (fnError) throw fnError;
 
-      if (signUpError) throw signUpError;
-
-      if (!signUpData.user) {
-        throw new Error("Failed to create account");
+      if (fnData?.exists) {
+        toast({ title: "Account already exists", description: "You can log in now." });
+      } else {
+        toast({ title: "Account created", description: "You can log in with your password." });
       }
 
-      // Note: Role assignment and session creation will happen after email verification
-      // The user must verify their email first, then log in to complete onboarding
-
-      toast({
-        title: "Account created successfully!",
-        description: "Please check your email to verify your account and set your password.",
-      });
-
-      // Redirect to login page
-      navigate("/onboarding-login", {
-        state: { 
-          message: "Please check your email to verify your account and set your password.",
-          email: data.email,
-        },
-      });
+      navigate("/onboarding-login", { state: { email: data.email, type: vehicleType, first_name: data.first_name, surname: data.surname } });
     } catch (error: any) {
       console.error("Account creation error:", error);
-      toast({
-        title: "Account creation failed",
-        description: error.message || "An error occurred. Please try again.",
-        variant: "destructive",
-      });
+      toast({ title: "Account creation failed", description: error?.message || "An error occurred. Please try again.", variant: "destructive" });
     } finally {
       setIsLoading(false);
     }
@@ -94,20 +76,17 @@ export default function CreateOnboardingAccount() {
           </p>
 
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="full_name">
-                Full Name <span className="text-destructive">*</span>
-              </Label>
-              <Input
-                id="full_name"
-                type="text"
-                placeholder="John Doe"
-                {...register("full_name")}
-                disabled={isLoading}
-              />
-              {errors.full_name && (
-                <p className="text-sm text-destructive">{errors.full_name.message}</p>
-              )}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="first_name">First Name <span className="text-destructive">*</span></Label>
+                <Input id="first_name" type="text" placeholder="John" {...register("first_name")} disabled={isLoading} />
+                {errors.first_name && (<p className="text-sm text-destructive">{errors.first_name.message}</p>)}
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="surname">Surname <span className="text-destructive">*</span></Label>
+                <Input id="surname" type="text" placeholder="Doe" {...register("surname")} disabled={isLoading} />
+                {errors.surname && (<p className="text-sm text-destructive">{errors.surname.message}</p>)}
+              </div>
             </div>
 
             <div className="space-y-2">
@@ -126,14 +105,17 @@ export default function CreateOnboardingAccount() {
               )}
             </div>
 
-            <div className="p-3 bg-muted rounded-lg">
-              <p className="text-sm text-muted-foreground flex items-start gap-2">
-                <Mail className="h-4 w-4 mt-0.5 flex-shrink-0" />
-                <span>
-                  We'll send a verification email to confirm your account. 
-                  You'll be able to set your password after verification.
-                </span>
-              </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="password">Password <span className="text-destructive">*</span></Label>
+                <Input id="password" type="password" placeholder="••••••••" {...register("password")} disabled={isLoading} />
+                {errors.password && <p className="text-sm text-destructive">{String(errors.password.message)}</p>}
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="confirm_password">Confirm Password <span className="text-destructive">*</span></Label>
+                <Input id="confirm_password" type="password" placeholder="••••••••" {...register("confirm_password")} disabled={isLoading} />
+                {errors.confirm_password && <p className="text-sm text-destructive">{String(errors.confirm_password.message)}</p>}
+              </div>
             </div>
 
             <Button type="submit" className="w-full" disabled={isLoading}>

@@ -93,6 +93,20 @@ const OnboardingFormLease = ({ existingSession }: Props) => {
   const totalSteps = 6;
   const progress = (currentStep / totalSteps) * 100;
 
+  const statusBanner = isCompleted ? (
+    <Card className="mb-4">
+      <CardHeader>
+        <CardTitle>Application Submitted</CardTitle>
+        <CardDescription>
+          Current status: <span className="inline-flex px-2 py-1 rounded bg-muted">{existingSession?.status || 'submitted'}</span>
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <p className="text-sm text-muted-foreground">Your application is read-only. You can view details and track status.</p>
+      </CardContent>
+    </Card>
+  ) : null;
+
   const handleFileUpload = async (file: File, fieldName: string) => {
     if (!file) return null;
     
@@ -299,7 +313,7 @@ const OnboardingFormLease = ({ existingSession }: Props) => {
             <p className="text-sm text-muted-foreground mt-2">Step {currentStep} of {totalSteps}</p>
           </div>
 
-          <form onSubmit={handleSubmit(() => {})} className="space-y-6">
+          {statusBanner}<form onSubmit={handleSubmit(() => {})} className="space-y-6">
             {/* Page 1 - Personal Details */}
             {currentStep === 1 && (
               <Card>

@@ -23,6 +23,12 @@ const Onboarding = () => {
   }, []);
 
   useEffect(() => {
+    // If URL has ?type=own|lease, open the form directly
+    const qpType = (searchParams.get("type") as VehicleType) || null;
+    if (qpType === "own" || qpType === "lease") {
+      setSelectedType(qpType);
+    }
+
     if (searchParams.get("reset") === "true") {
       setSelectedType(null);
       setExistingSession(null);
@@ -32,7 +38,8 @@ const Onboarding = () => {
 
   const checkExistingSession = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: sessionData } = await supabase.auth.getSession();
+      const user = sessionData.session?.user || null;
       
       // If user is logged in, check for any existing onboarding session (any status)
       if (user) {
@@ -78,21 +85,8 @@ const Onboarding = () => {
   };
 
   const handleStartNew = async (type: VehicleType) => {
-    // Check if user is authenticated
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      toast({
-        title: "Authentication required",
-        description: "Please log in to start your onboarding application.",
-        variant: "destructive",
-      });
-      navigate("/onboarding-login");
-      return;
-    }
-    
-    // Clear existing session when starting a new application
-    setExistingSession(null);
-    setSelectedType(type);
+    // Go to account creation with selected type
+    navigate(`/create-account?type=${type}`);
   };
 
   if (loading) {
@@ -141,7 +135,7 @@ const Onboarding = () => {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Button onClick={() => navigate("/create-account?type=own")} className="w-full" size="lg">
+              <Button onClick={() => handleStartNew("own")} className="w-full" size="lg">
                 Get Started
               </Button>
               <ul className="mt-4 space-y-2 text-sm text-muted-foreground">
@@ -163,7 +157,7 @@ const Onboarding = () => {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Button onClick={() => navigate("/create-account?type=lease")} className="w-full" size="lg">
+              <Button onClick={() => handleStartNew("lease")} className="w-full" size="lg">
                 Get Started
               </Button>
               <ul className="mt-4 space-y-2 text-sm text-muted-foreground">

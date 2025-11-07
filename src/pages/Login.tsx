@@ -75,12 +75,12 @@ export default function Login() {
         .select("role")
         .eq("user_id", data.user.id);
 
-      // Check if user is a driver (by email in drivers table)
+      // Check if user is a driver by user_id (RLS-safe)
       const { data: driverData } = await supabase
         .from("drivers")
         .select("id")
-        .eq("email", data.user.email)
-        .single();
+        .eq("user_id", data.user.id)
+        .maybeSingle();
 
       toast({
         title: "Welcome back!",
