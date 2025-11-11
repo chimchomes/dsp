@@ -15,7 +15,7 @@ const HRDashboard = () => {
   const navigate = useNavigate();
 
   return (
-    <AuthGuard allowedRoles={["admin"]}>
+    <AuthGuard allowedRoles={["admin", "hr"]}>
       <div className="min-h-screen bg-background p-4 md:p-8">
         <div className="max-w-7xl mx-auto">
           <div className="mb-8 flex justify-between items-start">

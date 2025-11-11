@@ -25,6 +25,8 @@ interface OnboardingSession {
   id: string;
   user_id: string;
   full_name: string;
+  first_name?: string;
+  surname?: string;
   contact_phone: string;
   email: string;
   vehicle_ownership_type: string;
@@ -32,9 +34,14 @@ interface OnboardingSession {
   created_at: string;
   submitted_at?: string;
   license_number?: string;
+  license_expiry?: string;
   address?: string;
   emergency_contact_name?: string;
   emergency_contact_phone?: string;
+  vehicle_make?: string;
+  vehicle_model?: string;
+  vehicle_year?: number;
+  vehicle_registration?: string;
 }
 
 export function OnboardingApplications() {
@@ -108,19 +115,49 @@ export function OnboardingApplications() {
 
         if (assignError) throw assignError;
 
-        // Create driver record
+        // Update profile with personal info from onboarding session
+        // Use first_name/surname if available, otherwise parse from full_name
+        const firstName = session.first_name || session.full_name?.split(' ')[0] || null;
+        const surname = session.surname || session.full_name?.split(' ').slice(1).join(' ') || null;
+        const fullName = session.full_name || (firstName && surname ? `${firstName} ${surname}` : null);
+        
+        const { error: profileError } = await supabase
+          .from("profiles")
+          .update({
+            first_name: firstName,
+            surname: surname,
+            full_name: fullName,
+            contact_phone: session.contact_phone || null,
+            address_line_1: session.address_line_1 || null,
+            address_line_2: session.address_line_2 || null,
+            address_line_3: session.address_line_3 || null,
+            postcode: session.post_code || null,
+            emergency_contact_name: session.emergency_contact_name || null,
+            emergency_contact_phone: session.emergency_contact_phone || null,
+          })
+          .eq("user_id", session.user_id);
+
+        if (profileError) {
+          console.error("Error updating profile:", profileError);
+          // Don't fail - profile update is optional
+        }
+
+        // Create driver record (driver-specific data: license, vehicle)
         const { error: driverError } = await supabase
           .from("drivers")
           .insert({
+            user_id: session.user_id, // Link to user via FK
             email: session.email,
             name: session.full_name,
-            contact_phone: session.contact_phone,
-            license_number: session.license_number,
-            address: session.address,
-            emergency_contact_name: session.emergency_contact_name,
-            emergency_contact_phone: session.emergency_contact_phone,
+            license_number: session.license_number || null,
+            license_expiry: session.license_expiry ? new Date(session.license_expiry).toISOString().split('T')[0] : null,
+            vehicle_make: session.vehicle_make || null,
+            vehicle_model: session.vehicle_model || null,
+            vehicle_year: session.vehicle_year || null,
+            vehicle_registration: session.vehicle_registration || null,
             onboarded_at: new Date().toISOString(),
             onboarded_by: (await supabase.auth.getUser()).data.user?.id,
+            active: true,
           });
 
         if (driverError) throw driverError;

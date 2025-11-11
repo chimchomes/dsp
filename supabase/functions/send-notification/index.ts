@@ -32,86 +32,114 @@ serve(async (req) => {
     const { title, body: content, kind = 'message', driverIds, recipientId, recipientIds, recipientRole } = await req.json();
     if (!title || !content) return new Response(JSON.stringify({ error: "title and body are required" }), { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 });
 
-    // Determine role
+    // Determine caller roles
     const { data: roleRows } = await supabase
       .from('user_roles')
       .select('role')
       .eq('user_id', caller.id);
-    const isAdmin = !!roleRows?.some(r => r.role === 'admin');
-    const isDriver = !!roleRows?.some(r => r.role === 'driver');
-    const isFinance = !!roleRows?.some(r => r.role === 'finance');
-    const isHR = !!roleRows?.some(r => r.role === 'hr');
-    const isOnboarding = !!roleRows?.some(r => r.role === 'onboarding');
+    const callerRoles = (roleRows || []).map((r) => String(r.role));
+    if (callerRoles.length === 0) {
+      return new Response(JSON.stringify({ error: "User has no role assigned" }), { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 403 });
+    }
+
+    const hasRole = (role: string) => callerRoles.includes(role);
+    const hasDriverRole = hasRole('driver');
+    const isDriverOnly = hasDriverRole && callerRoles.every((role) => role === 'driver');
+    const isOnboarding = hasRole('onboarding');
+    const isInactive = hasRole('inactive');
+    const requestedRole = typeof recipientRole === 'string' && recipientRole.trim().length > 0
+      ? recipientRole.trim()
+      : undefined;
 
     let recipients: string[] = [];
 
-    if (isAdmin) {
-      // Admin -> any role, but a specific recipient is required (no broadcast without explicit selection)
-      if (Array.isArray(recipientIds) && recipientIds.length > 0) {
-        recipients = recipientIds.map(String);
-      } else if (recipientId) {
-        recipients = [String(recipientId)];
-      } else if (Array.isArray(driverIds) && driverIds.length > 0) {
-        recipients = driverIds.map(String);
-      } else {
-        return new Response(JSON.stringify({ error: 'Specify recipientId or recipientIds' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 });
-      }
-    } else if (isFinance || isHR) {
-      // Finance/HR -> driver(s) or admin, specific recipients only
-      if (Array.isArray(recipientIds) && recipientIds.length > 0) {
-        recipients = recipientIds.map(String);
-      } else if (recipientId) {
-        recipients = [String(recipientId)];
-      } else {
-        return new Response(JSON.stringify({ error: 'Specify recipientId or recipientIds' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 });
-      }
-    } else if (isDriver) {
-      // Driver -> admins | hr | finance, must pick a specific recipient
-      const targetRole = recipientRole && ['admin','hr','finance'].includes(String(recipientRole)) ? String(recipientRole) : 'admin';
-      if (recipientId) {
-        recipients = [String(recipientId)];
-      } else if (Array.isArray(recipientIds) && recipientIds.length > 0) {
-        recipients = recipientIds.map(String);
-      } else {
-        return new Response(JSON.stringify({ error: 'Specify recipientId or recipientIds' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 });
-      }
-    } else if (isOnboarding) {
-      // Onboarding applicants -> admin only, but only if they have a session (started form)
-      const { data: sess } = await supabase.from('onboarding_sessions').select('id').eq('user_id', caller.id).limit(1);
-      if (!sess || sess.length === 0) return new Response(JSON.stringify({ error: 'You need to start your application before messaging admin' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 403 });
-      if (recipientId) {
-        recipients = [String(recipientId)];
-      } else {
-        return new Response(JSON.stringify({ error: 'Specify recipientId (admin)' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 });
-      }
-    } else {
-      return new Response(JSON.stringify({ error: "Role not permitted" }), { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 403 });
+    if (Array.isArray(recipientIds) && recipientIds.length > 0) {
+      recipients = recipientIds.map(String);
+    }
+    if (recipientId) {
+      recipients.push(String(recipientId));
+    }
+    if (Array.isArray(driverIds) && driverIds.length > 0) {
+      recipients.push(...driverIds.map(String));
+    }
+
+    recipients = Array.from(new Set(recipients.filter(Boolean)));
+    if (recipients.length === 0) {
+      return new Response(JSON.stringify({ error: "Specify at least one recipient" }), { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 });
     }
 
     // Deduplicate & ensure not self-target
-    recipients = Array.from(new Set(recipients.filter(Boolean))).filter((rid) => rid !== caller.id);
-    if (recipients.length === 0) return new Response(JSON.stringify({ error: "No recipients" }), { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 });
+    recipients = recipients.filter((rid) => rid !== caller.id);
+    if (recipients.length === 0) {
+      return new Response(JSON.stringify({ error: "No recipients" }), { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 });
+    }
 
-    // Enforce recipient role constraints
-    const { data: recRoles } = await supabase.from('user_roles').select('user_id, role').in('user_id', recipients);
+    // Enforce recipient role constraints dynamically
+    const { data: recRoles } = await supabase
+      .from('user_roles')
+      .select('user_id, role')
+      .in('user_id', recipients);
     const roleMap = new Map<string, string[]>();
     (recRoles || []).forEach(r => {
       const arr = roleMap.get(r.user_id as string) || [];
       arr.push(r.role as string);
       roleMap.set(r.user_id as string, arr);
     });
-    const allowFor = (allowed: string[]) => recipients.filter(rid => (roleMap.get(rid) || []).some(r => allowed.includes(r)));
-    if (isDriver) {
-      recipients = allowFor(['admin','hr','finance']);
-    } else if (isFinance || isHR) {
-      recipients = allowFor(['driver','admin']);
-    } else if (isOnboarding) {
-      recipients = allowFor(['admin']);
-    } // admin can message anyone
-    if (recipients.length === 0) return new Response(JSON.stringify({ error: "No recipients" }), { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 });
+
+    const driverAllowedRoles = ['admin', 'hr', 'finance'];
+    const sanitizedRecipients = recipients.filter((rid) => {
+      const roles = roleMap.get(rid) || [];
+      if (roles.length === 0) return false;
+
+      // Inactive users can only message admin
+      if (isInactive) {
+        return roles.includes('admin');
+      }
+
+      if (isOnboarding) {
+        return roles.includes('admin');
+      }
+
+      if (isDriverOnly) {
+        if (roles.includes('driver') || roles.includes('onboarding') || roles.includes('inactive')) {
+          return false;
+        }
+        if (requestedRole) {
+          return driverAllowedRoles.includes(requestedRole) && roles.includes(requestedRole);
+        }
+        return roles.some((role) => driverAllowedRoles.includes(role));
+      }
+
+      if (requestedRole) {
+        return roles.includes(requestedRole);
+      }
+
+      return true;
+    });
+
+    if (sanitizedRecipients.length === 0) {
+      let errorMsg = "No valid recipients. ";
+      if (isInactive) {
+        errorMsg += "Inactive users can only message admins.";
+      } else if (isOnboarding) {
+        errorMsg += "Onboarding users can only message admins.";
+      } else if (isDriverOnly) {
+        errorMsg += "Drivers cannot message other drivers or onboarding users. They can only message admin, HR, or finance staff.";
+      } else if (requestedRole) {
+        errorMsg += `No users found with role '${requestedRole}' that match the recipient criteria.`;
+      } else {
+        errorMsg += "All recipients were filtered out due to role restrictions.";
+      }
+      return new Response(JSON.stringify({ error: errorMsg }), { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 });
+    }
+
+    // Log how many recipients were filtered out (for debugging)
+    if (sanitizedRecipients.length < recipients.length) {
+      console.log(`Filtered ${recipients.length - sanitizedRecipients.length} recipients due to role restrictions`);
+    }
 
     // Insert notifications
-    const rows = recipients.map(rid => ({ sender_id: caller.id, recipient_id: rid, title, body: content, kind }));
+    const rows = sanitizedRecipients.map(rid => ({ sender_id: caller.id, recipient_id: rid, title, body: content, kind }));
     const { error: insErr } = await supabase.from('notifications').insert(rows);
     if (insErr) throw insErr;
 

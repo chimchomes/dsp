@@ -1,5 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
+import type { RealtimeChannel } from '@supabase/supabase-js';
 
 export type NotificationRow = {
   id: string;
@@ -15,35 +17,98 @@ export type NotificationRow = {
 export function useNotifications() {
   const [inbox, setInbox] = useState<NotificationRow[]>([]);
   const [loading, setLoading] = useState(false);
+  const { toast } = useToast();
 
   const refresh = useCallback(async () => {
     setLoading(true);
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) { setInbox([]); setLoading(false); return; }
-    const { data } = await supabase
-      .from('notifications')
-      .select('*')
-      .eq('recipient_id', user.id)
-      .order('created_at', { ascending: false });
-    setInbox((data as any) || []);
-    setLoading(false);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        setInbox([]);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from('notifications')
+        .select('*')
+        .eq('recipient_id', user.id)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Failed to load notifications', error);
+        return;
+      }
+
+      setInbox((data as NotificationRow[]) || []);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => { refresh(); }, [refresh]);
 
   useEffect(() => {
-    let channel = supabase.channel('notifications-inbox');
-    (async () => {
+    let channel: RealtimeChannel | null = null;
+    let isMounted = true;
+
+    const subscribe = async () => {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-      channel = supabase.channel('notif-' + user.id)
-        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: `recipient_id=eq.${user.id}` }, (payload) => {
-          setInbox(prev => [payload.new as any as NotificationRow, ...prev]);
-        })
+      if (!user || !isMounted) {
+        return;
+      }
+
+      channel = supabase
+        .channel(`notif-${user.id}`)
+        .on(
+          'postgres_changes',
+          { event: 'INSERT', schema: 'public', table: 'notifications', filter: `recipient_id=eq.${user.id}` },
+          (payload) => {
+            const newNotification = payload.new as NotificationRow;
+            setInbox(prev => {
+              const filtered = prev.filter(n => n.id !== newNotification.id);
+              return [newNotification, ...filtered];
+            });
+
+            if (!newNotification.read_at) {
+              const preview =
+                newNotification.body?.slice(0, 120) ?? 'Open your inbox to read the message.';
+              toast({
+                title: newNotification.title || 'New message received',
+                description: newNotification.body ? (newNotification.body.length > 120 ? `${preview}...` : preview) : preview,
+              });
+            }
+          },
+        )
+        .on(
+          'postgres_changes',
+          { event: 'UPDATE', schema: 'public', table: 'notifications', filter: `recipient_id=eq.${user.id}` },
+          (payload) => {
+            const updatedNotification = payload.new as NotificationRow;
+            setInbox(prev => prev.map(item => (item.id === updatedNotification.id ? updatedNotification : item)));
+          },
+        )
+        .on(
+          'postgres_changes',
+          { event: 'DELETE', schema: 'public', table: 'notifications', filter: `recipient_id=eq.${user.id}` },
+          (payload) => {
+            const removedId = (payload.old as { id?: string } | undefined)?.id;
+            if (removedId) {
+              setInbox(prev => prev.filter(item => item.id !== removedId));
+            }
+          },
+        )
         .subscribe();
-    })();
-    return () => { channel.unsubscribe(); };
-  }, []);
+    };
+
+    subscribe();
+
+    return () => {
+      isMounted = false;
+      if (channel) {
+        channel.unsubscribe();
+      }
+    };
+  }, [toast]);
 
   const markRead = useCallback(async (id: string) => {
     await supabase.from('notifications').update({ read_at: new Date().toISOString() }).eq('id', id);
@@ -62,4 +127,3 @@ export function useNotifications() {
 
   return { inbox, loading, refresh, markRead, sendToAdmin, broadcastToDrivers };
 }
-

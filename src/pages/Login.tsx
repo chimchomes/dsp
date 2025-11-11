@@ -38,8 +38,9 @@ export default function Login() {
         return;
       }
 
-      // Log the login activity
-      await supabase.rpc('log_activity', {
+      // Log the login activity (non-blocking - don't fail login if this fails)
+      // Fire and forget - errors won't block login since we're not awaiting
+      void supabase.rpc('log_activity', {
         p_action_type: 'login',
         p_resource_type: null,
         p_resource_id: null,
@@ -87,16 +88,24 @@ export default function Login() {
         description: "Successfully logged in.",
       });
 
-      // Redirect based on role priority: Admin > Dispatcher > Finance > Driver
+      // Redirect based on role priority: Admin > Dispatcher > Finance > Driver > Inactive
+      // Inactive users can only access inbox to message admin
       if (roles?.some(r => r.role === "admin")) {
         navigate("/admin");
       } else if (roles?.some(r => r.role === "dispatcher")) {
         navigate("/dispatcher");
+      } else if (roles?.some(r => r.role === "hr" || r.role === "finance")) {
+        navigate("/hr");
+      } else if (roles?.some(r => r.role === "inactive")) {
+        // Inactive users can only access inbox to message admin
+        navigate("/inbox");
       } else if (driverData) {
         navigate("/dashboard");
+      } else if (roles?.some(r => r.role === "onboarding")) {
+        navigate("/onboarding");
       } else {
-        // No recognized role - redirect to onboarding
-        navigate("/hr");
+        // No recognized role - redirect to login
+        navigate("/login");
       }
     } catch (error: any) {
       toast({
@@ -109,22 +118,50 @@ export default function Login() {
     }
   };
 
-  const handlePasswordChangeComplete = () => {
+  const handlePasswordChangeComplete = async () => {
     setShowPasswordChange(false);
     toast({
       title: "Password updated",
       description: "Your password has been changed successfully.",
     });
     
-    // Check if user should return to onboarding
-    const params = new URLSearchParams(window.location.search);
-    const returnTo = params.get('returnTo');
-    
-    if (returnTo === 'onboarding') {
-      navigate("/onboarding");
-    } else {
-      navigate("/dashboard");
+    // Get user roles to redirect appropriately
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      navigate("/login");
+      return;
     }
+
+    const { data: roles } = await supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", user.id);
+
+    // Check if user is a driver
+    const { data: driverData } = await supabase
+      .from("drivers")
+      .select("id")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+          // Redirect based on role priority: Admin > Dispatcher > HR/Finance > Driver > Inactive
+          // Inactive users can only access inbox to message admin
+          if (roles?.some(r => r.role === "admin")) {
+            navigate("/admin");
+          } else if (roles?.some(r => r.role === "dispatcher")) {
+            navigate("/dispatcher");
+          } else if (roles?.some(r => r.role === "hr" || r.role === "finance")) {
+            navigate("/hr");
+          } else if (roles?.some(r => r.role === "inactive")) {
+            // Inactive users can only access inbox to message admin
+            navigate("/inbox");
+          } else if (driverData) {
+            navigate("/dashboard");
+          } else if (roles?.some(r => r.role === "onboarding")) {
+            navigate("/onboarding");
+          } else {
+            navigate("/dashboard");
+          }
   };
 
   return (

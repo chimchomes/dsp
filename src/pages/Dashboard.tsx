@@ -32,15 +32,40 @@ export default function Dashboard() {
       return;
     }
 
-    // Check if user is a driver
+    // Check user roles
+    const { data: roles } = await supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", user.id);
+
+    // If user has inactive role, redirect to inbox
+    if (roles?.some(r => r.role === "inactive")) {
+      navigate("/inbox");
+      return;
+    }
+
+    // Check if user is a driver (has driver role)
+    const hasDriverRole = roles?.some(r => r.role === "driver");
+    if (!hasDriverRole) {
+      navigate("/login");
+      return;
+    }
+
+    // Check if user has a driver record
     const { data: driverData } = await supabase
       .from("drivers")
-      .select("id")
-      .eq("email", user.email)
+      .select("id, active")
+      .eq("user_id", user.id)
       .single();
 
     if (!driverData) {
       navigate("/login");
+      return;
+    }
+
+    // Check if driver is active
+    if (driverData.active === false) {
+      navigate("/inbox");
       return;
     }
 
@@ -56,7 +81,7 @@ export default function Dashboard() {
       const { data: driverData, error: driverError } = await supabase
         .from("drivers")
         .select("*")
-        .eq("email", user.email)
+        .eq("user_id", user.id)
         .single();
 
       if (driverError) throw driverError;

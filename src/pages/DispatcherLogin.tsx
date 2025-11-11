@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { Shield } from "lucide-react";
+import { PasswordChangePrompt } from "@/components/PasswordChangePrompt";
 
 const DispatcherLogin = () => {
   const navigate = useNavigate();
@@ -14,6 +15,7 @@ const DispatcherLogin = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showPasswordChange, setShowPasswordChange] = useState(false);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -26,6 +28,17 @@ const DispatcherLogin = () => {
       });
 
       if (error) throw error;
+      
+      if (!data.user) throw new Error("No user data returned");
+
+      // Check if password change is required
+      const requiresPasswordChange = data.user?.user_metadata?.requires_password_change;
+      
+      if (requiresPasswordChange) {
+        setShowPasswordChange(true);
+        setLoading(false);
+        return;
+      }
 
       // Check if user has dispatcher or admin role
       const { data: roles } = await supabase
@@ -37,7 +50,7 @@ const DispatcherLogin = () => {
 
       if (!hasAccess) {
         await supabase.auth.signOut();
-        throw new Error("Access denied. Admin credentials required.");
+        throw new Error("Access denied. Dispatcher or Admin credentials required.");
       }
 
       // Log the login activity
@@ -65,8 +78,50 @@ const DispatcherLogin = () => {
     }
   };
 
+  const handlePasswordChangeComplete = async () => {
+    setShowPasswordChange(false);
+    toast({
+      title: "Password updated",
+      description: "Your password has been changed successfully.",
+    });
+    
+    // Get user roles to redirect appropriately
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      navigate("/dispatcher-login");
+      return;
+    }
+
+    const { data: roles } = await supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", user.id);
+
+    const hasAccess = roles?.some(r => r.role === "dispatcher" || r.role === "admin");
+
+    if (!hasAccess) {
+      await supabase.auth.signOut();
+      toast({
+        title: "Access denied",
+        description: "Dispatcher or Admin credentials required.",
+        variant: "destructive",
+      });
+      navigate("/dispatcher-login");
+      return;
+    }
+
+    // Redirect based on role
+    if (roles?.some(r => r.role === "admin")) {
+      navigate("/admin");
+    } else {
+      navigate("/dispatcher");
+    }
+  };
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-primary/5 p-4">
+    <>
+      <PasswordChangePrompt open={showPasswordChange} onComplete={handlePasswordChangeComplete} />
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-primary/5 p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1 text-center">
           <div className="flex justify-center mb-4">
@@ -107,6 +162,7 @@ const DispatcherLogin = () => {
         </CardContent>
       </Card>
     </div>
+    </>
   );
 };
 
