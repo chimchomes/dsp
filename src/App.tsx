@@ -4,7 +4,6 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { NotificationProvider } from "@/contexts/NotificationContext";
-import Index from "./pages/Index";
 import Dashboard from "./pages/Dashboard";
 import Login from "./pages/Login";
 import DispatcherLogin from "./pages/DispatcherLogin";
@@ -42,7 +41,7 @@ const App = () => (
         <BrowserRouter>
           <HeaderBar />
           <Routes>
-            <Route path="/" element={<Index />} />
+            <Route path="/" element={<Login />} />
             <Route path="/login" element={<Login />} />
             <Route path="/dispatcher-login" element={<DispatcherLogin />} />
             <Route path="/onboarding" element={<Onboarding />} />
