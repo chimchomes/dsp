@@ -14,6 +14,17 @@ USING (
   )
 );
 
+-- Also allow admin to insert drivers
+DROP POLICY IF EXISTS admin_insert_all_drivers ON public.drivers;
+CREATE POLICY admin_insert_all_drivers ON public.drivers
+FOR INSERT
+WITH CHECK (
+  EXISTS (
+    SELECT 1 FROM public.user_roles ur
+    WHERE ur.user_id = auth.uid() AND ur.role = 'admin'
+  )
+);
+
 -- Also allow admin to update drivers
 DROP POLICY IF EXISTS admin_update_all_drivers ON public.drivers;
 CREATE POLICY admin_update_all_drivers ON public.drivers

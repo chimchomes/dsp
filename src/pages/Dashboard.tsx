@@ -33,10 +33,21 @@ export default function Dashboard() {
     }
 
     // Check user roles
-    const { data: roles } = await supabase
+    const { data: roles, error: rolesError } = await supabase
       .from("user_roles")
       .select("role")
       .eq("user_id", user.id);
+
+    if (rolesError) {
+      console.error("Error fetching roles:", rolesError);
+      toast({
+        title: "Error",
+        description: "Failed to verify access. Please try again.",
+        variant: "destructive",
+      });
+      setIsLoading(false);
+      return;
+    }
 
     // If user has inactive role, redirect to inbox
     if (roles?.some(r => r.role === "inactive")) {
@@ -47,26 +58,37 @@ export default function Dashboard() {
     // Check if user is a driver (has driver role)
     const hasDriverRole = roles?.some(r => r.role === "driver");
     if (!hasDriverRole) {
+      toast({
+        title: "Access denied",
+        description: "Driver access required. Please contact support if you believe this is an error.",
+        variant: "destructive",
+      });
       navigate("/login");
       return;
     }
 
-    // Check if user has a driver record
-    const { data: driverData } = await supabase
+    // Check if user has a driver record (use maybeSingle to avoid error if not found)
+    const { data: driverData, error: driverError } = await supabase
       .from("drivers")
       .select("id, active")
       .eq("user_id", user.id)
-      .single();
+      .maybeSingle();
 
-    if (!driverData) {
-      navigate("/login");
-      return;
+    if (driverError) {
+      console.error("Error fetching driver data:", driverError);
+      // Don't block access if query fails - might be RLS issue
     }
 
-    // Check if driver is active
-    if (driverData.active === false) {
-      navigate("/inbox");
-      return;
+    // If driver record exists, check if active
+    if (driverData) {
+      if (driverData.active === false) {
+        navigate("/inbox");
+        return;
+      }
+    } else {
+      // Driver role exists but no driver record - still allow access
+      // Show a message that profile needs to be set up
+      console.warn("Driver role found but no driver record. Allowing access but driver data may be limited.");
     }
 
     setHasAccess(true);
@@ -82,9 +104,28 @@ export default function Dashboard() {
         .from("drivers")
         .select("*")
         .eq("user_id", user.id)
-        .single();
+        .maybeSingle();
 
-      if (driverError) throw driverError;
+      if (driverError) {
+        console.error("Error loading driver data:", driverError);
+        // Don't throw - allow dashboard to load even without driver record
+        toast({
+          title: "Notice",
+          description: "Driver profile not found. Some features may be limited. Please contact support.",
+          variant: "default",
+        });
+        return;
+      }
+
+      if (!driverData) {
+        toast({
+          title: "Profile Setup Required",
+          description: "Your driver profile needs to be set up. Please contact support.",
+          variant: "default",
+        });
+        return;
+      }
+
       setDriver(driverData);
     } catch (error: any) {
       toast({

@@ -77,19 +77,81 @@ export default function DriverManagement() {
 
   useEffect(() => {
     loadDrivers();
+
+    // Subscribe to real-time changes
+    const channel = supabase
+      .channel('drivers-changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'drivers' },
+        () => {
+          loadDrivers();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
+  // Diagnostic function to check data sources
+  useEffect(() => {
+    const runDiagnostics = async () => {
+      try {
+        // Check admin role
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          const { data: roles } = await supabase
+            .from("user_roles")
+            .select("role")
+            .eq("user_id", user.id);
+          console.log("Current user roles:", roles?.map(r => r.role) || []);
+        }
+
+        // Check total drivers count (bypass RLS with service role would be ideal, but we can't)
+        const { count } = await supabase
+          .from("drivers")
+          .select("*", { count: "exact", head: true });
+        console.log("Total drivers in database (visible to current user):", count);
+
+        // Check drivers with user_id
+        const { data: driversWithUserId } = await supabase
+          .from("drivers")
+          .select("id, email, name, user_id")
+          .not("user_id", "is", null);
+        console.log("Drivers with user_id:", driversWithUserId?.length || 0);
+
+        // Check drivers without user_id
+        const { data: driversWithoutUserId } = await supabase
+          .from("drivers")
+          .select("id, email, name, user_id")
+          .is("user_id", null);
+        console.log("Drivers without user_id:", driversWithoutUserId?.length || 0);
+      } catch (error) {
+        console.error("Diagnostic error:", error);
+      }
+    };
+
+    // Run diagnostics in development
+    if (import.meta.env.DEV) {
+      runDiagnostics();
+    }
   }, []);
 
   const loadDrivers = async () => {
     setLoading(true);
     try {
-      // Get all drivers - select all columns including vehicle fields
+      // Get all drivers - select all columns including name and vehicle fields
       // Migration 20251108030000_add_vehicle_fields_to_drivers.sql must be applied first
       const { data: driversData, error: driversError } = await supabase
         .from("drivers")
-        .select("id, user_id, email, license_number, license_expiry, vehicle_make, vehicle_model, vehicle_year, vehicle_registration, active, onboarded_at");
+        .select("id, user_id, email, name, license_number, license_expiry, vehicle_make, vehicle_model, vehicle_year, vehicle_registration, active, onboarded_at")
+        .order("onboarded_at", { ascending: false, nullsLast: true });
       
       if (driversError) {
         console.error("Drivers query error:", driversError);
+        console.error("Full error details:", JSON.stringify(driversError, null, 2));
         // Show more detailed error
         toast({
           title: "Error loading drivers",
@@ -100,13 +162,22 @@ export default function DriverManagement() {
         return;
       }
 
+      console.log("Drivers loaded from database:", driversData?.length || 0, "drivers");
+      if (driversData && driversData.length > 0) {
+        console.log("Sample driver data:", driversData[0]);
+      }
+
       if (!driversData || driversData.length === 0) {
+        console.warn("No drivers found in database. This could be due to:");
+        console.warn("1. RLS policies blocking access");
+        console.warn("2. No drivers exist in the database");
+        console.warn("3. Admin role not properly assigned");
         setDrivers([]);
         setLoading(false);
         return;
       }
 
-      // Get profiles for all drivers
+      // Get profiles for all drivers (optional - drivers table has name field as fallback)
       const userIds = driversData.map((d) => d.user_id).filter(Boolean);
       
       let profilesData: any[] = [];
@@ -125,15 +196,27 @@ export default function DriverManagement() {
       }
 
       // Combine driver and profile data
+      // Use profile data when available, fallback to drivers.name field
       const combined = driversData.map((driver) => {
         const profile = profilesData.find((p) => p.user_id === driver.user_id);
+        
+        // Determine name: prefer profile full_name, then profile first_name + surname, then drivers.name, then email
+        const fullName = profile?.full_name || 
+                        (profile?.first_name && profile?.surname ? `${profile.first_name} ${profile.surname}` : null) ||
+                        driver.name || 
+                        driver.email;
+        
+        // Split full name into first_name and surname if not in profile
+        const firstName = profile?.first_name || (fullName ? fullName.split(' ')[0] : null);
+        const surname = profile?.surname || (fullName && fullName.includes(' ') ? fullName.split(' ').slice(1).join(' ') : null);
+        
         return {
           driver_id: driver.id,
           user_id: driver.user_id || "",
           email: driver.email || "",
-          first_name: profile?.first_name || null,
-          surname: profile?.surname || null,
-          full_name: profile?.full_name || null,
+          first_name: firstName,
+          surname: surname,
+          full_name: fullName,
           contact_phone: profile?.contact_phone || null,
           address_line_1: profile?.address_line_1 || null,
           address_line_2: profile?.address_line_2 || null,
@@ -152,9 +235,14 @@ export default function DriverManagement() {
         };
       });
 
-      // Sort by email (since we can't reliably sort by created_at)
-      combined.sort((a, b) => (a.email || "").localeCompare(b.email || ""));
+      // Sort by name, then email
+      combined.sort((a, b) => {
+        const nameA = a.full_name || a.email || "";
+        const nameB = b.full_name || b.email || "";
+        return nameA.localeCompare(nameB);
+      });
 
+      console.log("Combined drivers data:", combined.length, "drivers ready to display");
       setDrivers(combined);
     } catch (error: any) {
       toast({

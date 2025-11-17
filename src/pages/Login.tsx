@@ -25,9 +25,35 @@ export default function Login() {
         password,
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error("Authentication error:", error);
+        // Provide more specific error messages
+        if (error.message.includes("Invalid login credentials") || error.message.includes("email") || error.message.includes("password")) {
+          toast({
+            title: "Login failed",
+            description: "Invalid email or password. Please check your credentials and try again.",
+            variant: "destructive",
+          });
+        } else {
+          toast({
+            title: "Login failed",
+            description: error.message || "An error occurred during login. Please try again.",
+            variant: "destructive",
+          });
+        }
+        setIsLoading(false);
+        return;
+      }
       
-      if (!data.user) throw new Error("No user data returned");
+      if (!data.user) {
+        toast({
+          title: "Login failed",
+          description: "No user data returned. Please try again.",
+          variant: "destructive",
+        });
+        setIsLoading(false);
+        return;
+      }
 
       // Check if password change is required
       const requiresPasswordChange = data.user?.user_metadata?.requires_password_change;
@@ -71,17 +97,26 @@ export default function Login() {
       }
 
       // Check user roles to determine redirect
-      const { data: roles } = await supabase
+      const { data: roles, error: rolesError } = await supabase
         .from("user_roles")
         .select("role")
         .eq("user_id", data.user.id);
 
-      // Check if user is a driver by user_id (RLS-safe)
-      const { data: driverData } = await supabase
+      // Check if user is a driver by user_id (RLS-safe) - do this regardless of roles query result
+      const { data: driverData, error: driverError } = await supabase
         .from("drivers")
-        .select("id")
+        .select("id, active")
         .eq("user_id", data.user.id)
         .maybeSingle();
+
+      const roleList = roles?.map(r => r.role) || [];
+      
+      console.log("User ID:", data.user.id);
+      console.log("User email:", data.user.email);
+      console.log("User roles:", roleList);
+      console.log("Driver data:", driverData);
+      console.log("Roles error:", rolesError);
+      console.log("Driver error:", driverError);
 
       toast({
         title: "Welcome back!",
@@ -89,23 +124,99 @@ export default function Login() {
       });
 
       // Redirect based on role priority: Admin > Dispatcher > Finance > Driver > Inactive
-      // Inactive users can only access inbox to message admin
-      if (roles?.some(r => r.role === "admin")) {
-        navigate("/admin");
-      } else if (roles?.some(r => r.role === "dispatcher")) {
-        navigate("/dispatcher");
-      } else if (roles?.some(r => r.role === "hr" || r.role === "finance")) {
-        navigate("/hr");
-      } else if (roles?.some(r => r.role === "inactive")) {
-        // Inactive users can only access inbox to message admin
-        navigate("/inbox");
-      } else if (driverData) {
-        navigate("/dashboard");
-      } else if (roles?.some(r => r.role === "onboarding")) {
-        navigate("/onboarding");
-      } else {
-        // No recognized role - redirect to login
-        navigate("/login");
+      // If roles query failed, try to infer from driver record or other data
+      
+      // If we have roles, use them
+      if (!rolesError && roles && roles.length > 0) {
+        if (roleList.includes("admin")) {
+          navigate("/admin");
+          return;
+        } else if (roleList.includes("dispatcher")) {
+          navigate("/dispatcher");
+          return;
+        } else if (roleList.includes("finance")) {
+          navigate("/finance");
+          return;
+        } else if (roleList.includes("hr")) {
+          navigate("/hr");
+          return;
+        } else if (roleList.includes("inactive")) {
+          navigate("/inbox");
+          return;
+        } else if (roleList.includes("driver")) {
+          if (driverData) {
+            navigate(driverData.active === false ? "/inbox" : "/dashboard");
+          } else {
+            navigate("/dashboard");
+          }
+          return;
+        } else if (roleList.includes("onboarding")) {
+          navigate("/onboarding");
+          return;
+        }
+      }
+      
+      // If roles query failed or no roles found, try to infer from driver record
+      if (driverData && !driverError) {
+        // User has driver record - likely a driver
+        navigate(driverData.active === false ? "/inbox" : "/dashboard");
+        return;
+      }
+      
+      // If roles query failed, try alternative: check via role_profiles view
+      if (rolesError) {
+        try {
+          const { data: roleProfile } = await supabase
+            .from("role_profiles")
+            .select("role")
+            .eq("user_id", data.user.id)
+            .limit(1)
+            .maybeSingle();
+          
+          if (roleProfile) {
+            const inferredRole = roleProfile.role;
+            if (inferredRole === "admin") {
+              navigate("/admin");
+              return;
+            } else if (inferredRole === "dispatcher") {
+              navigate("/dispatcher");
+              return;
+            } else if (inferredRole === "finance") {
+              navigate("/finance");
+              return;
+            } else if (inferredRole === "hr") {
+              navigate("/hr");
+              return;
+            } else if (inferredRole === "driver") {
+              navigate("/dashboard");
+              return;
+            } else if (inferredRole === "onboarding") {
+              navigate("/onboarding");
+              return;
+            }
+          }
+        } catch (altError) {
+          console.error("Alternative role check also failed:", altError);
+        }
+      }
+      
+      // Last resort: if we have no roles and no driver record, show error
+      if (!rolesError && (!roles || roles.length === 0)) {
+        toast({
+          title: "Access denied",
+          description: `Your account (${data.user.email}) has no assigned role. Please contact support to have a role assigned.`,
+          variant: "destructive",
+        });
+        setIsLoading(false);
+        return;
+      } else if (rolesError) {
+        toast({
+          title: "Login issue",
+          description: `Unable to verify your account roles. Error: ${rolesError.message}. Please contact support.`,
+          variant: "destructive",
+        });
+        setIsLoading(false);
+        return;
       }
     } catch (error: any) {
       toast({
@@ -144,13 +255,15 @@ export default function Login() {
       .eq("user_id", user.id)
       .maybeSingle();
 
-          // Redirect based on role priority: Admin > Dispatcher > HR/Finance > Driver > Inactive
+          // Redirect based on role priority: Admin > Dispatcher > Finance > HR > Driver > Inactive
           // Inactive users can only access inbox to message admin
           if (roles?.some(r => r.role === "admin")) {
             navigate("/admin");
           } else if (roles?.some(r => r.role === "dispatcher")) {
             navigate("/dispatcher");
-          } else if (roles?.some(r => r.role === "hr" || r.role === "finance")) {
+          } else if (roles?.some(r => r.role === "finance")) {
+            navigate("/finance");
+          } else if (roles?.some(r => r.role === "hr")) {
             navigate("/hr");
           } else if (roles?.some(r => r.role === "inactive")) {
             // Inactive users can only access inbox to message admin

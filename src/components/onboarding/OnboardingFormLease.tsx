@@ -79,6 +79,13 @@ const OnboardingFormLease = ({ existingSession }: Props) => {
   const { toast } = useToast();
   const navigate = useNavigate();
 
+  // Determine if form can be edited based on status
+  // Allow editing if: in_progress, re-submit, or rejected
+  // Prevent editing if: submitted or accepted
+  const currentStatus = existingSession?.status || 'in_progress';
+  const canEdit = currentStatus === 'in_progress' || currentStatus === 're-submit' || currentStatus === 'rejected';
+  const isReadOnly = !canEdit && (currentStatus === 'submitted' || currentStatus === 'accepted');
+
   const { register, handleSubmit, formState: { errors }, getValues, setValue, watch, reset } = useForm<FormData>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -93,16 +100,27 @@ const OnboardingFormLease = ({ existingSession }: Props) => {
   const totalSteps = 6;
   const progress = (currentStep / totalSteps) * 100;
 
-  const statusBanner = isCompleted ? (
+  const statusBanner = isCompleted || isReadOnly ? (
     <Card className="mb-4">
       <CardHeader>
-        <CardTitle>Application Submitted</CardTitle>
+        <CardTitle>
+          {currentStatus === 'accepted' ? 'Application Accepted' : 
+           currentStatus === 'rejected' ? 'Application Rejected' :
+           currentStatus === 're-submit' ? 'Resubmission Required' :
+           'Application Submitted'}
+        </CardTitle>
         <CardDescription>
-          Current status: <span className="inline-flex px-2 py-1 rounded bg-muted">{existingSession?.status || 'submitted'}</span>
+          Current status: <span className="inline-flex px-2 py-1 rounded bg-muted">{currentStatus.replace('-', ' ').toUpperCase()}</span>
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <p className="text-sm text-muted-foreground">Your application is read-only. You can view details and track status.</p>
+        <p className="text-sm text-muted-foreground">
+          {currentStatus === 're-submit' 
+            ? 'Your application needs to be resubmitted. Please review and update the required information below.'
+            : currentStatus === 'rejected'
+            ? 'Your application was rejected. You can update and resubmit your application.'
+            : 'Your application is read-only. You can view details and track status.'}
+        </p>
       </CardContent>
     </Card>
   ) : null;
@@ -215,18 +233,24 @@ const OnboardingFormLease = ({ existingSession }: Props) => {
   };
 
   const handleExit = () => {
+    // If already submitted/accepted, just navigate away without dialog
+    if (isReadOnly) {
+      navigate("/onboarding");
+      return;
+    }
     setShowExitDialog(true);
   };
 
   const handleExitWithoutSaving = () => {
     setShowExitDialog(false);
+    navigate("/onboarding");
   };
 
   const handleExitWithSaving = async () => {
-    reset();
-    setCurrentStep(1);
+    const values = getValues();
+    await saveProgress(values, false);
     setShowExitDialog(false);
-    navigate("/onboarding?reset=true");
+    navigate("/onboarding");
   };
 
   const handleSaveProgress = async () => {
@@ -268,14 +292,29 @@ const OnboardingFormLease = ({ existingSession }: Props) => {
       } else if (currentStep === totalSteps) {
         const success = await saveProgress(values, false, true);
         if (success) {
-          const { error } = await supabase.rpc('complete_onboarding', {
-            p_session_id: sessionId
-          });
-          
-          if (error) throw error;
+          // If resubmitting, update status back to submitted
+          if (currentStatus === 're-submit' || currentStatus === 'rejected') {
+            const { error: statusError } = await supabase
+              .from("onboarding_sessions")
+              .update({ status: 'submitted' })
+              .eq("id", sessionId);
+            
+            if (statusError) throw statusError;
+          } else {
+            const { error } = await supabase.rpc('complete_onboarding', {
+              p_session_id: sessionId
+            });
+            
+            if (error) throw error;
+          }
           
           setIsCompleted(true);
-          toast({ title: "Success", description: "Your onboarding application has been submitted and is awaiting approval!" });
+          toast({ 
+            title: "Success", 
+            description: currentStatus === 're-submit' || currentStatus === 'rejected' 
+              ? "Your application has been resubmitted and is awaiting approval!" 
+              : "Your onboarding application has been submitted and is awaiting approval!" 
+          });
           navigate('/onboarding');
         }
       }
@@ -606,21 +645,25 @@ const OnboardingFormLease = ({ existingSession }: Props) => {
 
             <div className="flex gap-4">
               {currentStep > 1 && (
-                <Button type="button" variant="outline" onClick={() => setCurrentStep(currentStep - 1)} disabled={isSubmitting}>
+              <Button type="button" variant="outline" onClick={() => setCurrentStep(currentStep - 1)} disabled={isSubmitting || isReadOnly}>
                   Previous
                 </Button>
               )}
-              <Button type="button" variant="outline" onClick={handleSaveProgress} disabled={isSubmitting}>
-                <Save className="mr-2 h-4 w-4" />
-                Save Progress
-              </Button>
-              <Button type="button" onClick={handleNext} disabled={isSubmitting || (currentStep === totalSteps && isCompleted)} className="ml-auto">
-                {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                {currentStep === totalSteps ? (isCompleted ? "Submitted - Awaiting Approval" : "Complete Onboarding") : "Next"}
-              </Button>
+              {canEdit && (
+                <Button type="button" variant="outline" onClick={handleSaveProgress} disabled={isSubmitting}>
+                  <Save className="mr-2 h-4 w-4" />
+                  Save Progress
+                </Button>
+              )}
+              {canEdit && (
+                <Button type="button" onClick={handleNext} disabled={isSubmitting} className="ml-auto">
+                  {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  {currentStep === totalSteps ? (currentStatus === 're-submit' || currentStatus === 'rejected' ? "Resubmit Application" : "Complete Onboarding") : "Next"}
+                </Button>
+              )}
               <Button type="button" variant="outline" onClick={handleExit} disabled={isSubmitting}>
                 <X className="mr-2 h-4 w-4" />
-                Exit
+                {isReadOnly ? "Back" : "Exit"}
               </Button>
             </div>
           </form>

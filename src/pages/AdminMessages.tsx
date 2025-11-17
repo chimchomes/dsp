@@ -31,15 +31,35 @@ export default function AdminMessages() {
       // Admin can message any role
       setRoles(allRoles);
 
-      const { data: roles } = await supabase.from('user_roles').select('user_id').eq('role', 'driver');
-      setCountDrivers(roles?.length || 0);
+      // Get active drivers only (exclude inactive)
+      const { data: activeDriverRoles } = await supabase
+        .from('user_roles')
+        .select('user_id')
+        .eq('role', 'driver');
+      
+      // Get inactive user IDs to exclude
+      const { data: inactiveUsers } = await supabase
+        .from('user_roles')
+        .select('user_id')
+        .eq('role', 'inactive');
+      
+      const inactiveUserIds = new Set((inactiveUsers || []).map(u => u.user_id));
+      const activeDriverIds = (activeDriverRoles || [])
+        .filter(ur => !inactiveUserIds.has(ur.user_id))
+        .map(ur => ur.user_id);
+      
+      setCountDrivers(activeDriverIds.length);
+      
       // Prefill list for default role (drivers) via role_profiles for names/emails
+      // Filter out inactive users
       const { data: drivers } = await supabase
         .from('role_profiles')
         .select('user_id, full_name, email')
         .eq('role', 'driver')
         .limit(500);
-      setDriverList((drivers as any)?.map((d: any) => ({ user_id: d.user_id, name: d.full_name, email: d.email })) || []);
+      
+      const activeDrivers = (drivers || []).filter((d: any) => !inactiveUserIds.has(d.user_id));
+      setDriverList(activeDrivers.map((d: any) => ({ user_id: d.user_id, name: d.full_name, email: d.email })));
     })();
   }, []);
 
@@ -48,12 +68,24 @@ export default function AdminMessages() {
     (async () => {
       setSelectedDriver('');
       setTargets('');
+      
+      // Get inactive user IDs to exclude
+      const { data: inactiveUsers } = await supabase
+        .from('user_roles')
+        .select('user_id')
+        .eq('role', 'inactive');
+      
+      const inactiveUserIds = new Set((inactiveUsers || []).map(u => u.user_id));
+      
       const { data } = await supabase
         .from('role_profiles')
         .select('user_id, full_name, email')
         .eq('role', recipientRole)
         .limit(500);
-      setDriverList(((data as any) || []).map((r: any) => ({ user_id: r.user_id, name: r.full_name, email: r.email })));
+      
+      // Filter out inactive users
+      const activeUsers = ((data as any) || []).filter((r: any) => !inactiveUserIds.has(r.user_id));
+      setDriverList(activeUsers.map((r: any) => ({ user_id: r.user_id, name: r.full_name, email: r.email })));
     })();
   }, [recipientRole]);
 

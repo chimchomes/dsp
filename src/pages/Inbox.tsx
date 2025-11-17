@@ -167,6 +167,14 @@ export default function Inbox() {
       return;
     }
 
+    // Get inactive user IDs to exclude
+    const { data: inactiveUsers } = await supabase
+      .from('user_roles')
+      .select('user_id')
+      .eq('role', 'inactive');
+    
+    const inactiveUserIds = new Set((inactiveUsers || []).map(u => u.user_id));
+    
     // Query role_profiles view which already joins user_roles and profiles
     // This view includes: user_id, full_name, first_name, surname, email
     const { data, error } = await supabase
@@ -187,13 +195,16 @@ export default function Inbox() {
     }
 
     // role_profiles already has all the data we need, no need for additional query
-    let recipients: RoleUser[] = ((data ?? []) as any[]).map((row: any) => ({
-      user_id: row.user_id,
-      full_name: row.full_name,
-      first_name: row.first_name,
-      surname: row.surname, // role_profiles uses 'surname', not 'last_name'
-      email: row.email,
-    }));
+    // Filter out inactive users
+    let recipients: RoleUser[] = ((data ?? []) as any[])
+      .filter((row: any) => !inactiveUserIds.has(row.user_id)) // Exclude inactive users
+      .map((row: any) => ({
+        user_id: row.user_id,
+        full_name: row.full_name,
+        first_name: row.first_name,
+        surname: row.surname, // role_profiles uses 'surname', not 'last_name'
+        email: row.email,
+      }));
 
     // Remove duplicates by user_id (in case user has multiple roles - shouldn't happen but safety)
     const uniqueRecipients = new Map<string, RoleUser>();

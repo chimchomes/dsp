@@ -75,7 +75,7 @@ export function OnboardingApplications() {
     }
   };
 
-  const updateStatus = async (id: string, status: "accepted" | "rejected") => {
+  const updateStatus = async (id: string, status: "accepted" | "rejected" | "re-submit") => {
     try {
       // Get the session to find the user_id
       const session = applications.find(app => app.id === id);
@@ -97,58 +97,114 @@ export function OnboardingApplications() {
 
       // If accepted, change user role from onboarding to driver and create driver record
       if (status === "accepted") {
-        // Remove onboarding role
-        const { error: removeError } = await supabase.rpc("remove_user_role", {
-          p_user_id: session.user_id,
-          p_role: "onboarding",
-        });
-
-        if (removeError) {
-          console.error("Error removing onboarding role:", removeError);
-        }
-
-        // Assign driver role
-        const { error: assignError } = await supabase.rpc("assign_user_role", {
-          p_user_id: session.user_id,
-          p_role: "driver",
-        });
-
-        if (assignError) throw assignError;
-
-        // Update profile with personal info from onboarding session
-        // Use first_name/surname if available, otherwise parse from full_name
-        const firstName = session.first_name || session.full_name?.split(' ')[0] || null;
-        const surname = session.surname || session.full_name?.split(' ').slice(1).join(' ') || null;
-        const fullName = session.full_name || (firstName && surname ? `${firstName} ${surname}` : null);
+        console.log("Processing acceptance for user:", session.user_id, session.email);
         
-        const { error: profileError } = await supabase
-          .from("profiles")
-          .update({
-            first_name: firstName,
-            surname: surname,
-            full_name: fullName,
-            contact_phone: session.contact_phone || null,
-            address_line_1: session.address_line_1 || null,
-            address_line_2: session.address_line_2 || null,
-            address_line_3: session.address_line_3 || null,
-            postcode: session.post_code || null,
-            emergency_contact_name: session.emergency_contact_name || null,
-            emergency_contact_phone: session.emergency_contact_phone || null,
-          })
-          .eq("user_id", session.user_id);
+        // Check if driver record already exists
+        const { data: existingDriver, error: checkError } = await supabase
+          .from("drivers")
+          .select("id, user_id, email, name")
+          .eq("user_id", session.user_id)
+          .maybeSingle();
 
-        if (profileError) {
-          console.error("Error updating profile:", profileError);
-          // Don't fail - profile update is optional
+        if (checkError) {
+          console.error("Error checking for existing driver:", checkError);
+          throw new Error(`Failed to check for existing driver: ${checkError.message}`);
         }
 
-        // Create driver record (driver-specific data: license, vehicle)
-        const { error: driverError } = await supabase
-          .from("drivers")
-          .insert({
+        if (existingDriver) {
+          console.log("Driver record already exists:", existingDriver.id);
+          // Driver already exists, just update role
+          const { error: removeError } = await supabase.rpc("remove_user_role", {
+            p_user_id: session.user_id,
+            p_role: "onboarding",
+          });
+
+          if (removeError) {
+            console.error("Error removing onboarding role:", removeError);
+            // Continue anyway - might already be removed
+          }
+
+          const { error: assignError } = await supabase.rpc("assign_user_role", {
+            p_user_id: session.user_id,
+            p_role: "driver",
+          });
+
+          if (assignError) {
+            console.error("Error assigning driver role:", assignError);
+            throw new Error(`Failed to assign driver role: ${assignError.message}`);
+          }
+
+          toast({
+            title: "Application approved",
+            description: `Driver role assigned. ${session.full_name || session.email} can now log in to the driver portal.`,
+          });
+        } else {
+          console.log("No existing driver record found. Creating new driver record...");
+          
+          // Remove onboarding role first
+          const { error: removeError } = await supabase.rpc("remove_user_role", {
+            p_user_id: session.user_id,
+            p_role: "onboarding",
+          });
+
+          if (removeError) {
+            console.error("Error removing onboarding role:", removeError);
+            // Continue anyway - might already be removed
+          }
+
+          // Assign driver role
+          const { error: assignError } = await supabase.rpc("assign_user_role", {
+            p_user_id: session.user_id,
+            p_role: "driver",
+          });
+
+          if (assignError) {
+            console.error("Error assigning driver role:", assignError);
+            throw new Error(`Failed to assign driver role: ${assignError.message}`);
+          }
+
+          console.log("Driver role assigned successfully");
+
+          // Update profile with personal info from onboarding session
+          // Use first_name/surname if available, otherwise parse from full_name
+          const firstName = session.first_name || session.full_name?.split(' ')[0] || null;
+          const surname = session.surname || session.full_name?.split(' ').slice(1).join(' ') || null;
+          const fullName = session.full_name || (firstName && surname ? `${firstName} ${surname}` : null);
+          
+          console.log("Updating profile with:", { firstName, surname, fullName });
+          
+          const { error: profileError } = await supabase
+            .from("profiles")
+            .upsert({
+              user_id: session.user_id,
+              first_name: firstName,
+              surname: surname,
+              full_name: fullName,
+              email: session.email,
+              contact_phone: session.contact_phone || null,
+              address_line_1: session.address_line_1 || null,
+              address_line_2: session.address_line_2 || null,
+              address_line_3: session.address_line_3 || null,
+              postcode: session.post_code || null,
+              emergency_contact_name: session.emergency_contact_name || null,
+              emergency_contact_phone: session.emergency_contact_phone || null,
+              updated_at: new Date().toISOString(),
+            }, {
+              onConflict: "user_id"
+            });
+
+          if (profileError) {
+            console.error("Error updating profile:", profileError);
+            // Don't fail - profile update is optional, but log it
+          } else {
+            console.log("Profile updated successfully");
+          }
+
+          // Prepare driver data
+          const driverData = {
             user_id: session.user_id, // Link to user via FK
             email: session.email,
-            name: session.full_name,
+            name: session.full_name || fullName || session.email,
             license_number: session.license_number || null,
             license_expiry: session.license_expiry ? new Date(session.license_expiry).toISOString().split('T')[0] : null,
             vehicle_make: session.vehicle_make || null,
@@ -158,15 +214,45 @@ export function OnboardingApplications() {
             onboarded_at: new Date().toISOString(),
             onboarded_by: (await supabase.auth.getUser()).data.user?.id,
             active: true,
+          };
+
+          console.log("Creating driver record with data:", driverData);
+
+          // Create driver record (driver-specific data: license, vehicle)
+          const { data: newDriver, error: driverError } = await supabase
+            .from("drivers")
+            .insert(driverData)
+            .select("id, user_id, email, name")
+            .single();
+
+          if (driverError) {
+            console.error("Error creating driver record:", driverError);
+            console.error("Full error details:", JSON.stringify(driverError, null, 2));
+            throw new Error(`Failed to create driver record: ${driverError.message}. Details: ${JSON.stringify(driverError)}`);
+          }
+
+          if (!newDriver) {
+            throw new Error("Driver record insert returned no data");
+          }
+
+          console.log("Driver record created successfully:", newDriver.id);
+
+          toast({
+            title: "Application approved",
+            description: `Driver account created and role assigned. ${session.full_name || session.email} can now log in to the driver portal.`,
           });
-
-        if (driverError) throw driverError;
+        }
+      } else if (status === "rejected") {
+        toast({
+          title: "Application rejected",
+          description: `Application for ${session.full_name || session.email} has been rejected.`,
+        });
+      } else if (status === "re-submit") {
+        toast({
+          title: "Resubmission requested",
+          description: `${session.full_name || session.email} has been notified to resubmit their application.`,
+        });
       }
-
-      toast({
-        title: "Application updated",
-        description: `Application ${status}${status === "accepted" ? ", driver role assigned, and driver account created" : ""}`,
-      });
 
       loadApplications();
       setSelectedApp(null);
@@ -251,6 +337,15 @@ export function OnboardingApplications() {
                           </Button>
                         </>
                       )}
+                      {app.status === "accepted" && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => updateStatus(app.id, "re-submit")}
+                        >
+                          Request Resubmit
+                        </Button>
+                      )}
                     </div>
                   </TableCell>
                 </TableRow>
@@ -300,6 +395,17 @@ export function OnboardingApplications() {
                   >
                     <XCircle className="mr-2 h-4 w-4" />
                     Reject Application
+                  </Button>
+                </div>
+              )}
+              {selectedApp.status === "accepted" && (
+                <div className="pt-4">
+                  <Button
+                    variant="outline"
+                    onClick={() => updateStatus(selectedApp.id, "re-submit")}
+                    className="w-full"
+                  >
+                    Request Resubmit
                   </Button>
                 </div>
               )}

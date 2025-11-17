@@ -46,22 +46,44 @@ export const AuthGuard = ({ children, allowedRoles }: AuthGuardProps) => {
         .select('role')
         .eq('user_id', session.user.id);
 
+      // If roles query succeeded, check access
+      if (!error && userRoles) {
+        const hasAllowedRole = userRoles.some(ur => 
+          allowedRoles.includes(ur.role)
+        );
+
+        if (hasAllowedRole) {
+          setHasAccess(true);
+          setIsLoading(false);
+          return;
+        }
+      }
+
+      // If roles query failed, try alternative method via role_profiles
       if (error) {
-        console.error("Error checking roles:", error);
-        navigate("/login");
-        return;
+        console.error("Error checking roles, trying alternative method:", error);
+        try {
+          const { data: roleProfiles } = await supabase
+            .from('role_profiles')
+            .select('role')
+            .eq('user_id', session.user.id)
+            .in('role', allowedRoles)
+            .limit(1);
+
+          if (roleProfiles && roleProfiles.length > 0) {
+            // User has one of the allowed roles via role_profiles
+            setHasAccess(true);
+            setIsLoading(false);
+            return;
+          }
+        } catch (altError) {
+          console.error("Alternative role check also failed:", altError);
+        }
       }
 
-      const hasAllowedRole = userRoles?.some(ur => 
-        allowedRoles.includes(ur.role)
-      );
-
-      if (!hasAllowedRole) {
-        navigate("/login");
-        return;
-      }
-
-      setHasAccess(true);
+      // If we get here, user doesn't have required role
+      console.warn("Access denied. User roles:", userRoles?.map(r => r.role) || "unknown", "Required:", allowedRoles);
+      navigate("/login");
     } catch (error) {
       console.error("Auth check error:", error);
       navigate("/login");

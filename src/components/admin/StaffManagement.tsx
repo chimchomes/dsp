@@ -29,7 +29,7 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { UserPlus, Edit, Trash2, Loader2 } from "lucide-react";
+import { UserPlus, Edit, Trash2, Loader2, Search, X, UserX, UserCheck } from "lucide-react";
 import { format } from "date-fns";
 import { z } from "zod";
 
@@ -59,16 +59,21 @@ type StaffUser = {
   emergency_contact_phone: string | null;
   roles: string[];
   created_at: string;
+  isInactive: boolean;
 };
 
 export default function StaffManagement() {
   const { toast } = useToast();
   const [staff, setStaff] = useState<StaffUser[]>([]);
+  const [filteredStaff, setFilteredStaff] = useState<StaffUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<StaffUser | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [roleFilter, setRoleFilter] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState<string>("all"); // all, active, inactive
 
   const [formData, setFormData] = useState({
     first_name: "",
@@ -90,27 +95,37 @@ export default function StaffManagement() {
   const loadStaff = async () => {
     setLoading(true);
     try {
-      // Get all users with staff roles (admin, hr, finance, dispatcher)
-      const { data: roleProfiles, error } = await supabase
-        .from("role_profiles")
-        .select("user_id, email, first_name, surname, full_name")
-        .in("role", ["admin", "hr", "finance", "dispatcher"]);
+      // Get all users who have or had staff roles (admin, hr, finance, dispatcher)
+      // This includes active staff and inactive staff (who have inactive role)
+      const { data: allUserRoles, error: rolesError } = await supabase
+        .from("user_roles")
+        .select("user_id, role")
+        .in("role", ["admin", "hr", "finance", "dispatcher", "inactive"]);
 
-      if (error) throw error;
+      if (rolesError) throw rolesError;
 
-      // Get full profile data from profiles table
-      const userIds = (roleProfiles || []).map((r) => r.user_id);
+      // Get unique user IDs who have or had staff roles
+      const userIds = new Set<string>();
+      const userRolesMap = new Map<string, string[]>();
+      
+      (allUserRoles || []).forEach((ur) => {
+        userIds.add(ur.user_id);
+        const roles = userRolesMap.get(ur.user_id) || [];
+        roles.push(ur.role);
+        userRolesMap.set(ur.user_id, roles);
+      });
+
+      // Get profile data for all these users
       const { data: profiles } = await supabase
         .from("profiles")
-        .select("user_id, contact_phone, address_line_1, address_line_2, address_line_3, postcode, emergency_contact_name, emergency_contact_phone, created_at")
-        .in("user_id", userIds);
+        .select("user_id, email, first_name, surname, full_name, contact_phone, address_line_1, address_line_2, address_line_3, postcode, emergency_contact_name, emergency_contact_phone, created_at")
+        .in("user_id", Array.from(userIds));
 
-      // Get roles for each user
+      // Get all roles for each user to determine if they're inactive
       const { data: userRoles } = await supabase
         .from("user_roles")
         .select("user_id, role")
-        .in("user_id", userIds)
-        .in("role", ["admin", "hr", "finance", "dispatcher"]);
+        .in("user_id", Array.from(userIds));
 
       // Group roles by user_id
       const rolesByUserId = new Map<string, string[]>();
@@ -120,34 +135,43 @@ export default function StaffManagement() {
         rolesByUserId.set(ur.user_id, roles);
       });
 
-      // Combine data
+      // Combine data - show all users who have staff roles
       const staffMap = new Map<string, StaffUser>();
-      (roleProfiles || []).forEach((rp) => {
-        const profile = (profiles || []).find((p) => p.user_id === rp.user_id);
-        const roles = rolesByUserId.get(rp.user_id) || [];
+      
+      (profiles || []).forEach((profile) => {
+        const allRoles = rolesByUserId.get(profile.user_id) || [];
         
-        // Only show users with staff roles (exclude drivers and onboarding)
-        if (roles.some(r => ["admin", "hr", "finance", "dispatcher"].includes(r))) {
-          staffMap.set(rp.user_id, {
-            user_id: rp.user_id,
-            email: rp.email || "",
-            first_name: rp.first_name,
-            surname: rp.surname,
-            full_name: rp.full_name,
-            contact_phone: profile?.contact_phone || null,
-            address_line_1: profile?.address_line_1 || null,
-            address_line_2: profile?.address_line_2 || null,
-            address_line_3: profile?.address_line_3 || null,
-            postcode: profile?.postcode || null,
-            emergency_contact_name: profile?.emergency_contact_name || null,
-            emergency_contact_phone: profile?.emergency_contact_phone || null,
-            roles: roles,
-            created_at: profile?.created_at || "",
+        // Check if user has inactive role
+        const isInactive = allRoles.includes("inactive");
+        
+        // Get staff roles (admin, hr, finance, dispatcher)
+        const staffRoles = allRoles.filter(r => ["admin", "hr", "finance", "dispatcher"].includes(r));
+        
+        // Show users who have staff roles (inactive users still have their staff roles)
+        if (staffRoles.length > 0) {
+          staffMap.set(profile.user_id, {
+            user_id: profile.user_id,
+            email: profile.email || "",
+            first_name: profile.first_name,
+            surname: profile.surname,
+            full_name: profile.full_name,
+            contact_phone: profile.contact_phone || null,
+            address_line_1: profile.address_line_1 || null,
+            address_line_2: profile.address_line_2 || null,
+            address_line_3: profile.address_line_3 || null,
+            postcode: profile.postcode || null,
+            emergency_contact_name: profile.emergency_contact_name || null,
+            emergency_contact_phone: profile.emergency_contact_phone || null,
+            roles: staffRoles,
+            created_at: profile.created_at || "",
+            isInactive: isInactive,
           });
         }
       });
 
-      setStaff(Array.from(staffMap.values()));
+      const staffList = Array.from(staffMap.values());
+      setStaff(staffList);
+      applyFilters(staffList, searchQuery, roleFilter, statusFilter);
     } catch (error: any) {
       toast({
         title: "Error loading staff",
@@ -162,6 +186,39 @@ export default function StaffManagement() {
   useEffect(() => {
     loadStaff();
   }, []);
+
+  // Apply filters whenever search, role, or status changes
+  useEffect(() => {
+    applyFilters(staff, searchQuery, roleFilter, statusFilter);
+  }, [searchQuery, roleFilter, statusFilter, staff]);
+
+  const applyFilters = (staffList: StaffUser[], search: string, role: string, status: string) => {
+    let filtered = [...staffList];
+
+    // Filter by search query (name or email)
+    if (search.trim()) {
+      const query = search.toLowerCase();
+      filtered = filtered.filter((user) => {
+        const name = formatUserName(user).toLowerCase();
+        const email = user.email.toLowerCase();
+        return name.includes(query) || email.includes(query);
+      });
+    }
+
+    // Filter by role
+    if (role !== "all") {
+      filtered = filtered.filter((user) => user.roles.includes(role));
+    }
+
+    // Filter by status
+    if (status === "active") {
+      filtered = filtered.filter((user) => !user.isInactive);
+    } else if (status === "inactive") {
+      filtered = filtered.filter((user) => user.isInactive);
+    }
+
+    setFilteredStaff(filtered);
+  };
 
   const resetForm = () => {
     setFormData({
@@ -331,6 +388,78 @@ export default function StaffManagement() {
     return user.email;
   };
 
+  const handleDeactivateStaff = async (user: StaffUser) => {
+    if (!confirm(`Are you sure you want to deactivate ${formatUserName(user)}? They will lose all access but their work history will be preserved.`)) {
+      return;
+    }
+
+    try {
+      // Assign inactive role (keep staff roles for display and reactivation purposes)
+      // The inactive role will prevent login, and we filter them out of selectable lists
+      const { error: assignError } = await supabase.rpc("assign_user_role", {
+        p_user_id: user.user_id,
+        p_role: "inactive",
+      });
+
+      if (assignError) throw assignError;
+
+      toast({
+        title: "Staff deactivated",
+        description: `${formatUserName(user)} has been deactivated. They can no longer access the system, but their work history is preserved. They will not appear in selectable lists.`,
+      });
+
+      loadStaff();
+    } catch (error: any) {
+      toast({
+        title: "Error deactivating staff",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleReactivateStaff = async (user: StaffUser) => {
+    if (!confirm(`Are you sure you want to reactivate ${formatUserName(user)}?`)) {
+      return;
+    }
+
+    try {
+      // Remove inactive role (staff roles are already there, just hidden by inactive status)
+      const { error: removeError } = await supabase.rpc("remove_user_role", {
+        p_user_id: user.user_id,
+        p_role: "inactive",
+      });
+
+      if (removeError) throw removeError;
+
+      // Ensure all their staff roles are assigned (in case any were missing)
+      for (const role of user.roles) {
+        const { error: assignError } = await supabase.rpc("assign_user_role", {
+          p_user_id: user.user_id,
+          p_role: role,
+        });
+
+        if (assignError) {
+          console.error(`Error ensuring ${role} role:`, assignError);
+          // Continue with other roles even if one fails
+        }
+      }
+
+      toast({
+        title: "Staff reactivated",
+        description: `${formatUserName(user)} has been reactivated and can now access the system with their roles: ${user.roles.join(", ")}.`,
+      });
+
+      loadStaff();
+    } catch (error: any) {
+      toast({
+        title: "Error reactivating staff",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex justify-center items-center py-8">
@@ -482,27 +611,73 @@ export default function StaffManagement() {
           </CardDescription>
         </CardHeader>
         <CardContent>
+          {/* Filter Controls */}
+          <div className="flex flex-col sm:flex-row gap-4 mb-4">
+            <div className="flex-1 relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search by name or email..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10"
+              />
+              {searchQuery && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="absolute right-1 top-1/2 transform -translate-y-1/2 h-6 w-6 p-0"
+                  onClick={() => setSearchQuery("")}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
+            <Select value={roleFilter} onValueChange={setRoleFilter}>
+              <SelectTrigger className="w-full sm:w-[180px]">
+                <SelectValue placeholder="Filter by role" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Roles</SelectItem>
+                <SelectItem value="admin">Admin</SelectItem>
+                <SelectItem value="hr">HR</SelectItem>
+                <SelectItem value="finance">Finance</SelectItem>
+                <SelectItem value="dispatcher">Dispatcher</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-full sm:w-[180px]">
+                <SelectValue placeholder="Filter by status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Status</SelectItem>
+                <SelectItem value="active">Active</SelectItem>
+                <SelectItem value="inactive">Inactive</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Name</TableHead>
                 <TableHead>Email</TableHead>
                 <TableHead>Role(s)</TableHead>
+                <TableHead>Status</TableHead>
                 <TableHead>Phone</TableHead>
                 <TableHead>Created</TableHead>
                 <TableHead>Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {staff.length === 0 ? (
+              {filteredStaff.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                  <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
                     No staff members found
                   </TableCell>
                 </TableRow>
               ) : (
-                staff.map((user) => (
-                  <TableRow key={user.user_id}>
+                filteredStaff.map((user) => (
+                  <TableRow key={user.user_id} className={user.isInactive ? "opacity-60" : ""}>
                     <TableCell className="font-medium">{formatUserName(user)}</TableCell>
                     <TableCell>{user.email}</TableCell>
                     <TableCell>
@@ -514,6 +689,13 @@ export default function StaffManagement() {
                         ))}
                       </div>
                     </TableCell>
+                    <TableCell>
+                      {user.isInactive ? (
+                        <Badge variant="destructive">Inactive</Badge>
+                      ) : (
+                        <Badge variant="default">Active</Badge>
+                      )}
+                    </TableCell>
                     <TableCell>{user.contact_phone || "-"}</TableCell>
                     <TableCell className="text-sm text-muted-foreground">
                       {user.created_at
@@ -521,14 +703,35 @@ export default function StaffManagement() {
                         : "-"}
                     </TableCell>
                     <TableCell>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleEditProfile(user)}
-                      >
-                        <Edit className="h-4 w-4 mr-1" />
-                        Edit
-                      </Button>
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleEditProfile(user)}
+                        >
+                          <Edit className="h-4 w-4 mr-1" />
+                          Edit
+                        </Button>
+                        {user.isInactive ? (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleReactivateStaff(user)}
+                          >
+                            <UserCheck className="h-4 w-4 mr-1" />
+                            Reactivate
+                          </Button>
+                        ) : (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleDeactivateStaff(user)}
+                          >
+                            <UserX className="h-4 w-4 mr-1" />
+                            Deactivate
+                          </Button>
+                        )}
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))
