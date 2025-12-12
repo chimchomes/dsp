@@ -2,10 +2,13 @@
 
 ## Migrations to Apply
 
-You need to apply **2 migrations** to fix the issues:
+You need to apply these migrations (in order):
 
 1. **`20251108020000_fix_admin_drivers_policy.sql`** - Allows admin to read/update all drivers
 2. **`20251108030000_add_vehicle_fields_to_drivers.sql`** - Adds missing vehicle and license expiry columns
+3. **`20251109000000_add_resubmit_status_to_onboarding.sql`** - Adds re-submit status to onboarding
+4. **`20251109010000_add_admin_insert_drivers_policy.sql`** - Allows admin to create driver records
+5. **`20251109020000_backfill_missing_driver_records.sql`** - Creates missing driver records for existing users
 
 ## What to Expect After Applying Migrations
 
@@ -221,4 +224,70 @@ After applying the migrations, you should see:
 - ✅ No errors in console or network tab
 
 All fixes are backward compatible and won't break existing functionality.
+
+---
+
+## New Features Added
+
+### Staff Management Enhancements
+
+**Deactivation/Reactivation**:
+- ✅ Deactivate button on each active staff member
+- ✅ Reactivate button on each inactive staff member
+- ✅ Confirmation dialogs before action
+- ✅ Inactive staff hidden from selectable lists
+- ✅ Inactive staff visible in Staff Management tab with status badge
+- ✅ Work history preserved when deactivated
+
+**Filtering**:
+- ✅ Search by name or email
+- ✅ Filter by role (All, Admin, HR, Finance, Dispatcher)
+- ✅ Filter by status (All, Active, Inactive)
+- ✅ Filters work together (combined filtering)
+- ✅ Clear search button
+
+### Onboarding Workflow Enhancements
+
+**Status-Based Editing**:
+- ✅ Users can edit when: `in_progress`, `re-submit`, `rejected`
+- ✅ Users cannot edit when: `submitted`, `accepted`
+- ✅ Status banners showing current state
+- ✅ "Resubmit Application" button when status is re-submit/rejected
+- ✅ Exit bypasses dialog if form is read-only
+
+**Re-submit Status**:
+- ✅ Admin can request resubmission
+- ✅ Status changes to `re-submit`
+- ✅ User can edit and resubmit
+- ✅ Status badge shows "Re-submit"
+
+### Login & Access Improvements
+
+**Enhanced Redirects**:
+- ✅ Finance users → `/finance` (not `/hr`)
+- ✅ HR users → `/hr`
+- ✅ All roles redirect correctly
+- ✅ Fallback logic if roles query fails
+- ✅ Alternative role checking via `role_profiles` view
+
+**AuthGuard Improvements**:
+- ✅ Fallback to `role_profiles` if `user_roles` query fails
+- ✅ Better error handling
+- ✅ Detailed logging for debugging
+
+### Driver Record Creation
+
+**On Approval**:
+- ✅ Driver record automatically created
+- ✅ Profile updated with personal info
+- ✅ Driver role assigned
+- ✅ Onboarding role removed
+- ✅ Prevents duplicate records
+- ✅ Comprehensive error logging
+
+**Backfill**:
+- ✅ Migration creates missing driver records
+- ✅ Uses onboarding session data
+- ✅ Updates profiles with onboarding data
+- ✅ Shows summary of created records
 

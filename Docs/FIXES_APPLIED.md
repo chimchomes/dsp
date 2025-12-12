@@ -106,10 +106,72 @@ After running the migration, verify that:
 4. **Referential integrity**: FK constraints ensure data consistency
 5. **RLS policies**: Users can edit their own profile; HR/Admin can edit any profile
 
+## Recent Fixes (November 2025)
+
+### Staff Management Enhancements
+
+**Deactivation/Reactivation System**:
+- Added ability to deactivate staff members
+- Deactivation adds "inactive" role (keeps original roles for reactivation)
+- Inactive staff hidden from all selectable lists
+- Inactive staff visible in Staff Management tab with status badge
+- Reactivation restores original roles
+- Work history preserved
+
+**Filtering & Search**:
+- Added search by name/email
+- Added filter by role
+- Added filter by status (Active/Inactive)
+- Combined filtering support
+- Clear search functionality
+
+### Onboarding Workflow Fixes
+
+**Status-Based Editing**:
+- Implemented editing restrictions based on status
+- Users can only edit when status allows (in_progress, re-submit, rejected)
+- Read-only mode for submitted/accepted applications
+- Status banners for user feedback
+
+**Re-submit Status**:
+- Added "re-submit" status to onboarding_sessions
+- Admin can request resubmission
+- Users can edit and resubmit when status is re-submit
+- Proper status badge display
+
+### Login & Authentication Fixes
+
+**Role-Based Redirects**:
+- Fixed finance users redirecting to `/finance` (not `/hr`)
+- Separated finance and HR redirects
+- Improved error handling
+- Added fallback logic for failed role queries
+
+**AuthGuard Improvements**:
+- Added fallback to `role_profiles` view if `user_roles` query fails
+- Better error handling and logging
+- Prevents login failures due to temporary database issues
+
+### Driver Record Creation Fixes
+
+**On Approval**:
+- Fixed driver record creation on onboarding approval
+- Added comprehensive error logging
+- Prevents duplicate driver records
+- Proper profile updates
+- Role assignment working correctly
+
+**Backfill Migration**:
+- Created migration to backfill missing driver records
+- Uses onboarding session data
+- Updates profiles with onboarding information
+- Handles users with driver role but no driver record
+
 ## Next Steps
 
-1. Run the migration
-2. Test profile updates in the Staff Management component
-3. Verify onboarding approval updates profiles correctly
-4. Consider adding a user self-service profile edit page (currently only HR/Admin can edit profiles via Staff Management)
+1. Run all migrations (see migration order in DEPLOYMENT.md)
+2. Test staff deactivation/reactivation
+3. Test onboarding re-submit workflow
+4. Verify all role logins work correctly
+5. Run backfill migration for existing drivers
 
