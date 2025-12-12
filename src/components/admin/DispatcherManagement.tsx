@@ -25,9 +25,13 @@ import { Switch } from "@/components/ui/switch";
 interface Dispatcher {
   id: string;
   name: string;
+  dsp_name: string;
   contact_email: string;
   contact_phone: string | null;
   rate_per_parcel: number;
+  driver_parcel_rate: number;
+  default_deduction_rate: number;
+  tour_id_prefix: string | null;
   admin_commission_percentage: number;
   active: boolean;
   created_at: string;
@@ -41,9 +45,13 @@ export const DispatcherManagement = () => {
   const [editingDispatcher, setEditingDispatcher] = useState<Dispatcher | null>(null);
   const [formData, setFormData] = useState({
     name: "",
+    dsp_name: "",
     contact_email: "",
     contact_phone: "",
     rate_per_parcel: "",
+    driver_parcel_rate: "",
+    default_deduction_rate: "",
+    tour_id_prefix: "",
     admin_commission_percentage: "",
   });
 
@@ -78,10 +86,14 @@ export const DispatcherManagement = () => {
     try {
       const dispatcherData = {
         name: formData.name,
+        dsp_name: formData.dsp_name || formData.name,
         contact_email: formData.contact_email,
         contact_phone: formData.contact_phone || null,
-        rate_per_parcel: parseFloat(formData.rate_per_parcel),
-        admin_commission_percentage: parseFloat(formData.admin_commission_percentage),
+        rate_per_parcel: parseFloat(formData.rate_per_parcel) || 0,
+        driver_parcel_rate: parseFloat(formData.driver_parcel_rate) || 0,
+        default_deduction_rate: parseFloat(formData.default_deduction_rate) || 0,
+        tour_id_prefix: formData.tour_id_prefix || null,
+        admin_commission_percentage: parseFloat(formData.admin_commission_percentage) || 0,
       };
 
       if (editingDispatcher) {
@@ -177,9 +189,13 @@ export const DispatcherManagement = () => {
   const resetForm = () => {
     setFormData({
       name: "",
+      dsp_name: "",
       contact_email: "",
       contact_phone: "",
       rate_per_parcel: "",
+      driver_parcel_rate: "",
+      default_deduction_rate: "",
+      tour_id_prefix: "",
       admin_commission_percentage: "",
     });
     setEditingDispatcher(null);
@@ -189,9 +205,13 @@ export const DispatcherManagement = () => {
     setEditingDispatcher(dispatcher);
     setFormData({
       name: dispatcher.name,
+      dsp_name: dispatcher.dsp_name || dispatcher.name,
       contact_email: dispatcher.contact_email,
       contact_phone: dispatcher.contact_phone || "",
       rate_per_parcel: dispatcher.rate_per_parcel.toString(),
+      driver_parcel_rate: (dispatcher.driver_parcel_rate || dispatcher.rate_per_parcel || 0).toString(),
+      default_deduction_rate: (dispatcher.default_deduction_rate || 0).toString(),
+      tour_id_prefix: dispatcher.tour_id_prefix || "",
       admin_commission_percentage: dispatcher.admin_commission_percentage.toString(),
     });
     setShowDialog(true);
@@ -232,6 +252,16 @@ export const DispatcherManagement = () => {
                 />
               </div>
               <div>
+                <Label htmlFor="dsp_name">DSP Legal Name</Label>
+                <Input
+                  id="dsp_name"
+                  value={formData.dsp_name}
+                  onChange={(e) => setFormData({ ...formData, dsp_name: e.target.value })}
+                  placeholder="e.g., Amazon, Velocity Logistics"
+                  required
+                />
+              </div>
+              <div>
                 <Label htmlFor="contact_email">Contact Email</Label>
                 <Input
                   id="contact_email"
@@ -251,14 +281,56 @@ export const DispatcherManagement = () => {
                 />
               </div>
               <div>
-                <Label htmlFor="rate_per_parcel">Rate Per Parcel (£)</Label>
+                <Label htmlFor="driver_parcel_rate">Driver Parcel Rate (£)</Label>
+                <Input
+                  id="driver_parcel_rate"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={formData.driver_parcel_rate}
+                  onChange={(e) => setFormData({ ...formData, driver_parcel_rate: e.target.value })}
+                  placeholder="Amount paid per completed parcel"
+                  required
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Fixed dollar amount paid to driver per successfully completed parcel
+                </p>
+              </div>
+              <div>
+                <Label htmlFor="default_deduction_rate">Default Deduction Rate (£)</Label>
+                <Input
+                  id="default_deduction_rate"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={formData.default_deduction_rate}
+                  onChange={(e) => setFormData({ ...formData, default_deduction_rate: e.target.value })}
+                  placeholder="0.00"
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Fixed weekly/monthly amount for standard deductions (insurance, admin fee)
+                </p>
+              </div>
+              <div>
+                <Label htmlFor="tour_id_prefix">Tour ID Prefix</Label>
+                <Input
+                  id="tour_id_prefix"
+                  value={formData.tour_id_prefix}
+                  onChange={(e) => setFormData({ ...formData, tour_id_prefix: e.target.value })}
+                  placeholder="e.g., AMZ_, VEL_"
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Short unique identifier for route imports (e.g., 'AMZ_', 'VEL_')
+                </p>
+              </div>
+              <div>
+                <Label htmlFor="rate_per_parcel">Rate Per Parcel (£) - Legacy</Label>
                 <Input
                   id="rate_per_parcel"
                   type="number"
                   step="0.01"
                   value={formData.rate_per_parcel}
                   onChange={(e) => setFormData({ ...formData, rate_per_parcel: e.target.value })}
-                  required
                 />
               </div>
               <div>
@@ -269,7 +341,6 @@ export const DispatcherManagement = () => {
                   step="0.01"
                   value={formData.admin_commission_percentage}
                   onChange={(e) => setFormData({ ...formData, admin_commission_percentage: e.target.value })}
-                  required
                 />
               </div>
               <div className="flex justify-end gap-2">
@@ -292,10 +363,11 @@ export const DispatcherManagement = () => {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Company Name</TableHead>
+              <TableHead>DSP Name</TableHead>
               <TableHead>Contact Email</TableHead>
-              <TableHead>Rate/Parcel</TableHead>
-              <TableHead>Commission %</TableHead>
+              <TableHead>Driver Rate</TableHead>
+              <TableHead>Default Deduction</TableHead>
+              <TableHead>Tour Prefix</TableHead>
               <TableHead>Active</TableHead>
               <TableHead>Actions</TableHead>
             </TableRow>
@@ -303,17 +375,18 @@ export const DispatcherManagement = () => {
           <TableBody>
             {dispatchers.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center text-muted-foreground">
+                <TableCell colSpan={7} className="text-center text-muted-foreground">
                   No dispatchers found. Add your first dispatcher to get started.
                 </TableCell>
               </TableRow>
             ) : (
               dispatchers.map((dispatcher) => (
                 <TableRow key={dispatcher.id}>
-                  <TableCell className="font-medium">{dispatcher.name}</TableCell>
+                  <TableCell className="font-medium">{dispatcher.dsp_name || dispatcher.name}</TableCell>
                   <TableCell>{dispatcher.contact_email}</TableCell>
-                  <TableCell>£{dispatcher.rate_per_parcel.toFixed(2)}</TableCell>
-                  <TableCell>{dispatcher.admin_commission_percentage}%</TableCell>
+                  <TableCell>£{(dispatcher.driver_parcel_rate || dispatcher.rate_per_parcel || 0).toFixed(2)}</TableCell>
+                  <TableCell>£{(dispatcher.default_deduction_rate || 0).toFixed(2)}</TableCell>
+                  <TableCell>{dispatcher.tour_id_prefix || "-"}</TableCell>
                   <TableCell>
                     <Switch
                       checked={dispatcher.active}

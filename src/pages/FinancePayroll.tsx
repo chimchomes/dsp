@@ -7,7 +7,9 @@ import { useToast } from "@/hooks/use-toast";
 import { ArrowLeft, Download } from "lucide-react";
 import PayrollTable from "@/components/finance/PayrollTable";
 import ManualDeductionForm from "@/components/finance/ManualDeductionForm";
+import { PayslipViewer } from "@/components/finance/PayslipViewer";
 import { AuthGuard } from "@/components/AuthGuard";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface DriverPayroll {
   driver_id: string;
@@ -152,13 +154,24 @@ const FinancePayroll = () => {
             </div>
           </div>
 
-          <Card className="p-6">
-            <PayrollTable
-              data={payrollData}
-              loading={loading}
-              onTriggerPayout={handleTriggerPayout}
-            />
-          </Card>
+          <Tabs defaultValue="payroll" className="space-y-4">
+            <TabsList>
+              <TabsTrigger value="payroll">Payroll Table</TabsTrigger>
+              <TabsTrigger value="payslip">Generate Payslip</TabsTrigger>
+            </TabsList>
+            <TabsContent value="payroll">
+              <Card className="p-6">
+                <PayrollTable
+                  data={payrollData}
+                  loading={loading}
+                  onTriggerPayout={handleTriggerPayout}
+                />
+              </Card>
+            </TabsContent>
+            <TabsContent value="payslip">
+              <PayslipViewer />
+            </TabsContent>
+          </Tabs>
 
           {showDeductionForm && (
             <ManualDeductionForm

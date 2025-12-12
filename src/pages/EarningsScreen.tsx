@@ -8,6 +8,8 @@ import { useNavigate } from "react-router-dom";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PayslipViewer } from "@/components/finance/PayslipViewer";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface Earning {
   id: string;
@@ -32,6 +34,7 @@ export default function EarningsScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [totalEarnings, setTotalEarnings] = useState(0);
   const [totalDeductions, setTotalDeductions] = useState(0);
+  const [driverId, setDriverId] = useState<string>("");
   
   // Default to last 30 days
   const getDefaultDates = () => {
@@ -89,6 +92,8 @@ export default function EarningsScreen() {
         .single();
 
       if (!driverData) return;
+
+      setDriverId(driverData.id);
 
       // Load earnings
       const { data: earningsData, error: earningsError } = await supabase
@@ -269,6 +274,19 @@ export default function EarningsScreen() {
                   ))}
                 </TableBody>
               </Table>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>View Payslip</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {driverId ? (
+              <PayslipViewer driverId={driverId} />
+            ) : (
+              <p className="text-muted-foreground text-center py-4">Loading driver information...</p>
             )}
           </CardContent>
         </Card>
