@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -6,6 +6,13 @@ import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Upload, FileText, Loader2 } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface RouteIngestionFormProps {
   open: boolean;
@@ -19,6 +26,8 @@ export const RouteIngestionForm = ({ open, onClose, onSuccess, dispatcherId }: R
   const [uploading, setUploading] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [fileContent, setFileContent] = useState<string>("");
+  const [selectedDispatcherId, setSelectedDispatcherId] = useState<string>(dispatcherId || "");
+  const [dispatchers, setDispatchers] = useState<Array<{ id: string; name: string; dsp_name: string }>>([]);
   const [formData, setFormData] = useState({
     customer_name: "",
     address: "",
@@ -28,9 +37,43 @@ export const RouteIngestionForm = ({ open, onClose, onSuccess, dispatcherId }: R
     scheduled_date: new Date().toISOString().split('T')[0],
   });
 
+  // Load dispatchers if dispatcherId not provided
+  useEffect(() => {
+    if (!dispatcherId && open) {
+      loadDispatchers();
+    } else if (dispatcherId) {
+      setSelectedDispatcherId(dispatcherId);
+    }
+  }, [open, dispatcherId]);
+
+  const loadDispatchers = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("dispatchers")
+        .select("id, name, dsp_name")
+        .eq("active", true)
+        .order("name");
+
+      if (error) throw error;
+      setDispatchers(data || []);
+      
+      // Auto-select first dispatcher if only one
+      if (data && data.length === 1) {
+        setSelectedDispatcherId(data[0].id);
+      }
+    } catch (error: any) {
+      console.error("Error loading dispatchers:", error);
+      toast.error("Failed to load dispatchers");
+    }
+  };
+
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
+    if (!file) {
+      setSelectedFile(null);
+      setFileContent("");
+      return;
+    }
 
     setSelectedFile(file);
 
@@ -39,13 +82,26 @@ export const RouteIngestionForm = ({ open, onClose, onSuccess, dispatcherId }: R
     reader.onload = (event) => {
       const content = event.target?.result as string;
       setFileContent(content);
+      console.log("File content loaded:", content.substring(0, 100)); // Debug log
+    };
+    reader.onerror = () => {
+      toast.error("Failed to read file");
+      setSelectedFile(null);
+      setFileContent("");
     };
     reader.readAsText(file);
   };
 
   const handleFileUpload = async () => {
-    if (!selectedFile || !fileContent || !dispatcherId) {
-      toast.error("Please select a file and dispatcher");
+    const finalDispatcherId = dispatcherId || selectedDispatcherId;
+    
+    if (!selectedFile || !fileContent) {
+      toast.error("Please select a file");
+      return;
+    }
+    
+    if (!finalDispatcherId) {
+      toast.error("Please select a dispatcher");
       return;
     }
 
@@ -54,30 +110,55 @@ export const RouteIngestionForm = ({ open, onClose, onSuccess, dispatcherId }: R
     try {
       const fileType = selectedFile.type || (selectedFile.name.endsWith('.csv') ? 'text/csv' : 'text/csv');
       
+      console.log("Invoking ingest-route function with:", {
+        dispatcher_id: finalDispatcherId,
+        file_type: fileType,
+        file_size: fileContent.length,
+        scheduled_date: formData.scheduled_date,
+      });
+      
       const { data, error } = await supabase.functions.invoke('ingest-route', {
         body: {
-          dispatcher_id: dispatcherId,
+          dispatcher_id: finalDispatcherId,
           file_content: fileContent,
           file_type: fileType,
           scheduled_date: formData.scheduled_date,
         },
       });
 
-      if (error) throw error;
+      console.log("Function response:", { data, error });
 
-      if (data.error) {
+      if (error) {
+        console.error("Function error:", error);
+        throw error;
+      }
+
+      if (data?.error) {
+        console.error("Function returned error:", data.error);
         throw new Error(data.error);
       }
 
-      toast.success(
-        `Route imported successfully! ${data.stops_created} stops created, ${data.geocoded_count} geocoded.`
-      );
+      if (!data) {
+        throw new Error("No response from server");
+      }
+
+      const successMessage = data.warning
+        ? `Route imported! ${data.stops_created || 0} stops created, ${data.geocoded_count || 0} geocoded. ${data.warning}`
+        : `Route imported successfully! ${data.stops_created || 0} stops created, ${data.geocoded_count || 0} geocoded.`;
+      
+      if (data.warning) {
+        toast.warning(successMessage);
+      } else {
+        toast.success(successMessage);
+      }
       
       onSuccess();
       onClose();
       resetForm();
     } catch (error: any) {
-      toast.error(error.message || "Failed to import route from file");
+      console.error("Upload error:", error);
+      const errorMessage = error?.message || error?.error?.message || "Failed to import route from file";
+      toast.error(errorMessage);
     } finally {
       setUploading(false);
     }
@@ -141,6 +222,9 @@ export const RouteIngestionForm = ({ open, onClose, onSuccess, dispatcherId }: R
     });
     setSelectedFile(null);
     setFileContent("");
+    if (!dispatcherId) {
+      setSelectedDispatcherId("");
+    }
   };
 
   return (
@@ -155,6 +239,30 @@ export const RouteIngestionForm = ({ open, onClose, onSuccess, dispatcherId }: R
           <DialogTitle>Import Route</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Dispatcher Selection (if not provided) */}
+          {!dispatcherId && (
+            <div>
+              <Label htmlFor="dispatcher">Select Dispatcher *</Label>
+              <Select value={selectedDispatcherId} onValueChange={setSelectedDispatcherId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a dispatcher" />
+                </SelectTrigger>
+                <SelectContent>
+                  {dispatchers.map((dispatcher) => (
+                    <SelectItem key={dispatcher.id} value={dispatcher.id}>
+                      {dispatcher.dsp_name || dispatcher.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {dispatchers.length === 0 && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  No active dispatchers found. Please create one in Admin → Dispatchers.
+                </p>
+              )}
+            </div>
+          )}
+
           {/* File Upload Section */}
           <div className="border rounded-lg p-4 space-y-4">
             <div className="flex items-center gap-2">
@@ -267,7 +375,7 @@ export const RouteIngestionForm = ({ open, onClose, onSuccess, dispatcherId }: R
               <Button 
                 type="button" 
                 onClick={handleFileUpload} 
-                disabled={uploading || !dispatcherId}
+                disabled={uploading || !(dispatcherId || selectedDispatcherId)}
               >
                 {uploading ? (
                   <>

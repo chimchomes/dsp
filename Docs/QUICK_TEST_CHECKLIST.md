@@ -1,87 +1,57 @@
 # Quick Test Checklist
 
-Use this checklist to quickly test all changes before committing.
+## ⚡ 5-Minute Quick Test
 
-## Pre-Testing Setup
-
-- [ ] Backup database (recommended)
-- [ ] Apply migration: `20251108040000_update_address_fields_and_inactive_role.sql`
-- [ ] Verify migration applied successfully (no errors)
-- [ ] Clear browser cache
-- [ ] Open browser console to check for errors
-
----
-
-## Quick Tests (5-10 minutes)
-
-### ✅ Address Fields
-- [ ] Staff edit form shows new address fields (4 fields)
-- [ ] Driver edit form shows new address fields (4 fields)
-- [ ] Can save address data in both forms
-- [ ] Profile screen displays address in new format
-
-### ✅ Role Display
-- [ ] Staff edit form shows role field (non-editable)
-- [ ] Role displays correctly (e.g., "Hr", "Admin")
-- [ ] Role updates when changed in User Roles tab
-
-### ✅ Active/Inactive Status
-- [ ] Driver edit form has "Active Driver" checkbox
-- [ ] Can set driver to inactive
-- [ ] Inactive driver redirected to inbox (not dashboard)
-- [ ] Inactive driver can message admin
-- [ ] Can set driver back to active
-- [ ] Active driver can use system normally
-
-### ✅ Exit Button
-- [ ] Exit button appears on Admin Dashboard
-- [ ] Confirmation dialog appears when clicked
-- [ ] Cancel works (stays on dashboard)
-- [ ] Confirm works (logs out and redirects to login)
-
-### ✅ Red Dot on Message Icon
-- [ ] Red dot appears when unread messages exist
-- [ ] Red dot disappears when all messages read
-- [ ] Updates in real-time
-
-### ✅ Driver Management
-- [ ] Drivers table loads without errors
-- [ ] Can edit drivers
-- [ ] All fields save correctly
-- [ ] Status column shows Active/Inactive
-
----
-
-## If All Tests Pass ✅
-
-**Commit the changes:**
+### 1. Apply Migrations (2 min)
 ```bash
-git add .
-git commit -m "Add address fields, inactive role, and active/inactive status management"
+supabase db push
 ```
+✅ Check: No errors in console
+
+### 2. Deploy Functions (1 min)
+```bash
+supabase functions deploy ingest-route
+supabase functions deploy generate-payslip
+```
+✅ Check: Functions appear in Supabase dashboard
+
+### 3. Create Dispatcher (1 min)
+1. Go to `/admin/control-panel` → Dispatchers tab
+2. Click "Add Dispatcher"
+3. Fill:
+   - DSP Legal Name: `Test DSP`
+   - Driver Parcel Rate: `2.50`
+   - Default Deduction: `50.00`
+   - Tour Prefix: `TST_`
+4. Save
+✅ Check: Dispatcher appears in table
+
+### 4. Test Route Import (1 min)
+1. Use `test-route.csv` from project root
+2. Upload via Route Ingestion Form
+3. Select dispatcher
+4. Import
+✅ Check: Success message with stops count
+
+### 5. Test Payslip (1 min)
+1. Go to `/finance/payroll` → "Generate Payslip" tab
+2. Select driver
+3. Set dates (last 7 days)
+4. Generate
+✅ Check: Payslip shows with calculations
 
 ---
 
-## If Tests Fail ❌
+## 🐛 Common Issues
 
-1. Check browser console for errors
-2. Check Supabase logs
-3. Verify migration was applied
-4. Review error messages
-5. Fix issues and test again
+| Issue | Solution |
+|-------|----------|
+| Migration fails | Check SQL syntax, run one at a time |
+| Function not found | Redeploy, check function name |
+| Geocoding fails | Normal for some addresses, check logs |
+| Payslip shows £0 | Check driver has completed routes in date range |
 
 ---
 
-## Critical Tests (Must Pass)
-
-These tests are critical and must pass:
-
-1. ✅ Migration applies without errors
-2. ✅ Address fields save correctly
-3. ✅ Active/inactive status works
-4. ✅ Inactive users can only access inbox
-5. ✅ No errors in browser console
-6. ✅ No errors in Supabase logs
-
-If any of these fail, **do not commit** until fixed.
-
+## 📋 Full Test Guide
+See `TESTING_DISPATCHER_PAYROLL_FEATURES.md` for detailed testing steps.
