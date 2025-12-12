@@ -209,8 +209,9 @@ export const DispatcherManagement = () => {
       contact_email: dispatcher.contact_email,
       contact_phone: dispatcher.contact_phone || "",
       rate_per_parcel: dispatcher.rate_per_parcel.toString(),
-      driver_parcel_rate: (dispatcher.driver_parcel_rate || dispatcher.rate_per_parcel || 0).toString(),
-      default_deduction_rate: (dispatcher.default_deduction_rate || 0).toString(),
+      // Use nullish coalescing to preserve 0 values
+      driver_parcel_rate: (dispatcher.driver_parcel_rate ?? dispatcher.rate_per_parcel ?? 0).toString(),
+      default_deduction_rate: (dispatcher.default_deduction_rate ?? 0).toString(),
       tour_id_prefix: dispatcher.tour_id_prefix || "",
       admin_commission_percentage: dispatcher.admin_commission_percentage.toString(),
     });
@@ -384,8 +385,8 @@ export const DispatcherManagement = () => {
                 <TableRow key={dispatcher.id}>
                   <TableCell className="font-medium">{dispatcher.dsp_name || dispatcher.name}</TableCell>
                   <TableCell>{dispatcher.contact_email}</TableCell>
-                  <TableCell>£{(dispatcher.driver_parcel_rate || dispatcher.rate_per_parcel || 0).toFixed(2)}</TableCell>
-                  <TableCell>£{(dispatcher.default_deduction_rate || 0).toFixed(2)}</TableCell>
+                  <TableCell>£{(dispatcher.driver_parcel_rate ?? dispatcher.rate_per_parcel ?? 0).toFixed(2)}</TableCell>
+                  <TableCell>£{(dispatcher.default_deduction_rate ?? 0).toFixed(2)}</TableCell>
                   <TableCell>{dispatcher.tour_id_prefix || "-"}</TableCell>
                   <TableCell>
                     <Switch

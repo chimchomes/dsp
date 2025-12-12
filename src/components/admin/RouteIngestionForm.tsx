@@ -191,14 +191,30 @@ export const RouteIngestionForm = ({ open, onClose, onSuccess, dispatcherId }: R
         return;
       }
 
+      // Validate required numeric fields
+      const parcelCount = parseInt(formData.parcel_count_total);
+      const amazonRate = parseFloat(formData.amazon_rate_per_parcel);
+      
+      if (isNaN(parcelCount) || parcelCount <= 0) {
+        toast.error("Please enter a valid total parcels count (must be greater than 0)");
+        setLoading(false);
+        return;
+      }
+      
+      if (isNaN(amazonRate) || amazonRate < 0) {
+        toast.error("Please enter a valid Amazon rate per parcel (must be 0 or greater)");
+        setLoading(false);
+        return;
+      }
+
       const { error } = await supabase.from("routes").insert({
         customer_name: formData.customer_name,
         address: formData.address,
         driver_id: null, // Will be assigned later - null is allowed after migration
         dispatcher_id: finalDispatcherId,
-        parcel_count_total: parseInt(formData.parcel_count_total),
+        parcel_count_total: parcelCount,
         postcodes_covered: postcodes,
-        amazon_rate_per_parcel: parseFloat(formData.amazon_rate_per_parcel),
+        amazon_rate_per_parcel: amazonRate,
         scheduled_date: formData.scheduled_date,
         status: "pending",
         time_window: "TBD",
@@ -337,23 +353,25 @@ export const RouteIngestionForm = ({ open, onClose, onSuccess, dispatcherId }: R
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="parcel_count_total">Total Parcels</Label>
+                <Label htmlFor="parcel_count_total">Total Parcels *</Label>
                 <Input
                   id="parcel_count_total"
                   type="number"
                   min="1"
+                  required
                   value={formData.parcel_count_total}
                   onChange={(e) => setFormData({ ...formData, parcel_count_total: e.target.value })}
                   placeholder="e.g., 150"
                 />
               </div>
               <div>
-                <Label htmlFor="amazon_rate_per_parcel">Amazon Rate per Parcel (£)</Label>
+                <Label htmlFor="amazon_rate_per_parcel">Amazon Rate per Parcel (£) *</Label>
                 <Input
                   id="amazon_rate_per_parcel"
                   type="number"
                   step="0.01"
                   min="0"
+                  required
                   value={formData.amazon_rate_per_parcel}
                   onChange={(e) => setFormData({ ...formData, amazon_rate_per_parcel: e.target.value })}
                   placeholder="e.g., 2.00"
