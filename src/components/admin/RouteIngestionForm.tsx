@@ -183,11 +183,19 @@ export const RouteIngestionForm = ({ open, onClose, onSuccess, dispatcherId }: R
         .map(code => code.trim())
         .filter(code => code.length > 0);
 
+      const finalDispatcherId = dispatcherId || selectedDispatcherId;
+      
+      if (!finalDispatcherId) {
+        toast.error("Please select a dispatcher");
+        setLoading(false);
+        return;
+      }
+
       const { error } = await supabase.from("routes").insert({
         customer_name: formData.customer_name,
         address: formData.address,
-        driver_id: "", // Will be assigned later
-        dispatcher_id: dispatcherId || null,
+        driver_id: null, // Will be assigned later - null is allowed after migration
+        dispatcher_id: finalDispatcherId,
         parcel_count_total: parseInt(formData.parcel_count_total),
         postcodes_covered: postcodes,
         amazon_rate_per_parcel: parseFloat(formData.amazon_rate_per_parcel),
