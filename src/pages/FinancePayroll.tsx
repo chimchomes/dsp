@@ -129,7 +129,7 @@ const FinancePayroll = () => {
   };
 
   return (
-    <AuthGuard allowedRoles={["dispatcher", "admin", "finance"]}>
+    <AuthGuard allowedRoles={["route-admin", "admin", "finance"]}>
       <div className="min-h-screen bg-background p-6">
         <div className="max-w-7xl mx-auto space-y-6">
           <div className="flex items-center justify-between">

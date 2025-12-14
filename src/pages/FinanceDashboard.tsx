@@ -46,7 +46,7 @@ const FinanceDashboard = () => {
   ];
 
   return (
-    <AuthGuard allowedRoles={["dispatcher", "admin", "finance"]}>
+    <AuthGuard allowedRoles={["route-admin", "admin", "finance"]}>
       <div className="min-h-screen bg-background">
         <header className="border-b bg-card">
           <div className="container mx-auto p-6">

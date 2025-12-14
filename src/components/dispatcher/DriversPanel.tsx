@@ -11,7 +11,7 @@ interface Driver {
 
 interface Route {
   id: string;
-  driver_id: string;
+  driver_id: string | null;
   address: string;
   time_window: string;
   customer_name: string;
@@ -27,7 +27,7 @@ interface DriversPanelProps {
 
 export const DriversPanel = ({ drivers, routes }: DriversPanelProps) => {
   const getDriverRoutes = (driverId: string) => {
-    return routes.filter((r) => r.driver_id === driverId);
+    return routes.filter((r) => r.driver_id === driverId && r.driver_id !== null);
   };
 
   const getStatusColor = (status: string) => {

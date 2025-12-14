@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Shield, FileText, Users, Activity, ClipboardCheck, ArrowLeft, Truck, LogOut } from "lucide-react";
+import { Shield, FileText, Users, Activity, ClipboardCheck, ArrowLeft, Truck, LogOut, Package } from "lucide-react";
 import { AuthGuard } from "@/components/AuthGuard";
 import ActivityLogsTable from "@/components/admin/ActivityLogsTable";
 import UserManagement from "@/components/admin/UserManagement";
@@ -13,6 +13,7 @@ import SystemMetrics from "@/components/admin/SystemMetrics";
 import { OnboardingApplications } from "@/components/admin/OnboardingApplications";
 import { DispatcherManagement } from "@/components/admin/DispatcherManagement";
 import DriverManagement from "@/components/admin/DriverManagement";
+import { RouteManagement } from "@/components/admin/RouteManagement";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -78,7 +79,7 @@ const AdminDashboard = () => {
           </AlertDialog>
 
           <Tabs defaultValue="staff" className="space-y-6">
-            <TabsList className="grid w-full grid-cols-8 lg:w-auto">
+            <TabsList className="grid w-full grid-cols-9 lg:w-auto">
               <TabsTrigger value="staff" className="flex items-center gap-2">
                 <Users className="h-4 w-4" />
                 <span className="hidden sm:inline">Staff</span>
@@ -86,6 +87,10 @@ const AdminDashboard = () => {
               <TabsTrigger value="drivers" className="flex items-center gap-2">
                 <Truck className="h-4 w-4" />
                 <span className="hidden sm:inline">Drivers</span>
+              </TabsTrigger>
+              <TabsTrigger value="routes" className="flex items-center gap-2">
+                <Package className="h-4 w-4" />
+                <span className="hidden sm:inline">Routes</span>
               </TabsTrigger>
               <TabsTrigger value="metrics" className="flex items-center gap-2">
                 <Activity className="h-4 w-4" />
@@ -127,6 +132,18 @@ const AdminDashboard = () => {
 
             <TabsContent value="drivers" className="space-y-4">
               <DriverManagement />
+            </TabsContent>
+
+            <TabsContent value="routes" className="space-y-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Route Management</CardTitle>
+                  <CardDescription>Assign imported routes to drivers and view route details</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <RouteManagement />
+                </CardContent>
+              </Card>
             </TabsContent>
 
             <TabsContent value="metrics" className="space-y-4">

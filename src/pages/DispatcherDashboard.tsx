@@ -149,7 +149,7 @@ const DispatcherDashboard = () => {
       // Load all routes (route-admin can see routes from all dispatchers)
       // Admin can also see all routes
       const [driversRes, routesRes, incidentsRes] = await Promise.all([
-        supabase.from("drivers").select("*").order("name"),
+        supabase.from("drivers").select("*").eq("active", true).order("name"),
         supabase
           .from("routes")
           .select(`

@@ -40,13 +40,13 @@ const DispatcherLogin = () => {
         return;
       }
 
-      // Check if user has dispatcher or admin role
+      // Check if user has route-admin or admin role
       const { data: roles } = await supabase
         .from("user_roles")
         .select("role")
         .eq("user_id", data.user.id);
 
-      const hasAccess = roles?.some(r => r.role === "dispatcher" || r.role === "admin");
+      const hasAccess = roles?.some(r => r.role === "route-admin" || r.role === "admin");
 
       if (!hasAccess) {
         await supabase.auth.signOut();
@@ -56,14 +56,14 @@ const DispatcherLogin = () => {
       // Log the login activity
       await supabase.rpc('log_activity', {
         p_action_type: 'login',
-        p_resource_type: 'dispatcher',
+        p_resource_type: 'route-admin',
         p_resource_id: null,
         p_action_details: null
       });
 
       toast({
         title: "Welcome back!",
-        description: "Successfully logged in to dispatcher dashboard.",
+        description: "Successfully logged in to route admin dashboard.",
       });
 
       navigate("/dispatcher");
@@ -97,7 +97,7 @@ const DispatcherLogin = () => {
       .select("role")
       .eq("user_id", user.id);
 
-    const hasAccess = roles?.some(r => r.role === "dispatcher" || r.role === "admin");
+      const hasAccess = roles?.some(r => r.role === "route-admin" || r.role === "admin");
 
     if (!hasAccess) {
       await supabase.auth.signOut();

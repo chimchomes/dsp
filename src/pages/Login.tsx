@@ -123,7 +123,7 @@ export default function Login() {
         description: "Successfully logged in.",
       });
 
-      // Redirect based on role priority: Admin > Dispatcher > Finance > Driver > Inactive
+      // Redirect based on role priority: Admin > Route Admin > Finance > Driver > Inactive
       // If roles query failed, try to infer from driver record or other data
       
       // If we have roles, use them
@@ -131,7 +131,7 @@ export default function Login() {
         if (roleList.includes("admin")) {
           navigate("/admin");
           return;
-        } else if (roleList.includes("dispatcher")) {
+        } else if (roleList.includes("route-admin")) {
           navigate("/dispatcher");
           return;
         } else if (roleList.includes("finance")) {
@@ -178,7 +178,7 @@ export default function Login() {
             if (inferredRole === "admin") {
               navigate("/admin");
               return;
-            } else if (inferredRole === "dispatcher") {
+            } else if (inferredRole === "route-admin") {
               navigate("/dispatcher");
               return;
             } else if (inferredRole === "finance") {
@@ -255,11 +255,11 @@ export default function Login() {
       .eq("user_id", user.id)
       .maybeSingle();
 
-          // Redirect based on role priority: Admin > Dispatcher > Finance > HR > Driver > Inactive
+          // Redirect based on role priority: Admin > Route Admin > Finance > HR > Driver > Inactive
           // Inactive users can only access inbox to message admin
           if (roles?.some(r => r.role === "admin")) {
             navigate("/admin");
-          } else if (roles?.some(r => r.role === "dispatcher")) {
+          } else if (roles?.some(r => r.role === "route-admin")) {
             navigate("/dispatcher");
           } else if (roles?.some(r => r.role === "finance")) {
             navigate("/finance");

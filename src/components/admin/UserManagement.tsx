@@ -99,7 +99,7 @@ const UserManagement = () => {
     try {
       const { error } = await supabase.rpc('assign_user_role', {
         p_user_id: selectedUser.id,
-        p_role: selectedRole as 'admin' | 'dispatcher' | 'driver' | 'hr' | 'finance' | 'onboarding' | 'inactive',
+        p_role: selectedRole as 'admin' | 'route-admin' | 'driver' | 'hr' | 'finance' | 'onboarding' | 'inactive',
       });
 
       if (error) throw error;
@@ -124,7 +124,7 @@ const UserManagement = () => {
     try {
       const { error } = await supabase.rpc('remove_user_role', {
         p_user_id: userId,
-        p_role: role as 'admin' | 'dispatcher' | 'driver' | 'hr' | 'finance' | 'onboarding' | 'inactive',
+        p_role: role as 'admin' | 'route-admin' | 'driver' | 'hr' | 'finance' | 'onboarding' | 'inactive',
       });
 
       if (error) throw error;
@@ -186,7 +186,7 @@ const UserManagement = () => {
                             variant={
                               role === 'admin'
                                 ? 'default'
-                                : role === 'dispatcher'
+                                : role === 'route-admin'
                                 ? 'secondary'
                                 : 'outline'
                             }

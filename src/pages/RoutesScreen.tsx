@@ -15,12 +15,20 @@ interface Driver {
 
 interface Route {
   id: string;
+  tour_id: string | null;
   address: string;
   time_window: string;
   customer_name: string;
   delivery_notes: string | null;
   status: string;
   scheduled_date: string;
+  parcel_count_total: number;
+  parcels_delivered: number;
+  dispatcher?: {
+    id: string;
+    dsp_name: string;
+    tour_id_prefix: string | null;
+  };
 }
 
 export default function RoutesScreen() {
@@ -41,22 +49,52 @@ export default function RoutesScreen() {
         return;
       }
 
+      // Use user_id for more reliable lookup (matches RLS policy)
       const { data: driverData, error: driverError } = await supabase
         .from("drivers")
         .select("*")
-        .eq("email", user.email)
+        .eq("user_id", user.id)
         .single();
 
-      if (driverError) throw driverError;
+      if (driverError) {
+        // Fallback to email if user_id lookup fails
+        const { data: driverDataEmail, error: driverErrorEmail } = await supabase
+          .from("drivers")
+          .select("*")
+          .eq("email", user.email)
+          .single();
+        
+        if (driverErrorEmail) throw driverErrorEmail;
+        setDriver(driverDataEmail);
+        
+        // Load routes using email-based driver
+        const { data: routesData, error: routesError } = await supabase
+          .from("routes")
+          .select(`
+            *,
+            dispatcher:dispatchers(id, dsp_name, tour_id_prefix)
+          `)
+          .eq("driver_id", driverDataEmail.id)
+          .order("scheduled_date", { ascending: false })
+          .order("created_at", { ascending: false });
+
+        if (routesError) throw routesError;
+        setRoutes(routesData || []);
+        return;
+      }
+
       setDriver(driverData);
 
-      const today = new Date().toISOString().split('T')[0];
+      // Load all assigned routes (not just today's)
       const { data: routesData, error: routesError } = await supabase
         .from("routes")
-        .select("*")
+        .select(`
+          *,
+          dispatcher:dispatchers(id, dsp_name, tour_id_prefix)
+        `)
         .eq("driver_id", driverData.id)
-        .eq("scheduled_date", today)
-        .order("time_window");
+        .order("scheduled_date", { ascending: false })
+        .order("created_at", { ascending: false });
 
       if (routesError) throw routesError;
       setRoutes(routesData || []);
@@ -132,12 +170,12 @@ export default function RoutesScreen() {
         <div>
           <div className="flex items-center gap-2 mb-4">
             <Package className="h-6 w-6 text-primary" />
-            <h2 className="text-2xl font-bold">Today's Deliveries</h2>
+            <h2 className="text-2xl font-bold">My Assigned Routes</h2>
           </div>
 
           {routes.length === 0 ? (
             <Card className="p-8 text-center">
-              <p className="text-muted-foreground">No deliveries scheduled for today</p>
+              <p className="text-muted-foreground">No routes assigned yet</p>
             </Card>
           ) : (
             <div className="space-y-4">

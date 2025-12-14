@@ -38,7 +38,7 @@ const staffRoleSchema = z.object({
   surname: z.string().min(2, "Surname must be at least 2 characters").max(100),
   email: z.string().email("Invalid email address").max(255),
   password: z.string().min(8, "Password must be at least 8 characters"),
-  role: z.enum(["admin", "hr", "finance", "dispatcher"], {
+  role: z.enum(["admin", "hr", "finance", "route-admin"], {
     errorMap: () => ({ message: "Invalid role selected" }),
   }),
   contact_phone: z.string().max(20).optional().or(z.literal("")),
@@ -80,7 +80,7 @@ export default function StaffManagement() {
     surname: "",
     email: "",
     password: "",
-    role: "hr" as "admin" | "hr" | "finance" | "dispatcher",
+    role: "hr" as "admin" | "hr" | "finance" | "route-admin",
     contact_phone: "",
     address_line_1: "",
     address_line_2: "",
@@ -100,7 +100,7 @@ export default function StaffManagement() {
       const { data: allUserRoles, error: rolesError } = await supabase
         .from("user_roles")
         .select("user_id, role")
-        .in("role", ["admin", "hr", "finance", "dispatcher", "inactive"]);
+        .in("role", ["admin", "hr", "finance", "route-admin", "inactive"]);
 
       if (rolesError) throw rolesError;
 
@@ -145,7 +145,7 @@ export default function StaffManagement() {
         const isInactive = allRoles.includes("inactive");
         
         // Get staff roles (admin, hr, finance, dispatcher)
-        const staffRoles = allRoles.filter(r => ["admin", "hr", "finance", "dispatcher"].includes(r));
+        const staffRoles = allRoles.filter(r => ["admin", "hr", "finance", "route-admin"].includes(r));
         
         // Show users who have staff roles (inactive users still have their staff roles)
         if (staffRoles.length > 0) {
@@ -310,7 +310,7 @@ export default function StaffManagement() {
       .from("user_roles")
       .select("role")
       .eq("user_id", user.user_id)
-      .in("role", ["admin", "hr", "finance", "dispatcher"])
+      .in("role", ["admin", "hr", "finance", "route-admin"])
       .order("role", { ascending: true })
       .limit(1);
     
@@ -321,7 +321,7 @@ export default function StaffManagement() {
       surname: profileData?.surname || user.surname || "",
       email: user.email,
       password: "", // Don't show password
-      role: primaryRole as "admin" | "hr" | "finance" | "dispatcher",
+      role: primaryRole as "admin" | "hr" | "finance" | "route-admin",
       contact_phone: profileData?.contact_phone || user.contact_phone || "",
       address_line_1: profileData?.address_line_1 || user.address_line_1 || "",
       address_line_2: profileData?.address_line_2 || user.address_line_2 || "",
@@ -546,7 +546,7 @@ export default function StaffManagement() {
                     <SelectContent>
                       <SelectItem value="hr">HR</SelectItem>
                       <SelectItem value="finance">Finance</SelectItem>
-                      <SelectItem value="dispatcher">Dispatcher</SelectItem>
+                      <SelectItem value="route-admin">Route Admin</SelectItem>
                       <SelectItem value="admin">Admin</SelectItem>
                     </SelectContent>
                   </Select>
@@ -607,7 +607,7 @@ export default function StaffManagement() {
         <CardHeader>
           <CardTitle>Staff List</CardTitle>
           <CardDescription>
-            All staff members with roles: Admin, HR, Finance, Dispatcher
+            All staff members with roles: Admin, HR, Finance, Route Admin
           </CardDescription>
         </CardHeader>
         <CardContent>
