@@ -29,13 +29,13 @@ DSP is a role-based delivery management system that handles:
 
 The system supports the following roles with different access levels:
 
-- **Admin**: Full system access, user management, all dashboards
-- **Dispatcher**: Route management, driver assignment, incident tracking
-- **Finance**: Expense review, payroll, financial reports
-- **HR**: Driver onboarding, training management, driver profiles
-- **Driver**: Route viewing, expense submission, profile management
-- **Onboarding**: Temporary role for applicants completing onboarding
-- **Inactive**: Limited access (inbox only) for deactivated users
+- **Admin**: Full system access, user management, all dashboards, can message all roles
+- **Route-Admin** (formerly Dispatcher): Route management, driver assignment, can message all except onboarding and inactive
+- **Finance**: Expense review, payroll, financial reports, can message all except onboarding and inactive
+- **HR**: Driver onboarding, training management, driver profiles, can message all except onboarding and inactive
+- **Driver**: Route viewing, expense submission, profile management, can message admin/route-admin/finance/HR only
+- **Onboarding**: Temporary role for applicants completing onboarding, can only message admin
+- **Inactive**: Limited access (inbox only) for deactivated users, can only message admin
 
 ## 🚦 Getting Started
 
@@ -172,11 +172,13 @@ After login, users are automatically redirected:
 - Training management
 - Driver table view
 
-### Dispatcher Dashboard
-- Route assignment
-- Driver management
-- Incident tracking
-- Messaging
+### Route Admin Dashboard (formerly Dispatcher)
+- Route import and management
+- Route assignment to drivers
+- Dispatcher account management
+- View all routes from all dispatchers
+- Filter routes by date, status, dispatcher, driver
+- Driver route viewing with filters
 
 ### Driver Portal
 - View assigned routes
@@ -238,13 +240,14 @@ See `Docs/DEPLOYMENT.md` for detailed deployment instructions.
 - Ensure `vercel.json` exists with SPA rewrite rules
 - Verify deployment includes `vercel.json`
 
-## 🔄 Recent Updates
+## 🔄 Recent Updates (December 2025)
 
-- Staff deactivation/reactivation with filtering
-- Improved login redirects for all roles
-- Driver record creation on onboarding approval
-- Enhanced error handling and fallback logic
-- Real-time driver list updates
+- **Messaging System**: Comprehensive role-based messaging rules enforced
+- **Dispatcher Management**: Form split into two pages, added DSP parcel rate field
+- **Route Management**: Enhanced filtering, driver route viewing, improved assignment flow
+- **Route-Admin Role**: Renamed from "dispatcher" role, can manage all dispatchers and routes
+- **Sender Names**: Fixed inbox to show first name + surname instead of UUIDs
+- **Authorization**: Improved error handling for edge function authentication
 
 ## 📝 License
 

@@ -167,6 +167,77 @@ After running the migration, verify that:
 - Updates profiles with onboarding information
 - Handles users with driver role but no driver record
 
+## Recent Updates (December 2025)
+
+### Dispatcher Management Improvements
+
+**Form Split into Two Pages**:
+- Split dispatcher form into "Basic Information" and "Rates & Settings" tabs
+- Better UX - no more scrolling to see all fields
+- Basic Information: Company Name, DSP Legal Name, Contact Email, Contact Phone
+- Rates & Settings: DSP Parcel Rate, Driver Parcel Rate, Default Deduction Rate, Tour ID Prefix, Legacy fields
+
+**DSP Parcel Rate Field**:
+- Added `dsp_parcel_rate` column to dispatchers table
+- Separate from `driver_parcel_rate` (revenue vs payout)
+- Migration: `20251201000012_add_dsp_parcel_rate.sql`
+
+### Messaging System Enhancements
+
+**Messaging Rules Enforcement**:
+- Implemented comprehensive messaging rules for all roles
+- Rules enforced in both frontend (UI filtering) and backend (server validation)
+- Updated `send-notification` edge function with role-based filtering
+
+**Messaging Rules Matrix**:
+- **Admin**: Can message all roles (including users with no roles)
+- **Route-Admin**: Can message all except onboarding and inactive
+- **Driver**: Can message admin, route-admin, finance, HR (not other drivers, onboarding, inactive)
+- **Finance**: Can message all except onboarding and inactive
+- **HR**: Can message all except onboarding and inactive
+- **Onboarding**: Can only message admin
+- **Inactive**: Can only message admin
+- **Universal**: No one can message themselves
+
+**Sender Name Display Fix**:
+- Fixed inbox to show sender's first name + surname instead of UUID
+- Uses `role_profiles` view first (more reliable), falls back to `profiles` table
+- Proper name formatting with fallback to email if name not available
+
+**Authorization Header Fix**:
+- Improved error handling for missing authorization headers
+- Better logging to debug authentication issues
+- Case-insensitive header checking
+
+### Route Management Updates
+
+**Driver Route Filtering**:
+- Added filter section to DriversPanel component
+- Can filter by driver and date
+- Shows all routes (past and present) for selected driver
+- Displays total routes, active routes, and completed routes counts
+
+**Route Assignment Improvements**:
+- Route assignment form: Select dispatcher → Select route → Select driver
+- Excludes completed routes from assignment
+- Better error handling and validation
+
+**Route Filters**:
+- Added date and status filters to imported routes table
+- Filter by dispatcher and driver
+- Shows route completion details
+
+### Database Migrations
+
+**New Migrations Applied**:
+- `20251201000012_add_dsp_parcel_rate.sql` - Adds DSP parcel rate field
+- `20251201000013_fix_dispatchers_rls_for_route_admin.sql` - Allows route-admins to manage dispatchers
+
+**Updated Policies**:
+- Route-admins can now create, update, and delete dispatchers
+- Uses direct EXISTS queries to avoid recursion issues
+- Backward compatibility with legacy dispatcher role
+
 ## Next Steps
 
 1. Run all migrations (see migration order in DEPLOYMENT.md)
@@ -174,4 +245,6 @@ After running the migration, verify that:
 3. Test onboarding re-submit workflow
 4. Verify all role logins work correctly
 5. Run backfill migration for existing drivers
+6. Test messaging between all role combinations
+7. Verify dispatcher form works with new two-page layout
 

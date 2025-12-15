@@ -21,10 +21,23 @@ serve(async (req) => {
     const supabase = createClient(url, serviceKey, { auth: { autoRefreshToken: false, persistSession: false } });
 
     // Identify caller
-    const authHeader = req.headers.get('Authorization') || '';
-    const token = authHeader.replace('Bearer ', '');
+    const authHeader = req.headers.get('Authorization') || req.headers.get('authorization') || '';
+    if (!authHeader) {
+      console.error('Missing authorization header. Headers:', Object.fromEntries(req.headers.entries()));
+      return new Response(JSON.stringify({ error: "Missing authorization header" }), { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 401 });
+    }
+    
+    const token = authHeader.replace('Bearer ', '').replace('bearer ', '');
+    if (!token) {
+      console.error('No token found in authorization header');
+      return new Response(JSON.stringify({ error: "Invalid authorization header format" }), { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 401 });
+    }
+    
     const { data: userRes, error: userErr } = await supabase.auth.getUser(token);
-    if (userErr || !userRes?.user) return new Response(JSON.stringify({ error: "Unauthorized" }), { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 401 });
+    if (userErr || !userRes?.user) {
+      console.error('Auth error:', userErr);
+      return new Response(JSON.stringify({ error: "Unauthorized", details: userErr?.message }), { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 401 });
+    }
 
     const caller = userRes.user;
 
@@ -47,6 +60,10 @@ serve(async (req) => {
     const isDriverOnly = hasDriverRole && callerRoles.every((role) => role === 'driver');
     const isOnboarding = hasRole('onboarding');
     const isInactive = hasRole('inactive');
+    const isRouteAdmin = hasRole('route-admin') || hasRole('dispatcher');
+    const isAdmin = hasRole('admin');
+    const isFinance = hasRole('finance');
+    const isHR = hasRole('hr');
     const requestedRole = typeof recipientRole === 'string' && recipientRole.trim().length > 0
       ? recipientRole.trim()
       : undefined;
@@ -71,37 +88,98 @@ serve(async (req) => {
     // Deduplicate & ensure not self-target
     recipients = recipients.filter((rid) => rid !== caller.id);
     if (recipients.length === 0) {
-      return new Response(JSON.stringify({ error: "No recipients" }), { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 });
+      return new Response(JSON.stringify({ error: "No recipients (all recipients are yourself)" }), { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 });
     }
 
     // Enforce recipient role constraints dynamically
-    const { data: recRoles } = await supabase
+    const { data: recRoles, error: recRolesError } = await supabase
       .from('user_roles')
       .select('user_id, role')
       .in('user_id', recipients);
+    
+    if (recRolesError) {
+      console.error('Error fetching recipient roles:', recRolesError);
+      return new Response(JSON.stringify({ error: "Failed to validate recipients", details: recRolesError.message }), { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 });
+    }
+    
     const roleMap = new Map<string, string[]>();
     (recRoles || []).forEach(r => {
       const arr = roleMap.get(r.user_id as string) || [];
       arr.push(r.role as string);
       roleMap.set(r.user_id as string, arr);
     });
+    
+    // Log for debugging
+    console.log(`=== MESSAGE SEND ATTEMPT ===`);
+    console.log(`Caller ID: ${caller.id}`);
+    console.log(`Caller Roles: ${callerRoles.join(', ')}`);
+    console.log(`isRouteAdmin: ${isRouteAdmin}, isAdmin: ${isAdmin}`);
+    console.log(`Requested role: ${requestedRole || 'none'}`);
+    console.log(`Recipients provided: ${recipients.length} - [${recipients.join(', ')}]`);
+    console.log(`Found roles for ${roleMap.size} out of ${recipients.length} recipients`);
+    
+    // Log each recipient's roles
+    recipients.forEach(rid => {
+      const roles = roleMap.get(rid) || [];
+      if (roles.length === 0) {
+        console.log(`  ❌ Recipient ${rid}: NO ROLES ASSIGNED`);
+      } else {
+        console.log(`  ✓ Recipient ${rid}: roles = [${roles.join(', ')}]`);
+      }
+    });
 
-    const driverAllowedRoles = ['admin', 'hr', 'finance'];
+    const driverAllowedRoles = ['admin', 'hr', 'finance', 'route-admin'];
     const sanitizedRecipients = recipients.filter((rid) => {
       const roles = roleMap.get(rid) || [];
-      if (roles.length === 0) return false;
-
-      // Inactive users can only message admin
-      if (isInactive) {
-        return roles.includes('admin');
+      
+      // Rule 7: No one can message themselves (already filtered above, but double-check)
+      if (rid === caller.id) {
+        console.log(`Recipient ${rid} is self - filtering out`);
+        return false;
       }
 
+      // Rule 3: Admin can message all (including users with no roles)
+      if (isAdmin) {
+        console.log(`Admin: Allowing recipient ${rid} with roles: [${roles.join(', ') || 'none'}]`);
+        return true; // Admin can message everyone, even if they have no roles
+      }
+
+      // If recipient has no roles, they can't receive messages (must have a role)
+      // Exception: Admin can message users with no roles (handled above)
+      if (roles.length === 0) {
+        console.log(`Recipient ${rid} has no roles assigned - filtering out`);
+        return false;
+      }
+
+      // Rule 1: Route-admin can message all but onboarding and inactive
+      if (isRouteAdmin && !isAdmin) {
+        if (roles.includes('onboarding')) {
+          console.log(`Route-admin: Recipient ${rid} has onboarding role - filtering out`);
+          return false;
+        }
+        if (roles.includes('inactive')) {
+          console.log(`Route-admin: Recipient ${rid} has inactive role - filtering out`);
+          return false;
+        }
+        if (requestedRole && (requestedRole === 'onboarding' || requestedRole === 'inactive')) {
+          console.log(`Route-admin: Requested role is ${requestedRole} - filtering out`);
+          return false;
+        }
+        // Route-admin can message anyone except onboarding and inactive
+        console.log(`Route-admin: Allowing recipient ${rid} with roles: ${roles.join(', ')}`);
+        return true;
+      }
+
+      // Rule 2: Onboarding can only message admin
       if (isOnboarding) {
         return roles.includes('admin');
       }
 
+      // Admin check already handled above (before role check)
+
+      // Rule 4: Driver can only message all apart from onboarding, other drivers
       if (isDriverOnly) {
-        if (roles.includes('driver') || roles.includes('onboarding') || roles.includes('inactive')) {
+        if (roles.includes('driver') || roles.includes('onboarding')) {
           return false;
         }
         if (requestedRole) {
@@ -110,6 +188,28 @@ serve(async (req) => {
         return roles.some((role) => driverAllowedRoles.includes(role));
       }
 
+      // Rule 5: Finance can message all but onboarding and inactive
+      if (isFinance) {
+        if (roles.includes('onboarding')) return false;
+        if (roles.includes('inactive')) return false;
+        if (requestedRole && (requestedRole === 'onboarding' || requestedRole === 'inactive')) return false;
+        return true;
+      }
+
+      // Rule 6: HR can message all but onboarding and inactive
+      if (isHR) {
+        if (roles.includes('onboarding')) return false;
+        if (roles.includes('inactive')) return false;
+        if (requestedRole && (requestedRole === 'onboarding' || requestedRole === 'inactive')) return false;
+        return true;
+      }
+
+      // Inactive users can only message admin
+      if (isInactive) {
+        return roles.includes('admin');
+      }
+
+      // Default: allow if requested role matches
       if (requestedRole) {
         return roles.includes(requestedRole);
       }
@@ -118,30 +218,86 @@ serve(async (req) => {
     });
 
     if (sanitizedRecipients.length === 0) {
+      // Check why recipients were filtered out
+      const recipientsWithNoRoles = recipients.filter(rid => (roleMap.get(rid) || []).length === 0);
+      const recipientsWithOnboarding = recipients.filter(rid => (roleMap.get(rid) || []).includes('onboarding'));
+      
       let errorMsg = "No valid recipients. ";
-      if (isInactive) {
+      
+      if (recipientsWithNoRoles.length > 0) {
+        errorMsg += `${recipientsWithNoRoles.length} recipient(s) have no roles assigned: ${recipientsWithNoRoles.join(', ')}. `;
+      }
+      
+      if (isAdmin) {
+        errorMsg += `Admin should be able to message all roles. `;
+        if (recipientsWithNoRoles.length > 0) {
+          errorMsg += `However, ${recipientsWithNoRoles.length} recipient(s) have no roles assigned: ${recipientsWithNoRoles.join(', ')}. Users must have at least one role to receive messages.`;
+        } else {
+          errorMsg += `All ${recipients.length} recipient(s) were filtered out. This should not happen for admin.`;
+        }
+      } else if (isInactive) {
         errorMsg += "Inactive users can only message admins.";
       } else if (isOnboarding) {
         errorMsg += "Onboarding users can only message admins.";
+      } else if (isRouteAdmin && !isAdmin) {
+        if (recipientsWithOnboarding.length > 0) {
+          errorMsg += `Route-admins cannot message onboarding users (${recipientsWithOnboarding.length} recipient(s) have onboarding role). `;
+        }
+        const recipientsWithInactive = recipients.filter(rid => (roleMap.get(rid) || []).includes('inactive'));
+        if (recipientsWithInactive.length > 0) {
+          errorMsg += `Route-admins cannot message inactive users (${recipientsWithInactive.length} recipient(s) have inactive role). `;
+        }
+        if (recipientsWithOnboarding.length === 0 && recipientsWithInactive.length === 0) {
+          errorMsg += "Route-admins cannot message onboarding or inactive users. All other roles are allowed. ";
+          errorMsg += `Recipients provided: ${recipients.length}, but none have valid roles or all were filtered out.`;
+        }
       } else if (isDriverOnly) {
-        errorMsg += "Drivers cannot message other drivers or onboarding users. They can only message admin, HR, or finance staff.";
+        errorMsg += "Drivers cannot message other drivers, onboarding users, or inactive users. They can only message admin, HR, finance, or route-admin staff.";
+      } else if (isFinance) {
+        errorMsg += "Finance staff cannot message onboarding or inactive users.";
+      } else if (isHR) {
+        errorMsg += "HR staff cannot message onboarding or inactive users.";
       } else if (requestedRole) {
         errorMsg += `No users found with role '${requestedRole}' that match the recipient criteria.`;
       } else {
         errorMsg += "All recipients were filtered out due to role restrictions.";
       }
-      return new Response(JSON.stringify({ error: errorMsg }), { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 });
+      
+      console.error(`❌ ERROR: ${errorMsg}`);
+      console.error(`Recipients provided: ${recipients.join(', ')}`);
+      console.error(`Valid recipients: ${sanitizedRecipients.length}`);
+      console.error(`Recipients with no roles: ${recipientsWithNoRoles.join(', ') || 'none'}`);
+      console.error(`Recipients with onboarding: ${recipientsWithOnboarding.join(', ') || 'none'}`);
+      
+      return new Response(JSON.stringify({ 
+        error: errorMsg,
+        debug: {
+          callerRoles: callerRoles,
+          isRouteAdmin,
+          isAdmin,
+          recipientsProvided: recipients.length,
+          recipientsWithRoles: roleMap.size,
+          recipientsWithNoRoles: recipientsWithNoRoles.length,
+          recipientsWithOnboarding: recipientsWithOnboarding.length
+        }
+      }), { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 });
     }
 
     // Log how many recipients were filtered out (for debugging)
     if (sanitizedRecipients.length < recipients.length) {
       console.log(`Filtered ${recipients.length - sanitizedRecipients.length} recipients due to role restrictions`);
+      console.log(`Original recipients: ${recipients.length}, Valid recipients: ${sanitizedRecipients.length}`);
     }
 
     // Insert notifications
     const rows = sanitizedRecipients.map(rid => ({ sender_id: caller.id, recipient_id: rid, title, body: content, kind }));
+    console.log(`Inserting ${rows.length} notification(s) for recipients: ${sanitizedRecipients.join(', ')}`);
     const { error: insErr } = await supabase.from('notifications').insert(rows);
-    if (insErr) throw insErr;
+    if (insErr) {
+      console.error('Error inserting notifications:', insErr);
+      throw insErr;
+    }
+    console.log(`✅ Successfully sent ${rows.length} notification(s)`);
 
     return new Response(JSON.stringify({ ok: true, count: rows.length }), { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 });
   } catch (error) {

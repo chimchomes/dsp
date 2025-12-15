@@ -19,6 +19,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Plus, Edit, Trash } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 
@@ -50,6 +51,7 @@ export const DispatcherManagement = () => {
     contact_phone: "",
     rate_per_parcel: "",
     driver_parcel_rate: "",
+    dsp_parcel_rate: "",
     default_deduction_rate: "",
     tour_id_prefix: "",
     admin_commission_percentage: "",
@@ -91,6 +93,7 @@ export const DispatcherManagement = () => {
         contact_phone: formData.contact_phone || null,
         rate_per_parcel: parseFloat(formData.rate_per_parcel) || 0,
         driver_parcel_rate: parseFloat(formData.driver_parcel_rate) || 0,
+        dsp_parcel_rate: parseFloat(formData.dsp_parcel_rate) || 0,
         default_deduction_rate: parseFloat(formData.default_deduction_rate) || 0,
         tour_id_prefix: formData.tour_id_prefix || null,
         admin_commission_percentage: parseFloat(formData.admin_commission_percentage) || 0,
@@ -194,6 +197,7 @@ export const DispatcherManagement = () => {
       contact_phone: "",
       rate_per_parcel: "",
       driver_parcel_rate: "",
+      dsp_parcel_rate: "",
       default_deduction_rate: "",
       tour_id_prefix: "",
       admin_commission_percentage: "",
@@ -211,6 +215,7 @@ export const DispatcherManagement = () => {
       rate_per_parcel: dispatcher.rate_per_parcel.toString(),
       // Use nullish coalescing to preserve 0 values
       driver_parcel_rate: (dispatcher.driver_parcel_rate ?? dispatcher.rate_per_parcel ?? 0).toString(),
+      dsp_parcel_rate: (dispatcher.dsp_parcel_rate ?? 0).toString(),
       default_deduction_rate: (dispatcher.default_deduction_rate ?? 0).toString(),
       tour_id_prefix: dispatcher.tour_id_prefix || "",
       admin_commission_percentage: dispatcher.admin_commission_percentage.toString(),
@@ -236,115 +241,144 @@ export const DispatcherManagement = () => {
               Add Dispatcher
             </Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>
                 {editingDispatcher ? "Edit Dispatcher" : "Add New Dispatcher"}
               </DialogTitle>
             </DialogHeader>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <Label htmlFor="name">Company Name</Label>
-                <Input
-                  id="name"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  required
-                />
-              </div>
-              <div>
-                <Label htmlFor="dsp_name">DSP Legal Name</Label>
-                <Input
-                  id="dsp_name"
-                  value={formData.dsp_name}
-                  onChange={(e) => setFormData({ ...formData, dsp_name: e.target.value })}
-                  placeholder="e.g., Amazon, Velocity Logistics"
-                  required
-                />
-              </div>
-              <div>
-                <Label htmlFor="contact_email">Contact Email</Label>
-                <Input
-                  id="contact_email"
-                  type="email"
-                  value={formData.contact_email}
-                  onChange={(e) => setFormData({ ...formData, contact_email: e.target.value })}
-                  required
-                />
-              </div>
-              <div>
-                <Label htmlFor="contact_phone">Contact Phone (Optional)</Label>
-                <Input
-                  id="contact_phone"
-                  type="tel"
-                  value={formData.contact_phone}
-                  onChange={(e) => setFormData({ ...formData, contact_phone: e.target.value })}
-                />
-              </div>
-              <div>
-                <Label htmlFor="driver_parcel_rate">Driver Parcel Rate (£)</Label>
-                <Input
-                  id="driver_parcel_rate"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={formData.driver_parcel_rate}
-                  onChange={(e) => setFormData({ ...formData, driver_parcel_rate: e.target.value })}
-                  placeholder="Amount paid per completed parcel"
-                  required
-                />
-                <p className="text-xs text-muted-foreground mt-1">
-                  Fixed dollar amount paid to driver per successfully completed parcel
-                </p>
-              </div>
-              <div>
-                <Label htmlFor="default_deduction_rate">Default Deduction Rate (£)</Label>
-                <Input
-                  id="default_deduction_rate"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={formData.default_deduction_rate}
-                  onChange={(e) => setFormData({ ...formData, default_deduction_rate: e.target.value })}
-                  placeholder="0.00"
-                />
-                <p className="text-xs text-muted-foreground mt-1">
-                  Fixed weekly/monthly amount for standard deductions (insurance, admin fee)
-                </p>
-              </div>
-              <div>
-                <Label htmlFor="tour_id_prefix">Tour ID Prefix</Label>
-                <Input
-                  id="tour_id_prefix"
-                  value={formData.tour_id_prefix}
-                  onChange={(e) => setFormData({ ...formData, tour_id_prefix: e.target.value })}
-                  placeholder="e.g., AMZ_, VEL_"
-                />
-                <p className="text-xs text-muted-foreground mt-1">
-                  Short unique identifier for route imports (e.g., 'AMZ_', 'VEL_')
-                </p>
-              </div>
-              <div>
-                <Label htmlFor="rate_per_parcel">Rate Per Parcel (£) - Legacy</Label>
-                <Input
-                  id="rate_per_parcel"
-                  type="number"
-                  step="0.01"
-                  value={formData.rate_per_parcel}
-                  onChange={(e) => setFormData({ ...formData, rate_per_parcel: e.target.value })}
-                />
-              </div>
-              <div>
-                <Label htmlFor="admin_commission_percentage">Admin Commission (%)</Label>
-                <Input
-                  id="admin_commission_percentage"
-                  type="number"
-                  step="0.01"
-                  value={formData.admin_commission_percentage}
-                  onChange={(e) => setFormData({ ...formData, admin_commission_percentage: e.target.value })}
-                />
-              </div>
-              <div className="flex justify-end gap-2">
+            <form onSubmit={handleSubmit}>
+              <Tabs defaultValue="basic" className="w-full">
+                <TabsList className="grid w-full grid-cols-2">
+                  <TabsTrigger value="basic">Basic Information</TabsTrigger>
+                  <TabsTrigger value="rates">Rates & Settings</TabsTrigger>
+                </TabsList>
+                
+                <TabsContent value="basic" className="space-y-4 mt-4">
+                  <div>
+                    <Label htmlFor="name">Company Name</Label>
+                    <Input
+                      id="name"
+                      value={formData.name}
+                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="dsp_name">DSP Legal Name</Label>
+                    <Input
+                      id="dsp_name"
+                      value={formData.dsp_name}
+                      onChange={(e) => setFormData({ ...formData, dsp_name: e.target.value })}
+                      placeholder="e.g., Amazon, Velocity Logistics"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="contact_email">Contact Email</Label>
+                    <Input
+                      id="contact_email"
+                      type="email"
+                      value={formData.contact_email}
+                      onChange={(e) => setFormData({ ...formData, contact_email: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="contact_phone">Contact Phone (Optional)</Label>
+                    <Input
+                      id="contact_phone"
+                      type="tel"
+                      value={formData.contact_phone}
+                      onChange={(e) => setFormData({ ...formData, contact_phone: e.target.value })}
+                    />
+                  </div>
+                </TabsContent>
+                
+                <TabsContent value="rates" className="space-y-4 mt-4">
+                  <div>
+                    <Label htmlFor="dsp_parcel_rate">DSP Parcel Rate (£)</Label>
+                    <Input
+                      id="dsp_parcel_rate"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={formData.dsp_parcel_rate}
+                      onChange={(e) => setFormData({ ...formData, dsp_parcel_rate: e.target.value })}
+                      placeholder="Rate DSP charges per parcel"
+                      required
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Rate the DSP charges/gets paid per parcel (revenue rate)
+                    </p>
+                  </div>
+                  <div>
+                    <Label htmlFor="driver_parcel_rate">Driver Parcel Rate (£)</Label>
+                    <Input
+                      id="driver_parcel_rate"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={formData.driver_parcel_rate}
+                      onChange={(e) => setFormData({ ...formData, driver_parcel_rate: e.target.value })}
+                      placeholder="Amount paid per completed parcel"
+                      required
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Fixed dollar amount paid to driver per successfully completed parcel
+                    </p>
+                  </div>
+                  <div>
+                    <Label htmlFor="default_deduction_rate">Default Deduction Rate (£)</Label>
+                    <Input
+                      id="default_deduction_rate"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={formData.default_deduction_rate}
+                      onChange={(e) => setFormData({ ...formData, default_deduction_rate: e.target.value })}
+                      placeholder="0.00"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Fixed weekly/monthly amount for standard deductions (insurance, admin fee)
+                    </p>
+                  </div>
+                  <div>
+                    <Label htmlFor="tour_id_prefix">Tour ID Prefix</Label>
+                    <Input
+                      id="tour_id_prefix"
+                      value={formData.tour_id_prefix}
+                      onChange={(e) => setFormData({ ...formData, tour_id_prefix: e.target.value })}
+                      placeholder="e.g., AMZ_, VEL_"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Short unique identifier for route imports (e.g., 'AMZ_', 'VEL_')
+                    </p>
+                  </div>
+                  <div>
+                    <Label htmlFor="rate_per_parcel">Rate Per Parcel (£) - Legacy</Label>
+                    <Input
+                      id="rate_per_parcel"
+                      type="number"
+                      step="0.01"
+                      value={formData.rate_per_parcel}
+                      onChange={(e) => setFormData({ ...formData, rate_per_parcel: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="admin_commission_percentage">Admin Commission (%)</Label>
+                    <Input
+                      id="admin_commission_percentage"
+                      type="number"
+                      step="0.01"
+                      value={formData.admin_commission_percentage}
+                      onChange={(e) => setFormData({ ...formData, admin_commission_percentage: e.target.value })}
+                    />
+                  </div>
+                </TabsContent>
+              </Tabs>
+              
+              <div className="flex justify-end gap-2 mt-6 pt-4 border-t">
                 <Button type="button" variant="outline" onClick={() => {
                   setShowDialog(false);
                   resetForm();

@@ -19,13 +19,14 @@ USING (
 );
 
 -- Allow admins and dispatchers/route-admins to view all routes (including unassigned)
+-- Using direct EXISTS to avoid recursion (migration 00010 will update this properly)
 DROP POLICY IF EXISTS "Admins and dispatchers can view all routes" ON public.routes;
 CREATE POLICY "Admins and dispatchers can view all routes"
 ON public.routes FOR SELECT
 USING (
-  has_role(auth.uid(), 'admin'::app_role) OR 
-  has_role(auth.uid(), 'dispatcher'::app_role) OR
-  has_role(auth.uid(), 'route-admin'::app_role)
+  EXISTS (SELECT 1 FROM public.user_roles WHERE user_id = auth.uid() AND role = 'admin'::app_role) OR 
+  EXISTS (SELECT 1 FROM public.user_roles WHERE user_id = auth.uid() AND role = 'dispatcher'::app_role) OR
+  EXISTS (SELECT 1 FROM public.user_roles WHERE user_id = auth.uid() AND role = 'route-admin'::app_role)
 );
 
 -- Update insert policy to allow creating routes without driver_id
@@ -35,8 +36,8 @@ DROP POLICY IF EXISTS "Dispatchers and admins can create routes" ON public.route
 CREATE POLICY "Dispatchers and admins can create routes"
 ON public.routes FOR INSERT
 WITH CHECK (
-  has_role(auth.uid(), 'admin'::app_role) OR 
-  has_role(auth.uid(), 'dispatcher'::app_role) OR
-  has_role(auth.uid(), 'route-admin'::app_role)
+  EXISTS (SELECT 1 FROM public.user_roles WHERE user_id = auth.uid() AND role = 'admin'::app_role) OR 
+  EXISTS (SELECT 1 FROM public.user_roles WHERE user_id = auth.uid() AND role = 'dispatcher'::app_role) OR
+  EXISTS (SELECT 1 FROM public.user_roles WHERE user_id = auth.uid() AND role = 'route-admin'::app_role)
 );
 

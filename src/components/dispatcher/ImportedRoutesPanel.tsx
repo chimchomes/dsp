@@ -3,7 +3,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { MapPin, Package, Calendar, User, Eye, List } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { MapPin, Package, Calendar, User, Eye, List, Filter } from "lucide-react";
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -17,6 +20,11 @@ interface Route {
   parcel_count_total: number;
   parcels_delivered: number;
   time_window: string;
+  driver_id?: string | null;
+  dispatcher?: {
+    id: string;
+    dsp_name: string;
+  };
   driver?: {
     id: string;
     name: string;
@@ -42,6 +50,10 @@ export const ImportedRoutesPanel = ({ routes }: ImportedRoutesPanelProps) => {
   const [stops, setStops] = useState<Stop[]>([]);
   const [showDetailsDialog, setShowDetailsDialog] = useState(false);
   const [loadingStops, setLoadingStops] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [dateFilter, setDateFilter] = useState<string>("");
+  const [dispatcherFilter, setDispatcherFilter] = useState<string>("all");
+  const [driverFilter, setDriverFilter] = useState<string>("all");
 
   const handleViewDetails = async (route: Route) => {
     setSelectedRoute(route);
@@ -76,8 +88,35 @@ export const ImportedRoutesPanel = ({ routes }: ImportedRoutesPanelProps) => {
     return <Badge variant={variants[status] || "outline"}>{status}</Badge>;
   };
 
-  const unassignedRoutes = routes.filter((r) => !r.driver_id);
-  const assignedRoutes = routes.filter((r) => r.driver_id);
+  // Get unique dispatchers and drivers for filters
+  const dispatchers = Array.from(new Set(routes.map(r => r.dispatcher?.id).filter(Boolean)));
+  const drivers = Array.from(new Set(routes.map(r => r.driver?.id).filter(Boolean)));
+
+  // Apply filters
+  const filteredRoutes = routes.filter((route) => {
+    // Status filter
+    if (statusFilter !== "all" && route.status !== statusFilter) return false;
+    
+    // Date filter
+    if (dateFilter) {
+      const routeDate = new Date(route.scheduled_date).toISOString().split("T")[0];
+      if (routeDate !== dateFilter) return false;
+    }
+    
+    // Dispatcher filter
+    if (dispatcherFilter !== "all" && route.dispatcher?.id !== dispatcherFilter) return false;
+    
+    // Driver filter
+    if (driverFilter !== "all") {
+      if (driverFilter === "unassigned" && route.driver_id) return false;
+      if (driverFilter !== "unassigned" && route.driver?.id !== driverFilter) return false;
+    }
+    
+    return true;
+  });
+
+  const unassignedRoutes = filteredRoutes.filter((r) => !r.driver_id);
+  const assignedRoutes = filteredRoutes.filter((r) => r.driver_id);
 
   return (
     <>
@@ -89,16 +128,86 @@ export const ImportedRoutesPanel = ({ routes }: ImportedRoutesPanelProps) => {
               Imported Routes
             </CardTitle>
             <div className="flex gap-2">
-              <Badge variant="outline">{routes.length} Total</Badge>
+              <Badge variant="outline">{filteredRoutes.length} Total</Badge>
               <Badge variant="secondary">{unassignedRoutes.length} Unassigned</Badge>
               <Badge variant="default">{assignedRoutes.length} Assigned</Badge>
             </div>
           </div>
+          {/* Filters */}
+          <div className="mt-4 grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="status-filter" className="text-xs">Status</Label>
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger id="status-filter">
+                  <SelectValue placeholder="All statuses" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Statuses</SelectItem>
+                  <SelectItem value="pending">Pending</SelectItem>
+                  <SelectItem value="assigned">Assigned</SelectItem>
+                  <SelectItem value="in_progress">In Progress</SelectItem>
+                  <SelectItem value="completed">Completed</SelectItem>
+                  <SelectItem value="delayed">Delayed</SelectItem>
+                  <SelectItem value="missed">Missed</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="date-filter" className="text-xs">Date</Label>
+              <Input
+                id="date-filter"
+                type="date"
+                value={dateFilter}
+                onChange={(e) => setDateFilter(e.target.value)}
+                placeholder="Filter by date"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="dispatcher-filter" className="text-xs">Dispatcher</Label>
+              <Select value={dispatcherFilter} onValueChange={setDispatcherFilter}>
+                <SelectTrigger id="dispatcher-filter">
+                  <SelectValue placeholder="All dispatchers" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Dispatchers</SelectItem>
+                  {routes
+                    .filter((r, idx, self) => r.dispatcher && self.findIndex(rt => rt.dispatcher?.id === r.dispatcher?.id) === idx)
+                    .map((route) => (
+                      <SelectItem key={route.dispatcher?.id} value={route.dispatcher?.id || ""}>
+                        {route.dispatcher?.dsp_name || "Unknown"}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="driver-filter" className="text-xs">Driver</Label>
+              <Select value={driverFilter} onValueChange={setDriverFilter}>
+                <SelectTrigger id="driver-filter">
+                  <SelectValue placeholder="All drivers" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Drivers</SelectItem>
+                  <SelectItem value="unassigned">Unassigned</SelectItem>
+                  {routes
+                    .filter((r) => r.driver && r.driver.id)
+                    .filter((r, idx, self) => self.findIndex(rt => rt.driver?.id === r.driver?.id) === idx)
+                    .map((route) => (
+                      <SelectItem key={route.driver?.id} value={route.driver?.id || ""}>
+                        {route.driver?.name || "Unknown"}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
-          {routes.length === 0 ? (
+          {filteredRoutes.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-4">
-              No routes imported yet. Use "Import Route" to add routes.
+              {routes.length === 0 
+                ? 'No routes imported yet. Use "Import Route" to add routes.'
+                : "No routes match the selected filters."}
             </p>
           ) : (
             <div className="rounded-md border">
@@ -115,7 +224,7 @@ export const ImportedRoutesPanel = ({ routes }: ImportedRoutesPanelProps) => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {routes.map((route) => (
+                  {filteredRoutes.map((route) => (
                     <TableRow key={route.id}>
                       <TableCell className="font-mono text-sm">
                         {route.tour_id || "N/A"}

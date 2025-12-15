@@ -29,6 +29,12 @@ interface Route {
   };
 }
 
+interface Dispatcher {
+  id: string;
+  dsp_name: string;
+  name: string;
+}
+
 interface RouteAssignmentFormProps {
   drivers: Driver[];
   onClose: () => void;
@@ -37,16 +43,19 @@ interface RouteAssignmentFormProps {
 
 export const RouteAssignmentForm = ({ drivers: driversProp, onClose, onSuccess }: RouteAssignmentFormProps) => {
   const { toast } = useToast();
-  const [unassignedRoutes, setUnassignedRoutes] = useState<Route[]>([]);
+  const [dispatchers, setDispatchers] = useState<Dispatcher[]>([]);
+  const [selectedDispatcherId, setSelectedDispatcherId] = useState<string>("");
+  const [availableRoutes, setAvailableRoutes] = useState<Route[]>([]);
   const [selectedRouteId, setSelectedRouteId] = useState<string>("");
   const [selectedDriverId, setSelectedDriverId] = useState<string>("");
   const [loading, setLoading] = useState(false);
-  const [loadingRoutes, setLoadingRoutes] = useState(true);
+  const [loadingRoutes, setLoadingRoutes] = useState(false);
+  const [loadingDispatchers, setLoadingDispatchers] = useState(true);
   const [drivers, setDrivers] = useState<Driver[]>(driversProp || []);
   const [loadingDrivers, setLoadingDrivers] = useState(false);
 
   useEffect(() => {
-    loadUnassignedRoutes();
+    loadDispatchers();
     // If no drivers provided, load them directly
     if (!driversProp || driversProp.length === 0) {
       loadDrivers();
@@ -54,6 +63,70 @@ export const RouteAssignmentForm = ({ drivers: driversProp, onClose, onSuccess }
       setDrivers(driversProp);
     }
   }, [driversProp]);
+
+  useEffect(() => {
+    // When dispatcher is selected, load routes for that dispatcher
+    if (selectedDispatcherId) {
+      loadRoutesForDispatcher(selectedDispatcherId);
+      // Reset route and driver selection when dispatcher changes
+      setSelectedRouteId("");
+      setSelectedDriverId("");
+    } else {
+      setAvailableRoutes([]);
+      setSelectedRouteId("");
+      setSelectedDriverId("");
+    }
+  }, [selectedDispatcherId]);
+
+  const loadDispatchers = async () => {
+    setLoadingDispatchers(true);
+    try {
+      const { data, error } = await supabase
+        .from("dispatchers")
+        .select("id, dsp_name, name")
+        .eq("active", true)
+        .order("dsp_name");
+
+      if (error) throw error;
+      setDispatchers(data || []);
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error loading dispatchers",
+        description: error.message,
+      });
+    } finally {
+      setLoadingDispatchers(false);
+    }
+  };
+
+  const loadRoutesForDispatcher = async (dispatcherId: string) => {
+    setLoadingRoutes(true);
+    try {
+      const { data, error } = await supabase
+        .from("routes")
+        .select(`
+          *,
+          dispatcher:dispatchers(id, dsp_name)
+        `)
+        .eq("dispatcher_id", dispatcherId)
+        .is("driver_id", null)
+        .neq("status", "completed") // Exclude completed routes
+        .order("scheduled_date", { ascending: false })
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+      setAvailableRoutes((data || []) as Route[]);
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error loading routes",
+        description: error.message,
+      });
+    } finally {
+      setLoadingRoutes(false);
+    }
+  };
 
   const loadDrivers = async () => {
     setLoadingDrivers(true);
@@ -78,32 +151,6 @@ export const RouteAssignmentForm = ({ drivers: driversProp, onClose, onSuccess }
     }
   };
 
-  const loadUnassignedRoutes = async () => {
-    setLoadingRoutes(true);
-    try {
-      const { data, error } = await supabase
-        .from("routes")
-        .select(`
-          *,
-          dispatcher:dispatchers(id, dsp_name)
-        `)
-        .is("driver_id", null)
-        .order("scheduled_date", { ascending: false })
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
-      setUnassignedRoutes((data || []) as Route[]);
-    } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Error loading routes",
-        description: error.message,
-      });
-    } finally {
-      setLoadingRoutes(false);
-    }
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -120,7 +167,7 @@ export const RouteAssignmentForm = ({ drivers: driversProp, onClose, onSuccess }
 
     try {
       // Get the selected route to check its current status
-      const selectedRoute = unassignedRoutes.find(r => r.id === selectedRouteId);
+      const selectedRoute = availableRoutes.find(r => r.id === selectedRouteId);
       
       if (!selectedRoute) {
         throw new Error("Selected route not found");
@@ -172,7 +219,7 @@ export const RouteAssignmentForm = ({ drivers: driversProp, onClose, onSuccess }
     }
   };
 
-  const selectedRoute = unassignedRoutes.find(r => r.id === selectedRouteId);
+  const selectedRoute = availableRoutes.find(r => r.id === selectedRouteId);
 
   return (
     <Dialog open onOpenChange={onClose}>
@@ -184,34 +231,30 @@ export const RouteAssignmentForm = ({ drivers: driversProp, onClose, onSuccess }
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Route Selection */}
+          {/* Dispatcher Selection */}
           <div className="space-y-2">
-            <Label htmlFor="route">Select Route</Label>
-            {loadingRoutes ? (
-              <div className="text-sm text-muted-foreground">Loading routes...</div>
-            ) : unassignedRoutes.length === 0 ? (
+            <Label htmlFor="dispatcher">Select Dispatcher</Label>
+            {loadingDispatchers ? (
+              <div className="text-sm text-muted-foreground">Loading dispatchers...</div>
+            ) : dispatchers.length === 0 ? (
               <div className="p-4 border rounded-md bg-muted">
                 <p className="text-sm text-muted-foreground">
-                  No unassigned routes available. Import routes first using the "Import Route" button.
+                  No active dispatchers available. Please create dispatchers first.
                 </p>
               </div>
             ) : (
               <Select
-                value={selectedRouteId}
-                onValueChange={setSelectedRouteId}
+                value={selectedDispatcherId}
+                onValueChange={setSelectedDispatcherId}
                 required
               >
-                <SelectTrigger id="route">
-                  <SelectValue placeholder="Choose a route to assign" />
+                <SelectTrigger id="dispatcher">
+                  <SelectValue placeholder="Choose a dispatcher" />
                 </SelectTrigger>
                 <SelectContent>
-                  {unassignedRoutes.map((route) => (
-                    <SelectItem key={route.id} value={route.id}>
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono text-xs">{route.tour_id || "N/A"}</span>
-                        <span className="text-muted-foreground">-</span>
-                        <span className="truncate max-w-xs">{route.customer_name || route.address}</span>
-                      </div>
+                  {dispatchers.map((dispatcher) => (
+                    <SelectItem key={dispatcher.id} value={dispatcher.id}>
+                      {dispatcher.dsp_name || dispatcher.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -219,8 +262,48 @@ export const RouteAssignmentForm = ({ drivers: driversProp, onClose, onSuccess }
             )}
           </div>
 
-          {/* Route Details Preview */}
-          {selectedRoute && (
+          {/* Route Selection - Only shown after dispatcher is selected */}
+          {selectedDispatcherId && (
+            <div className="space-y-2">
+              <Label htmlFor="route">Select Route</Label>
+              {loadingRoutes ? (
+                <div className="text-sm text-muted-foreground">Loading routes...</div>
+              ) : availableRoutes.length === 0 ? (
+                <div className="p-4 border rounded-md bg-muted">
+                  <p className="text-sm text-muted-foreground">
+                    No unassigned routes available for this dispatcher. Import routes first using the "Import Route" button.
+                  </p>
+                </div>
+              ) : (
+                <Select
+                  value={selectedRouteId}
+                  onValueChange={(value) => {
+                    setSelectedRouteId(value);
+                    setSelectedDriverId(""); // Reset driver selection when route changes
+                  }}
+                  required
+                >
+                  <SelectTrigger id="route">
+                    <SelectValue placeholder="Choose a route to assign" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableRoutes.map((route) => (
+                      <SelectItem key={route.id} value={route.id}>
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-xs">{route.tour_id || "N/A"}</span>
+                          <span className="text-muted-foreground">-</span>
+                          <span className="truncate max-w-xs">{route.customer_name || route.address}</span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+          )}
+
+          {/* Route Details Preview - Only shown after route is selected */}
+          {selectedRouteId && selectedRoute && (
             <div className="p-4 border rounded-md bg-muted space-y-3">
               <div className="flex items-center justify-between">
                 <h4 className="font-semibold text-sm">Route Details</h4>
@@ -263,42 +346,38 @@ export const RouteAssignmentForm = ({ drivers: driversProp, onClose, onSuccess }
             </div>
           )}
 
-          {/* Driver Selection */}
-          <div className="space-y-2">
-            <Label htmlFor="driver">Select Driver</Label>
-            {loadingDrivers ? (
-              <div className="text-sm text-muted-foreground">Loading drivers...</div>
-            ) : drivers.length === 0 ? (
-              <div className="p-4 border rounded-md bg-muted">
-                <p className="text-sm text-muted-foreground">
-                  No active drivers available. Please ensure drivers are created and marked as active.
-                </p>
-              </div>
-            ) : (
-              <Select
-                value={selectedDriverId}
-                onValueChange={setSelectedDriverId}
-                required
-                disabled={!selectedRouteId}
-              >
-                <SelectTrigger id="driver">
-                  <SelectValue placeholder="Choose a driver" />
-                </SelectTrigger>
-                <SelectContent>
-                  {drivers.map((driver) => (
-                    <SelectItem key={driver.id} value={driver.id}>
-                      {driver.name} {driver.email && `(${driver.email})`}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-            {!selectedRouteId && (
-              <p className="text-xs text-muted-foreground">
-                Please select a route first
-              </p>
-            )}
-          </div>
+          {/* Driver Selection - Only shown after route is selected */}
+          {selectedRouteId && (
+            <div className="space-y-2">
+              <Label htmlFor="driver">Select Driver</Label>
+              {loadingDrivers ? (
+                <div className="text-sm text-muted-foreground">Loading drivers...</div>
+              ) : drivers.length === 0 ? (
+                <div className="p-4 border rounded-md bg-muted">
+                  <p className="text-sm text-muted-foreground">
+                    No active drivers available. Please ensure drivers are created and marked as active.
+                  </p>
+                </div>
+              ) : (
+                <Select
+                  value={selectedDriverId}
+                  onValueChange={setSelectedDriverId}
+                  required
+                >
+                  <SelectTrigger id="driver">
+                    <SelectValue placeholder="Choose a driver" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {drivers.map((driver) => (
+                      <SelectItem key={driver.id} value={driver.id}>
+                        {driver.name} {driver.email && `(${driver.email})`}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+          )}
 
           <div className="flex gap-2 pt-4">
             <Button type="button" variant="outline" onClick={onClose} className="flex-1">
@@ -306,7 +385,7 @@ export const RouteAssignmentForm = ({ drivers: driversProp, onClose, onSuccess }
             </Button>
             <Button 
               type="submit" 
-              disabled={loading || !selectedRouteId || !selectedDriverId || unassignedRoutes.length === 0} 
+              disabled={loading || !selectedDispatcherId || !selectedRouteId || !selectedDriverId || availableRoutes.length === 0} 
               className="flex-1"
             >
               {loading ? "Assigning..." : "Assign Route"}

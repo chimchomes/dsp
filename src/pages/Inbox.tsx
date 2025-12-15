@@ -114,6 +114,10 @@ export default function Inbox() {
     const isDriverOnly = callerRoles.length > 0 && callerRoles.every(role => role === 'driver');
     const isOnboarding = callerRoles.includes('onboarding');
     const isInactive = callerRoles.includes('inactive');
+    const isRouteAdmin = callerRoles.includes('route-admin') || callerRoles.includes('dispatcher');
+    const isAdmin = callerRoles.includes('admin');
+    const isFinance = callerRoles.includes('finance');
+    const isHR = callerRoles.includes('hr');
 
     const { data: rolesList } = await supabase
       .from('roles_list')
@@ -128,14 +132,42 @@ export default function Inbox() {
       baseRoles = Array.from(new Set((distinctRoles || []).map(r => r.role as string)));
     }
 
+    // Filter out 'dispatcher' role (replaced by 'route-admin') and ensure 'route-admin' is included
+    baseRoles = baseRoles.filter(role => role !== 'dispatcher');
+    if (!baseRoles.includes('route-admin') && baseRoles.some(r => r === 'dispatcher')) {
+      baseRoles.push('route-admin');
+    }
+
     let filteredRoles = baseRoles;
-    if (isInactive) {
-      // Inactive users can only message admin
+    
+    // Enforce messaging rules:
+    // 1. Route-admin can message all but onboarding and inactive
+    if (isRouteAdmin && !isAdmin) {
+      filteredRoles = baseRoles.filter(role => role !== 'onboarding' && role !== 'inactive');
+    }
+    // 2. Onboarding can only message admin
+    else if (isOnboarding) {
       filteredRoles = baseRoles.filter(role => role === 'admin');
-    } else if (isOnboarding) {
-      filteredRoles = baseRoles.filter(role => role === 'admin');
-    } else if (isDriverOnly) {
+    }
+    // 3. Admin can message all (no filter needed)
+    else if (isAdmin) {
+      filteredRoles = baseRoles; // Admin can message all
+    }
+    // 4. Driver can only message all apart from onboarding, other drivers
+    else if (isDriverOnly) {
       filteredRoles = baseRoles.filter(role => role !== 'driver' && role !== 'onboarding');
+    }
+    // 5. Finance can message all but onboarding and inactive
+    else if (isFinance) {
+      filteredRoles = baseRoles.filter(role => role !== 'onboarding' && role !== 'inactive');
+    }
+    // 6. HR can message all but onboarding and inactive
+    else if (isHR) {
+      filteredRoles = baseRoles.filter(role => role !== 'onboarding' && role !== 'inactive');
+    }
+    // 7. Inactive users can only message admin
+    else if (isInactive) {
+      filteredRoles = baseRoles.filter(role => role === 'admin');
     }
 
     const sortedRoles = [...filteredRoles].sort((a, b) => a.localeCompare(b));
@@ -278,20 +310,48 @@ export default function Inbox() {
     const senderMap = new Map<string, SenderInfo>();
 
     if (senderIds.length > 0) {
-      const { data: profileRows } = await supabase
-        .from('profiles')
+      // Try role_profiles first (more reliable, includes all users with roles)
+      const { data: roleProfileRows } = await supabase
+        .from('role_profiles')
         .select('user_id, full_name, first_name, surname, email')
         .in('user_id', senderIds);
 
-      ((profileRows ?? []) as any[]).forEach((profile: any) => {
-        senderMap.set(profile.user_id, {
-          user_id: profile.user_id,
-          full_name: profile.full_name,
-          first_name: profile.first_name,
-          surname: profile.surname, // Use surname from profiles table
-          email: profile.email,
+      if (roleProfileRows && roleProfileRows.length > 0) {
+        ((roleProfileRows ?? []) as any[]).forEach((profile: any) => {
+          if (!senderMap.has(profile.user_id)) {
+            senderMap.set(profile.user_id, {
+              user_id: profile.user_id,
+              full_name: profile.full_name,
+              first_name: profile.first_name,
+              surname: profile.surname,
+              email: profile.email,
+            });
+          }
         });
-      });
+      }
+
+      // Fallback to profiles table for any missing senders
+      const foundSenderIds = Array.from(senderMap.keys());
+      const missingSenderIds = senderIds.filter(id => !foundSenderIds.includes(id));
+      
+      if (missingSenderIds.length > 0) {
+        const { data: profileRows } = await supabase
+          .from('profiles')
+          .select('user_id, full_name, first_name, surname, email')
+          .in('user_id', missingSenderIds);
+
+        ((profileRows ?? []) as any[]).forEach((profile: any) => {
+          if (!senderMap.has(profile.user_id)) {
+            senderMap.set(profile.user_id, {
+              user_id: profile.user_id,
+              full_name: profile.full_name,
+              first_name: profile.first_name,
+              surname: profile.surname,
+              email: profile.email,
+            });
+          }
+        });
+      }
     }
 
     const enrichedMessages = rows.map(message => {
@@ -684,7 +744,7 @@ export default function Inbox() {
                       <SelectContent>
                         {allowedRoles.map(role => (
                           <SelectItem key={role} value={role}>
-                            {role.charAt(0).toUpperCase() + role.slice(1)}
+                            {role === 'route-admin' ? 'Route Admin' : role.charAt(0).toUpperCase() + role.slice(1).replace(/-/g, ' ')}
                           </SelectItem>
                         ))}
                       </SelectContent>
