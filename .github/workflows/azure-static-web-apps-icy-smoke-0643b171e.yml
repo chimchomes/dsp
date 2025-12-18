@@ -34,10 +34,17 @@ jobs:
           VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
         run: |
           echo "Building with environment variables..."
+          echo "VITE_SUPABASE_URL is set: $([ -z "$VITE_SUPABASE_URL" ] && echo 'NO' || echo 'YES')"
+          echo "VITE_SUPABASE_PUBLISHABLE_KEY is set: $([ -z "$VITE_SUPABASE_PUBLISHABLE_KEY" ] && echo 'NO' || echo 'YES')"
           if [ -z "$VITE_SUPABASE_URL" ] || [ -z "$VITE_SUPABASE_PUBLISHABLE_KEY" ]; then
             echo "ERROR: Environment variables are missing!"
+            echo "Check that GitHub Secrets are named exactly:"
+            echo "  - VITE_SUPABASE_URL"
+            echo "  - VITE_SUPABASE_PUBLISHABLE_KEY"
+            echo "And that they contain values WITHOUT quotes"
             exit 1
           fi
+          echo "Environment variables are set, proceeding with build..."
           npm run build
       - name: Install OIDC Client from Core Package
         run: npm install @actions/core@1.6.0 @actions/http-client
