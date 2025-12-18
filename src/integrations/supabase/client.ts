@@ -11,9 +11,24 @@ if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
   if (!SUPABASE_URL) missing.push('VITE_SUPABASE_URL');
   if (!SUPABASE_PUBLISHABLE_KEY) missing.push('VITE_SUPABASE_PUBLISHABLE_KEY');
   
+  console.error('Missing environment variables:', missing);
+  console.error('VITE_SUPABASE_URL:', SUPABASE_URL ? 'SET' : 'MISSING');
+  console.error('VITE_SUPABASE_PUBLISHABLE_KEY:', SUPABASE_PUBLISHABLE_KEY ? 'SET' : 'MISSING');
+  
+  // Show error on page instead of throwing (for debugging)
+  document.body.innerHTML = `
+    <div style="padding: 20px; font-family: sans-serif;">
+      <h1>Configuration Error</h1>
+      <p>Missing required environment variables: ${missing.join(', ')}</p>
+      <p>VITE_SUPABASE_URL: ${SUPABASE_URL ? '✓ Set' : '✗ Missing'}</p>
+      <p>VITE_SUPABASE_PUBLISHABLE_KEY: ${SUPABASE_PUBLISHABLE_KEY ? '✓ Set' : '✗ Missing'}</p>
+      <p>Please check your build configuration.</p>
+    </div>
+  `;
+  
   throw new Error(
     `Missing required environment variables: ${missing.join(', ')}\n` +
-    `Please set these in your Vercel project settings under Environment Variables.`
+    `Please set these in your Azure Static Web App settings or GitHub Secrets.`
   );
 }
 

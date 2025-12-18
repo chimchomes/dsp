@@ -24,12 +24,6 @@
     ".ttf": "font/ttf",
     ".eot": "application/vnd.ms-fontobject"
   },
-  "routes": [
-    {
-      "route": "/*",
-      "allowedRoles": ["anonymous"]
-    }
-  ],
   "globalHeaders": {
     "X-Content-Type-Options": "nosniff",
     "X-Frame-Options": "DENY",
