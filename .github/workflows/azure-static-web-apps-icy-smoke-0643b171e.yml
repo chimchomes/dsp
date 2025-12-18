@@ -32,45 +32,15 @@ jobs:
         env:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
+        run: npm run build
+      - name: Prepare minimal workspace for Azure
         run: |
-          echo "Building with environment variables..."
-          echo "VITE_SUPABASE_URL is set: $([ -z "$VITE_SUPABASE_URL" ] && echo 'NO' || echo 'YES')"
-          echo "VITE_SUPABASE_PUBLISHABLE_KEY is set: $([ -z "$VITE_SUPABASE_PUBLISHABLE_KEY" ] && echo 'NO' || echo 'YES')"
-          if [ -z "$VITE_SUPABASE_URL" ] || [ -z "$VITE_SUPABASE_PUBLISHABLE_KEY" ]; then
-            echo "ERROR: Environment variables are missing!"
-            echo "Check that GitHub Secrets are named exactly:"
-            echo "  - VITE_SUPABASE_URL"
-            echo "  - VITE_SUPABASE_PUBLISHABLE_KEY"
-            echo "And that they contain values WITHOUT quotes"
-            exit 1
-          fi
-          echo "Environment variables are set, proceeding with build..."
-          npm run build
-      - name: Check dist folder size
-        run: |
-          echo "Dist folder size:"
-          du -sh dist || echo "dist folder not found"
-          SIZE=$(du -sm dist 2>/dev/null | cut -f1 || echo "0")
-          echo "Dist folder size: ${SIZE}MB"
-      - name: Replace workspace with only dist contents
-        run: |
-          echo "Workspace size before replacement:"
-          du -sh . 2>/dev/null || true
-          echo "Creating temporary backup of dist and config..."
-          # Backup dist and config outside workspace
-          cp -r dist /tmp/deploy_dist
-          cp staticwebapp.config.json /tmp/ 2>/dev/null || echo "No config file"
-          echo "Removing ALL files from workspace..."
-          # Remove EVERYTHING from workspace
-          find . -mindepth 1 -maxdepth 1 ! -name '.github' -exec rm -rf {} + 2>/dev/null || true
-          # Copy back ONLY dist contents and config
-          echo "Copying dist contents back to workspace root..."
-          cp -r /tmp/deploy_dist/* . 2>/dev/null || (echo "ERROR: dist backup not found!" && exit 1)
-          cp /tmp/staticwebapp.config.json . 2>/dev/null || echo "No config to restore"
-          echo "Final workspace size:"
-          du -sh . 2>/dev/null || true
-          echo "Final workspace contents:"
-          ls -lah
+          # Azure scans entire workspace (262MB limit), so we keep only dist + config
+          cp -r dist /tmp/dist_backup
+          cp staticwebapp.config.json /tmp/ 2>/dev/null || true
+          find . -mindepth 1 -maxdepth 1 ! -name '.github' -exec rm -rf {} +
+          cp -r /tmp/dist_backup/* .
+          cp /tmp/staticwebapp.config.json . 2>/dev/null || true
       - name: Install OIDC Client from Core Package
         run: npm install @actions/core@1.6.0 @actions/http-client
       - name: Get Id Token
