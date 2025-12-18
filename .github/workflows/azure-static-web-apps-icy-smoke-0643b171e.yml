@@ -52,26 +52,24 @@ jobs:
           du -sh dist || echo "dist folder not found"
           SIZE=$(du -sm dist 2>/dev/null | cut -f1 || echo "0")
           echo "Dist folder size: ${SIZE}MB"
-      - name: Clean workspace before Azure scan
+      - name: Replace workspace with only dist contents
         run: |
-          echo "Workspace size before cleanup:"
+          echo "Workspace size before replacement:"
           du -sh . 2>/dev/null || true
-          echo "Removing large unnecessary files/folders..."
-          # Remove node_modules (very large)
-          rm -rf node_modules
-          # Remove source code (not needed, we have dist)
-          rm -rf src
-          # Remove other large directories
-          rm -rf supabase
-          rm -rf .git
-          rm -rf Docs
-          rm -rf _files
-          rm -rf scripts
-          rm -rf public
-          # Keep: dist, staticwebapp.config.json, package.json (minimal)
-          echo "Workspace size after cleanup:"
+          echo "Creating temporary backup of dist and config..."
+          # Backup dist and config outside workspace
+          cp -r dist /tmp/deploy_dist
+          cp staticwebapp.config.json /tmp/ 2>/dev/null || echo "No config file"
+          echo "Removing ALL files from workspace..."
+          # Remove EVERYTHING from workspace
+          find . -mindepth 1 -maxdepth 1 ! -name '.github' -exec rm -rf {} + 2>/dev/null || true
+          # Copy back ONLY dist contents and config
+          echo "Copying dist contents back to workspace root..."
+          cp -r /tmp/deploy_dist/* . 2>/dev/null || (echo "ERROR: dist backup not found!" && exit 1)
+          cp /tmp/staticwebapp.config.json . 2>/dev/null || echo "No config to restore"
+          echo "Final workspace size:"
           du -sh . 2>/dev/null || true
-          echo "Remaining files:"
+          echo "Final workspace contents:"
           ls -lah
       - name: Install OIDC Client from Core Package
         run: npm install @actions/core@1.6.0 @actions/http-client
@@ -94,9 +92,9 @@ jobs:
           action: "upload"
           ###### Repository/Build Configurations - These values can be configured to match your app requirements. ######
           # For more information regarding Static Web App workflow configurations, please visit: https://aka.ms/swaworkflowconfig
-          app_location: "/" # App source code path
+          app_location: "/" # App source code path (dist contents are now in root)
           api_location: "" # Api source code path - optional
-          output_location: "dist" # Built app content directory
+          output_location: "." # Built app content is now in root
           skip_app_build: "true" # Skip Oryx build, use pre-built artifacts
           github_id_token: ${{ steps.idtoken.outputs.result }}
           ###### End of Repository/Build Configurations ######
