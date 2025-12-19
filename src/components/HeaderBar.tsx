@@ -1,13 +1,19 @@
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { NotificationBadge } from "@/components/NotificationBadge";
 import { Button } from "@/components/ui/button";
-import { Mail } from "lucide-react";
+import { Mail, LogOut } from "lucide-react";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 
 export default function HeaderBar() {
+  const navigate = useNavigate();
   const [unreadCount, setUnreadCount] = useState(0);
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    navigate("/login");
+  };
 
   useEffect(() => {
     let channel: RealtimeChannel | null = null;
@@ -103,6 +109,16 @@ export default function HeaderBar() {
         </Button>
         </Link>
         <NotificationBadge />
+        <Button 
+          variant="ghost" 
+          size="icon" 
+          onClick={handleLogout}
+          className="h-9 w-9 rounded-lg hover:bg-muted/80 transition-all duration-200" 
+          aria-label="Logout"
+          title="Logout"
+        >
+          <LogOut className="h-4 w-4" />
+        </Button>
       </div>
     </div>
   );
