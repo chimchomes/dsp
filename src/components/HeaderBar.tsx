@@ -78,16 +78,30 @@ export default function HeaderBar() {
   }, []);
 
   return (
-    <div className="w-full flex items-center justify-end gap-2 px-3 py-2 border-b bg-background/80 sticky top-0 z-40">
-      <Link to="/inbox">
+    <div className="w-full flex items-center justify-between px-3 py-2 border-b bg-background/80 sticky top-0 z-40">
+      <Link to="/" className="flex items-center gap-2">
+        <img 
+          src="/logo.png" 
+          alt="DSP Logo" 
+          className="h-8 w-auto"
+          onError={(e) => {
+            const target = e.target as HTMLImageElement;
+            target.style.display = 'none';
+          }}
+        />
+        <span className="font-semibold text-lg">DSP Portal</span>
+      </Link>
+      <div className="flex items-center gap-2">
+        <Link to="/inbox">
         <Button variant="ghost" size="icon" className="relative" aria-label="Inbox">
           <Mail className="h-5 w-5" />
           {unreadCount > 0 && (
             <span className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-destructive" />
           )}
         </Button>
-      </Link>
-      <NotificationBadge />
+        </Link>
+        <NotificationBadge />
+      </div>
     </div>
   );
 }

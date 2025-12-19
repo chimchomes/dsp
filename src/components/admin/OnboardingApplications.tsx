@@ -136,7 +136,7 @@ export function OnboardingApplications() {
 
           toast({
             title: "Application approved",
-            description: `Driver role assigned. ${session.full_name || session.email} can now log in to the driver portal.`,
+            description: `Driver role assigned. ${session.full_name || session.email} can now log in to the DSP Portal.`,
           });
         } else {
           console.log("No existing driver record found. Creating new driver record...");
@@ -239,7 +239,7 @@ export function OnboardingApplications() {
 
           toast({
             title: "Application approved",
-            description: `Driver account created and role assigned. ${session.full_name || session.email} can now log in to the driver portal.`,
+            description: `Driver account created and role assigned. ${session.full_name || session.email} can now log in to the DSP Portal.`,
           });
         }
       } else if (status === "rejected") {

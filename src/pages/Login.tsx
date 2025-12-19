@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
-import { Truck } from "lucide-react";
 import { PasswordChangePrompt } from "@/components/PasswordChangePrompt";
 
 export default function Login() {
@@ -284,12 +283,19 @@ export default function Login() {
       <div className="w-full max-w-md">
         <div className="bg-card rounded-lg shadow-xl p-8">
           <div className="flex items-center justify-center mb-8">
-            <div className="bg-secondary rounded-full p-3">
-              <Truck className="w-8 h-8 text-white" />
-            </div>
+            <img 
+              src="/logo.png" 
+              alt="DSP Logo" 
+              className="h-16 w-auto"
+              onError={(e) => {
+                // Fallback if logo not found
+                const target = e.target as HTMLImageElement;
+                target.style.display = 'none';
+              }}
+            />
           </div>
           
-          <h1 className="text-2xl font-bold text-center mb-2">Driver Portal</h1>
+          <h1 className="text-2xl font-bold text-center mb-2">DSP Portal</h1>
           <p className="text-muted-foreground text-center mb-8">
             Sign in to access your deliveries
           </p>
