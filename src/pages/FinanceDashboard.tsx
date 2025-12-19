@@ -47,70 +47,66 @@ const FinanceDashboard = () => {
 
   return (
     <AuthGuard allowedRoles={["route-admin", "admin", "finance"]}>
-      <div className="min-h-screen bg-background">
-        <header className="border-b bg-card">
-          <div className="container mx-auto p-6">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <Button
-                  variant="ghost"
-                  onClick={() => navigate("/admin")}
-                >
-                  <ArrowLeft className="w-4 h-4 mr-2" />
-                  Back
-                </Button>
-                <div>
-                  <h1 className="text-3xl font-bold">Finance Dashboard</h1>
-                  <p className="text-muted-foreground mt-1">Manage payroll, expenses, and financial reports</p>
-                </div>
+      <div className="min-h-screen">
+        <div className="p-6">
+          <div className="mb-8 animate-fade-in">
+            <div className="flex items-center gap-4">
+              <div className="p-3 rounded-xl bg-primary/10">
+                <DollarSign className="h-8 w-8 text-primary" />
+              </div>
+              <div>
+                <h1 className="text-4xl font-bold text-foreground">Finance Dashboard</h1>
+                <p className="text-muted-foreground mt-1 text-base font-medium">Manage payroll, expenses, and financial reports</p>
               </div>
             </div>
           </div>
-        </header>
 
-        <main className="container mx-auto p-6 space-y-6">
-          {/* Quick Stats */}
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            {quickStats.map((stat, index) => (
-              <Card key={index}>
+          <div className="space-y-6 animate-fade-in">
+            {/* Quick Stats */}
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+              {quickStats.map((stat, index) => (
+                <Card key={index} className="hover:shadow-modern-lg transition-all duration-300 hover:-translate-y-1 border-2 bg-card">
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">{stat.label}</CardTitle>
-                  <stat.icon className={`h-4 w-4 ${stat.color}`} />
+                  <CardTitle className="text-base font-semibold">{stat.label}</CardTitle>
+                  <div className="p-2 rounded-lg bg-muted">
+                    <stat.icon className={`h-4 w-4 text-primary`} />
+                  </div>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">{stat.value}</div>
+                  <div className="text-3xl font-bold">{stat.value}</div>
                 </CardContent>
-              </Card>
-            ))}
-          </div>
+                </Card>
+              ))}
+            </div>
 
-          {/* Main Finance Sections */}
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {financeCards.map((card, index) => (
-              <Card 
-                key={index} 
-                className="cursor-pointer hover:shadow-lg transition-shadow"
-                onClick={() => navigate(card.route)}
-              >
-                <CardHeader>
-                  <div className={`w-12 h-12 rounded-lg ${card.bgColor} flex items-center justify-center mb-4`}>
-                    <card.icon className={`h-6 w-6 ${card.color}`} />
-                  </div>
-                  <CardTitle className="text-xl">{card.title}</CardTitle>
-                  <CardDescription className="text-base">{card.description}</CardDescription>
+            {/* Main Finance Sections */}
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+              {financeCards.map((card, index) => (
+                <Card 
+                  key={index} 
+                  className="cursor-pointer hover:shadow-modern-lg transition-all duration-300 hover:-translate-y-1 border-2 hover:border-primary/50 group bg-card"
+                  onClick={() => navigate(card.route)}
+                >
+                  <CardHeader>
+                    <div className="w-14 h-14 rounded-xl bg-primary/10 flex items-center justify-center mb-4 group-hover:bg-primary/20 group-hover:scale-110 transition-all duration-200">
+                      <card.icon className="h-7 w-7 text-primary" />
+                    </div>
+                  <CardTitle className="text-xl font-bold mb-2">{card.title}</CardTitle>
+                  <CardDescription className="text-base font-medium">{card.description}</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="flex items-center justify-between">
-                    <span className="text-sm text-muted-foreground">{card.stats}</span>
-                    <Button variant="ghost" size="sm">
-                      View <ArrowLeft className="ml-2 h-4 w-4 rotate-180" />
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+                    <span className="text-base text-muted-foreground font-semibold">{card.stats}</span>
+                      <Button variant="ghost" size="sm" className="rounded-lg">
+                        View <ArrowLeft className="ml-2 h-4 w-4 rotate-180" />
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
           </div>
-        </main>
+        </div>
       </div>
     </AuthGuard>
   );

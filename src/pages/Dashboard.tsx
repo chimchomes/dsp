@@ -152,108 +152,112 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-muted/30">
-        <header className="bg-primary text-primary-foreground p-4 shadow-md">
-          <div className="container mx-auto flex justify-between items-center">
-            <div>
-              <h1 className="text-xl font-bold">DSP Portal</h1>
-              <p className="text-sm opacity-90">{driver?.name}</p>
-            </div>
-            <div className="flex items-center gap-2">
-              <NotificationBadge />
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={handleLogout}
-                className="text-primary-foreground hover:bg-primary-foreground/10"
-              >
-                <LogOut className="h-5 w-5" />
-              </Button>
-            </div>
+    <div className="min-h-screen p-6">
+        <div className="mb-8 animate-fade-in">
+          <div>
+            <h1 className="text-4xl font-bold text-foreground mb-2">DSP Portal</h1>
+            <p className="text-muted-foreground text-base font-semibold">{driver?.name || "Driver"}</p>
           </div>
-        </header>
+        </div>
 
-        <main className="container mx-auto p-4 space-y-6">
-          <h2 className="text-2xl font-bold mb-4">Quick Actions</h2>
+        <div className="space-y-6 animate-fade-in">
+          <div className="mb-6">
+            <h2 className="text-3xl font-bold mb-2">Quick Actions</h2>
+            <p className="text-muted-foreground text-base font-medium">Access your most used features</p>
+          </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Card className="cursor-pointer hover:border-primary transition-colors" onClick={() => navigate("/routes")}>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <Card className="cursor-pointer hover:shadow-modern-lg transition-all duration-300 hover:-translate-y-1 border-2 hover:border-primary/50 group bg-card" onClick={() => navigate("/routes")}>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Package className="h-5 w-5" />
+                <CardTitle className="flex items-center gap-3 text-lg font-bold">
+                  <div className="p-2 rounded-lg bg-primary/10 group-hover:bg-primary/20 transition-colors">
+                    <Package className="h-5 w-5 text-primary" />
+                  </div>
                   My Routes
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-muted-foreground">View and manage your delivery routes</p>
+                <p className="text-muted-foreground text-base font-medium">View and manage your delivery routes</p>
               </CardContent>
             </Card>
 
-            <Card className="cursor-pointer hover:border-primary transition-colors" onClick={() => navigate("/earnings")}>
+            <Card className="cursor-pointer hover:shadow-modern-lg transition-all duration-300 hover:-translate-y-1 border-2 hover:border-primary/50 group bg-card" onClick={() => navigate("/earnings")}>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <DollarSign className="h-5 w-5" />
+                <CardTitle className="flex items-center gap-3 text-lg font-bold">
+                  <div className="p-2 rounded-lg bg-primary/10 group-hover:bg-primary/20 transition-colors">
+                    <DollarSign className="h-5 w-5 text-primary" />
+                  </div>
                   Earnings & Deductions
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-muted-foreground">View your earnings and deductions</p>
+                <p className="text-muted-foreground text-base font-medium">View your earnings and deductions</p>
               </CardContent>
             </Card>
 
-            <Card className="cursor-pointer hover:border-primary transition-colors" onClick={() => navigate("/cost-calculator")}>
+            <Card className="cursor-pointer hover:shadow-modern-lg transition-all duration-300 hover:-translate-y-1 border-2 hover:border-primary/50 group bg-card" onClick={() => navigate("/cost-calculator")}>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Calculator className="h-5 w-5" />
+                <CardTitle className="flex items-center gap-3 text-lg font-bold">
+                  <div className="p-2 rounded-lg bg-primary/10 group-hover:bg-primary/20 transition-colors">
+                    <Calculator className="h-5 w-5 text-primary" />
+                  </div>
                   Cost Calculator
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-muted-foreground">Calculate your work costs</p>
+                <p className="text-muted-foreground text-base font-medium">Calculate your work costs</p>
               </CardContent>
             </Card>
 
-            <Card className="cursor-pointer hover:border-primary transition-colors" onClick={() => navigate("/vehicle")}>
+            <Card className="cursor-pointer hover:shadow-modern-lg transition-all duration-300 hover:-translate-y-1 border-2 hover:border-primary/50 group bg-card" onClick={() => navigate("/vehicle")}>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Car className="h-5 w-5" />
+                <CardTitle className="flex items-center gap-3 text-lg font-bold">
+                  <div className="p-2 rounded-lg bg-primary/10 group-hover:bg-primary/20 transition-colors">
+                    <Car className="h-5 w-5 text-primary" />
+                  </div>
                   Vehicle Management
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-muted-foreground">Manage your vehicle details</p>
+                <p className="text-muted-foreground text-base font-medium">Manage your vehicle details</p>
               </CardContent>
             </Card>
 
-            <Card className="cursor-pointer hover:border-primary transition-colors" onClick={() => navigate("/expenses")}>
+            <Card className="cursor-pointer hover:shadow-modern-lg transition-all duration-300 hover:-translate-y-1 border-2 hover:border-primary/50 group bg-card" onClick={() => navigate("/expenses")}>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <DollarSign className="h-5 w-5" />
+                <CardTitle className="flex items-center gap-3 text-lg font-bold">
+                  <div className="p-2 rounded-lg bg-primary/10 group-hover:bg-primary/20 transition-colors">
+                    <DollarSign className="h-5 w-5 text-primary" />
+                  </div>
                   Expenses
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-muted-foreground">Submit and track your expenses</p>
+                <p className="text-muted-foreground text-base font-medium">Submit and track your expenses</p>
               </CardContent>
             </Card>
 
-            <Card className="cursor-pointer hover:border-primary transition-colors" onClick={() => navigate("/profile")}>
+            <Card className="cursor-pointer hover:shadow-modern-lg transition-all duration-300 hover:-translate-y-1 border-2 hover:border-primary/50 group bg-card" onClick={() => navigate("/profile")}>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <User className="h-5 w-5" />
+                <CardTitle className="flex items-center gap-3 text-lg font-bold">
+                  <div className="p-2 rounded-lg bg-primary/10 group-hover:bg-primary/20 transition-colors">
+                    <User className="h-5 w-5 text-primary" />
+                  </div>
                   My Profile
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-muted-foreground">View your profile and settings</p>
+                <p className="text-muted-foreground text-base font-medium">View your profile and settings</p>
               </CardContent>
             </Card>
           </div>
 
-          <Card>
+          <Card className="border-2 border-destructive/20 hover:border-destructive/40 transition-all duration-300 bg-card">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <AlertTriangle className="h-5 w-5" />
+              <CardTitle className="flex items-center gap-3 text-lg font-bold">
+                <div className="p-2 rounded-lg bg-destructive/10">
+                  <AlertTriangle className="h-5 w-5 text-destructive" />
+                </div>
                 Report an Incident
               </CardTitle>
             </CardHeader>
@@ -261,14 +265,14 @@ export default function Dashboard() {
               <Button
                 onClick={() => setShowIncidentForm(true)}
                 variant="destructive"
-                className="w-full"
+                className="w-full h-11 font-semibold shadow-modern hover:shadow-modern-lg transition-all duration-200"
               >
                 <AlertTriangle className="mr-2 h-5 w-5" />
                 Report Incident
               </Button>
             </CardContent>
           </Card>
-        </main>
+        </div>
 
         {showIncidentForm && driver && (
           <IncidentForm

@@ -131,29 +131,39 @@ export default function OnboardingLogin() {
   return (
     <>
       <PasswordChangePrompt open={showPasswordChange} onComplete={handlePasswordChangeComplete} />
-      <div className="min-h-screen flex items-center justify-center bg-background p-4">
-        <div className="w-full max-w-md">
-          <div className="bg-card rounded-lg shadow-xl p-8">
-            <div className="flex items-center justify-center mb-6">
-              <div className="rounded-full p-3 bg-primary/10">
-                <Lock className="w-8 h-8 text-primary" />
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-muted/20 to-background p-4 relative overflow-hidden">
+        <div className="w-full max-w-md relative z-10 animate-fade-in">
+          <div className="bg-card rounded-2xl shadow-modern-lg p-8 border-2 border-border">
+            <div className="flex items-center justify-center mb-8 animate-slide-up">
+              <div className="p-4 rounded-2xl bg-primary/10">
+                <img 
+                  src="/logo.png" 
+                  alt="DSP Logo" 
+                  className="h-24 w-auto"
+                  onError={(e) => {
+                    const target = e.target as HTMLImageElement;
+                    target.style.display = 'none';
+                  }}
+                />
               </div>
             </div>
 
-            <h1 className="text-2xl font-bold text-center mb-2">Continue Application</h1>
-            <p className="text-muted-foreground text-center mb-6">
-              Log in with your email and password to resume your onboarding.
-            </p>
+            <div className="text-center mb-8 animate-slide-up">
+              <h1 className="text-4xl font-bold mb-3 text-foreground">Continue Application</h1>
+              <p className="text-muted-foreground text-base font-medium">
+                Log in with your email and password to resume your onboarding.
+              </p>
+            </div>
             
-            <div className="mb-4 p-3 bg-muted rounded-lg">
-              <p className="text-sm text-muted-foreground text-center">
+            <div className="mb-6 p-4 bg-muted/50 rounded-xl border border-muted">
+              <p className="text-base text-muted-foreground text-center font-medium">
                 Forgot your password? Use the password reset link sent to your email.
               </p>
             </div>
 
-            <form onSubmit={handleLogin} className="space-y-4">
+            <form onSubmit={handleLogin} className="space-y-5 animate-slide-up">
               <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
+                <Label htmlFor="email" className="text-base font-semibold text-foreground">Email</Label>
                 <Input
                   id="email"
                   type="email"
@@ -161,27 +171,28 @@ export default function OnboardingLogin() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
+                  className="h-12 text-base font-medium bg-background border-2 border-border focus:ring-2 focus:ring-primary transition-all"
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
+                <Label htmlFor="password" className="text-base font-semibold text-foreground">Password</Label>
                 <Input
                   id="password"
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
+                  className="h-12 text-base font-medium bg-background border-2 border-border focus:ring-2 focus:ring-primary transition-all"
                 />
               </div>
 
-              <Button type="submit" className="w-full" disabled={isLoading}>
+              <Button type="submit" className="w-full h-12 text-base font-bold shadow-modern hover:shadow-modern-lg transition-all duration-200 bg-primary hover:bg-primary/90" disabled={isLoading}>
                 <LogIn className="mr-2 h-4 w-4" />
                 {isLoading ? "Signing in..." : "Sign In"}
               </Button>
 
-              <Button type="button" variant="outline" className="w-full" onClick={() => navigate("/onboarding")}
-              >
+              <Button type="button" variant="outline" className="w-full h-12 text-base font-semibold border-2 hover:bg-muted/50 transition-all duration-200" onClick={() => navigate("/onboarding")}>
                 Back to Onboarding
               </Button>
             </form>

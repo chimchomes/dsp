@@ -29,7 +29,7 @@ import CostCalculatorScreen from "./pages/CostCalculatorScreen";
 import VehicleManagementScreen from "./pages/VehicleManagementScreen";
 import Inbox from "./pages/Inbox";
 import AdminMessages from "./pages/AdminMessages";
-import HeaderBar from "@/components/HeaderBar";
+import AppLayout from "@/components/AppLayout";
 
 const queryClient = new QueryClient();
 
@@ -39,8 +39,8 @@ const App = () => (
       <TooltipProvider>
         <Toaster />
         <BrowserRouter>
-          <HeaderBar />
-          <Routes>
+          <AppLayout>
+            <Routes>
             <Route path="/" element={<Login />} />
             <Route path="/login" element={<Login />} />
             <Route path="/dispatcher-login" element={<DispatcherLogin />} />
@@ -69,6 +69,7 @@ const App = () => (
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
+          </AppLayout>
         </BrowserRouter>
       </TooltipProvider>
     </NotificationProvider>

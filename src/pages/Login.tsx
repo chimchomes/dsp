@@ -279,70 +279,82 @@ export default function Login() {
   return (
     <>
       <PasswordChangePrompt open={showPasswordChange} onComplete={handlePasswordChangeComplete} />
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary to-primary/80 p-4">
-      <div className="w-full max-w-md">
-        <div className="bg-card rounded-lg shadow-xl p-8">
-          <div className="flex items-center justify-center mb-8">
-            <img 
-              src="/logo.png" 
-              alt="DSP Logo" 
-              className="h-16 w-auto"
-              onError={(e) => {
-                // Fallback if logo not found
-                const target = e.target as HTMLImageElement;
-                target.style.display = 'none';
-              }}
-            />
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-muted/20 to-background p-4 relative overflow-hidden">
+        {/* Animated background elements */}
+        <div className="absolute inset-0 overflow-hidden">
+          <div className="absolute -top-40 -right-40 w-80 h-80 bg-primary/20 rounded-full blur-3xl animate-pulse"></div>
+          <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-primary/20 rounded-full blur-3xl animate-pulse delay-1000"></div>
+        </div>
+        
+        <div className="w-full max-w-md relative z-10 animate-fade-in">
+          <div className="bg-card rounded-2xl shadow-modern-lg p-8 border-2 border-border">
+            <div className="flex items-center justify-center mb-8 animate-slide-up">
+              <div className="p-4 rounded-2xl bg-primary/10">
+                <img 
+                  src="/logo.png" 
+                  alt="DSP Logo" 
+                  className="h-32 w-auto"
+                  onError={(e) => {
+                    const target = e.target as HTMLImageElement;
+                    target.style.display = 'none';
+                  }}
+                />
+              </div>
+            </div>
+            
+            <div className="text-center mb-8 animate-slide-up">
+              <h1 className="text-4xl font-bold mb-3 text-foreground">DSP Portal</h1>
+              <p className="text-muted-foreground text-base font-medium">
+                Sign in to access your deliveries
+              </p>
+            </div>
+
+            <form onSubmit={handleLogin} className="space-y-5 animate-slide-up">
+              <div className="space-y-2">
+                <Label htmlFor="email" className="text-base font-semibold text-foreground">Email</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="driver@example.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  className="h-12 text-base font-medium bg-background border-2 border-border focus:ring-2 focus:ring-primary transition-all"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="password" className="text-base font-semibold text-foreground">Password</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  className="h-12 text-base font-medium bg-background border-2 border-border focus:ring-2 focus:ring-primary transition-all"
+                />
+              </div>
+
+              <Button
+                type="submit"
+                className="w-full h-12 text-base font-bold shadow-modern hover:shadow-modern-lg transition-all duration-200 bg-primary hover:bg-primary/90"
+                disabled={isLoading}
+              >
+                {isLoading ? "Signing in..." : "Sign In"}
+              </Button>
+
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full h-12 text-base font-semibold border-2 hover:bg-muted/50 transition-all duration-200"
+                onClick={() => navigate("/onboarding")}
+              >
+                Onboarding
+              </Button>
+            </form>
           </div>
-          
-          <h1 className="text-2xl font-bold text-center mb-2">DSP Portal</h1>
-          <p className="text-muted-foreground text-center mb-8">
-            Sign in to access your deliveries
-          </p>
-
-          <form onSubmit={handleLogin} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="driver@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-              />
-            </div>
-
-            <Button
-              type="submit"
-              className="w-full"
-              disabled={isLoading}
-            >
-              {isLoading ? "Signing in..." : "Sign In"}
-            </Button>
-
-            <Button
-              type="button"
-              className="w-full"
-              onClick={() => navigate("/onboarding")}
-            >
-              Onboarding
-            </Button>
-          </form>
         </div>
       </div>
-    </div>
     </>
   );
 }

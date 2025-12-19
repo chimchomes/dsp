@@ -78,25 +78,27 @@ export default function HeaderBar() {
   }, []);
 
   return (
-    <div className="w-full flex items-center justify-between px-3 py-2 border-b bg-background/80 sticky top-0 z-40">
-      <Link to="/" className="flex items-center gap-2">
-        <img 
-          src="/logo.png" 
-          alt="DSP Logo" 
-          className="h-8 w-auto"
-          onError={(e) => {
-            const target = e.target as HTMLImageElement;
-            target.style.display = 'none';
-          }}
-        />
-        <span className="font-semibold text-lg">DSP Portal</span>
-      </Link>
+    <div className="w-full flex items-center justify-between px-6 py-4 border-b border-border bg-card/50 backdrop-blur-md sticky top-0 z-40 shadow-modern">
+      <div className="flex items-center gap-3">
+        <div className="p-2 rounded-lg bg-primary/10">
+          <img 
+            src="/logo.png" 
+            alt="DSP Logo" 
+            className="h-8 w-auto"
+            onError={(e) => {
+              const target = e.target as HTMLImageElement;
+              target.style.display = 'none';
+            }}
+          />
+        </div>
+        <span className="font-bold text-xl text-foreground">DSP Portal</span>
+      </div>
       <div className="flex items-center gap-2">
         <Link to="/inbox">
-        <Button variant="ghost" size="icon" className="relative" aria-label="Inbox">
-          <Mail className="h-5 w-5" />
+        <Button variant="ghost" size="icon" className="relative h-9 w-9 rounded-lg hover:bg-muted/80 transition-all duration-200" aria-label="Inbox">
+          <Mail className="h-4 w-4" />
           {unreadCount > 0 && (
-            <span className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-destructive" />
+            <span className="absolute -top-0.5 -right-0.5 h-3 w-3 rounded-full bg-destructive border-2 border-card animate-pulse" />
           )}
         </Button>
         </Link>

@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { AuthGuard } from "@/components/AuthGuard";
-import { LogOut, Plus, DollarSign, Users, Shield, ArrowLeft, Package } from "lucide-react";
+import { LogOut, Plus, DollarSign, Users, Shield, ArrowLeft, Package, Truck } from "lucide-react";
 import { DriversPanel } from "@/components/dispatcher/DriversPanel";
 import { RouteAssignmentForm } from "@/components/dispatcher/RouteAssignmentForm";
 import { RouteIngestionForm } from "@/components/admin/RouteIngestionForm";
@@ -241,64 +241,46 @@ const DispatcherDashboard = () => {
 
   return (
     <AuthGuard allowedRoles={["route-admin", "admin"]}>
-      <div className="min-h-screen bg-background">
-        <header className="border-b bg-card">
-          <div className="container mx-auto px-4 py-4 flex justify-between items-center">
-            <div className="flex items-center gap-4">
-              {isAdmin && (
-                <Button
-                  variant="ghost"
-                  onClick={() => navigate("/admin")}
-                >
-                  <ArrowLeft className="w-4 h-4 mr-2" />
-                  Back
-                </Button>
-              )}
-              <h1 className="text-2xl font-bold text-primary">Route Admin Dashboard</h1>
-            </div>
-            <div className="flex gap-2 items-center">
-              <NotificationBadge />
-              {isAdmin && (
-                <>
-                  <Button variant="outline" onClick={() => navigate("/finance")}>
-                    <DollarSign className="mr-2 h-4 w-4" />
-                    Finance
-                  </Button>
-                  <Button variant="outline" onClick={() => navigate("/hr")}>
-                    <Users className="mr-2 h-4 w-4" />
-                    HR Portal
-                  </Button>
-                  <Button variant="outline" onClick={() => navigate("/admin")}>
-                    <Shield className="mr-2 h-4 w-4" />
-                    Admin
-                  </Button>
-                </>
-              )}
-              <Button variant="ghost" onClick={handleLogout}>
-                <LogOut className="mr-2 h-4 w-4" />
-                Logout
+      <div className="min-h-screen p-6">
+        <div className="mb-8 animate-fade-in">
+          <div className="flex items-center gap-4">
+            {isAdmin && (
+              <Button
+                variant="ghost"
+                onClick={() => navigate("/admin")}
+                className="rounded-lg hover:bg-muted/50"
+              >
+                <ArrowLeft className="w-4 h-4 mr-2" />
+                Back
               </Button>
+            )}
+            <div className="p-3 rounded-xl bg-primary/10">
+              <Truck className="h-8 w-8 text-primary" />
+            </div>
+            <div>
+              <h1 className="text-4xl font-bold text-foreground">Route Admin Dashboard</h1>
+              <p className="text-muted-foreground mt-1">Route management, drivers, and incidents</p>
             </div>
           </div>
-        </header>
+        </div>
 
-        <main className="container mx-auto px-4 py-6">
+        <div className="space-y-6">
           <Tabs defaultValue="routes" className="space-y-6">
-            <TabsList>
-              <TabsTrigger value="routes">Routes</TabsTrigger>
-              <TabsTrigger value="dispatchers">Dispatchers</TabsTrigger>
+            <TabsList className="bg-card border border-border rounded-lg p-1">
+              <TabsTrigger value="routes" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-md transition-all">Routes</TabsTrigger>
+              <TabsTrigger value="dispatchers" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-md transition-all">Dispatchers</TabsTrigger>
             </TabsList>
 
-            <TabsContent value="routes" className="space-y-6">
+            <TabsContent value="routes" className="space-y-6 animate-fade-in">
               <div className="space-y-6">
                 <div className="flex justify-between items-center">
-                  <h2 className="text-xl font-semibold">Route Management</h2>
+                  <h2 className="text-2xl font-semibold">Route Management</h2>
                   <div className="flex gap-2">
-                    <Button onClick={() => setShowIngestionForm(true)} variant="outline">
+                    <Button onClick={() => setShowIngestionForm(true)} variant="outline" className="rounded-lg">
                       <Package className="mr-2 h-4 w-4" />
                       Import Route
                     </Button>
-                    <Button onClick={() => setShowRouteForm(true)}>
+                    <Button onClick={() => setShowRouteForm(true)} className="rounded-lg bg-primary hover:bg-primary/90">
                       <Plus className="mr-2 h-4 w-4" />
                       Assign Route
                     </Button>
@@ -311,10 +293,10 @@ const DispatcherDashboard = () => {
               </div>
             </TabsContent>
 
-            <TabsContent value="dispatchers" className="space-y-6">
-              <Card>
+            <TabsContent value="dispatchers" className="space-y-6 animate-fade-in">
+              <Card className="border-2 shadow-modern-lg">
                 <CardHeader>
-                  <CardTitle>Dispatcher Management</CardTitle>
+                  <CardTitle className="text-2xl">Dispatcher Management</CardTitle>
                   <CardDescription>Create and manage dispatcher accounts</CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -323,7 +305,7 @@ const DispatcherDashboard = () => {
               </Card>
             </TabsContent>
           </Tabs>
-        </main>
+        </div>
 
         {showRouteForm && (
           <RouteAssignmentForm

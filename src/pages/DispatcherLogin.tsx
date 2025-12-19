@@ -121,47 +121,57 @@ const DispatcherLogin = () => {
   return (
     <>
       <PasswordChangePrompt open={showPasswordChange} onComplete={handlePasswordChangeComplete} />
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-primary/5 p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="space-y-1 text-center">
-          <div className="flex justify-center mb-4">
-            <div className="bg-primary/10 p-3 rounded-full">
-              <Shield className="h-8 w-8 text-primary" />
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-muted/20 to-background p-4 relative overflow-hidden">
+        <Card className="w-full max-w-md bg-card shadow-modern-lg border-2 border-border relative z-10 animate-fade-in">
+          <CardHeader className="space-y-1 text-center">
+            <div className="flex justify-center mb-6 animate-slide-up">
+              <div className="p-4 rounded-2xl bg-primary/10">
+                <img 
+                  src="/logo.png" 
+                  alt="DSP Logo" 
+                  className="h-32 w-auto"
+                  onError={(e) => {
+                    const target = e.target as HTMLImageElement;
+                    target.style.display = 'none';
+                  }}
+                />
+              </div>
             </div>
-          </div>
-          <CardTitle className="text-2xl font-bold">Dispatcher Portal</CardTitle>
-          <CardDescription>Admin access only</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleLogin} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="dispatcher@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-              />
-            </div>
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "Signing in..." : "Sign In"}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
-    </div>
+            <CardTitle className="text-4xl font-bold text-foreground mb-3">Route Admin Portal</CardTitle>
+            <CardDescription className="text-base font-medium">Admin and Route Admin access only</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleLogin} className="space-y-5 animate-slide-up">
+              <div className="space-y-2">
+                <Label htmlFor="email" className="text-base font-semibold text-foreground">Email</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="admin@example.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  className="h-12 text-base font-medium bg-background border-2 border-border focus:ring-2 focus:ring-primary transition-all"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="password" className="text-base font-semibold text-foreground">Password</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  className="h-12 text-base font-medium bg-background border-2 border-border focus:ring-2 focus:ring-primary transition-all"
+                />
+              </div>
+              <Button type="submit" className="w-full h-12 text-base font-bold shadow-modern hover:shadow-modern-lg transition-all duration-200 bg-primary hover:bg-primary/90" disabled={loading}>
+                {loading ? "Signing in..." : "Sign In"}
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+      </div>
     </>
   );
 };
