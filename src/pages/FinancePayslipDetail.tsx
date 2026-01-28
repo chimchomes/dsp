@@ -745,35 +745,12 @@ const FinancePayslipDetail = () => {
                 <CardTitle>Adjustments</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Tour</TableHead>
-                        <TableHead>Adjustment Date</TableHead>
-                        <TableHead>Parcel ID</TableHead>
-                        <TableHead>Type</TableHead>
-                        <TableHead className="text-right">Amount</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {adjustments.map((adj, idx) => (
-                        <TableRow key={idx}>
-                          <TableCell>{adj.tour || "N/A"}</TableCell>
-                          <TableCell>{formatDate(adj.adjustment_date)}</TableCell>
-                          <TableCell>{adj.parcel_id || "N/A"}</TableCell>
-                          <TableCell>{adj.adjustment_type}</TableCell>
-                          <TableCell className="text-right">
-                            <span className={adj.adjustment_amount < 0 ? "text-red-600" : "text-green-600"}>
-                              {formatCurrency(adj.adjustment_amount)}
-                            </span>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+                <div className="space-y-2">
+                  <p className="text-sm text-muted-foreground">
+                    Overall total of all manual adjustments applied to this payslip.
+                  </p>
                   <div className="flex justify-between font-bold text-lg border-t pt-2">
-                    <span>TOTAL ADJUSTMENTS:</span>
+                    <span>Total Adjustments:</span>
                     <span className={totalAdjustments < 0 ? "text-red-600" : "text-green-600"}>
                       {formatCurrency(totalAdjustments)}
                     </span>
