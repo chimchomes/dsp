@@ -45,6 +45,7 @@ const FinancePayslips = () => {
   const [loading, setLoading] = useState(true);
   const [invoiceNumbers, setInvoiceNumbers] = useState<string[]>([]);
   const [drivers, setDrivers] = useState<{ id: string; name: string }[]>([]);
+  const [adjustmentTotals, setAdjustmentTotals] = useState<Record<string, number>>({});
   
   // Filters
   const [invoiceFilter, setInvoiceFilter] = useState<string>("");
@@ -117,8 +118,13 @@ const FinancePayslips = () => {
         .order("invoice_date", { ascending: false });
 
       if (error) throw error;
-      setAllPayslips(data || []);
-      setPayslips(data || []);
+      const payslipData = data || [];
+      setAllPayslips(payslipData);
+      setPayslips(payslipData);
+
+      // Load adjustment totals for all fetched payslips so we can show
+      // the correct per-driver, per-invoice adjustment figure
+      await loadAdjustmentTotals(payslipData);
     } catch (error: any) {
       toast({
         title: "Error loading payslips",
@@ -127,6 +133,42 @@ const FinancePayslips = () => {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadAdjustmentTotals = async (payslips: Payslip[]) => {
+    try {
+      if (!payslips.length) {
+        setAdjustmentTotals({});
+        return;
+      }
+
+      const invoiceNumbers = Array.from(new Set(payslips.map((p) => p.invoice_number)));
+
+      const { data, error } = await supabase
+        .from("ADJUSTMENT_DETAIL")
+        .select("invoice_number, operator_id, adjustment_amount")
+        .in("invoice_number", invoiceNumbers);
+
+      if (error) {
+        console.error("Error loading adjustment totals:", error);
+        return;
+      }
+
+      const totals: Record<string, number> = {};
+
+      (data || []).forEach((adj: any) => {
+        const key = `${adj.invoice_number}__${adj.operator_id || ""}`;
+        const amount = parseFloat(adj.adjustment_amount?.toString() || "0");
+        if (!totals[key]) {
+          totals[key] = 0;
+        }
+        totals[key] += isNaN(amount) ? 0 : amount;
+      });
+
+      setAdjustmentTotals(totals);
+    } catch (err) {
+      console.error("Error computing adjustment totals:", err);
     }
   };
 
@@ -161,6 +203,8 @@ const FinancePayslips = () => {
   };
 
   const downloadPayslipCSV = (payslip: Payslip) => {
+    const key = `${payslip.invoice_number}__${payslip.operator_id || ""}`;
+    const adjustmentTotal = adjustmentTotals[key] ?? 0;
     const csvContent = [
       ['Field', 'Value'],
       ['Driver Name', payslip.drivers?.name || 'N/A'],
@@ -170,7 +214,7 @@ const FinancePayslips = () => {
       ['Period End', new Date(payslip.period_end).toLocaleDateString()],
       ['Operator ID', payslip.operator_id],
       ['Gross Pay', `£${payslip.gross_pay.toFixed(2)}`],
-      ['Deductions', `£${payslip.deductions.toFixed(2)}`],
+      ['Adjustments', `£${adjustmentTotal.toFixed(2)}`],
       ['Net Pay', `£${payslip.net_pay.toFixed(2)}`],
       ['Generated At', new Date(payslip.generated_at).toLocaleString()],
     ]
@@ -191,6 +235,9 @@ const FinancePayslips = () => {
   const generatePayslipPDFContent = (payslip: Payslip): string => {
     // Simple HTML-based PDF content (browser will convert to PDF on print)
     // For proper PDF generation, use a library like jsPDF or pdfkit
+    const key = `${payslip.invoice_number}__${payslip.operator_id || ""}`;
+    const adjustmentTotal = adjustmentTotals[key] ?? 0;
+
     const htmlContent = `
       <!DOCTYPE html>
       <html>
@@ -230,7 +277,7 @@ const FinancePayslips = () => {
           <div class="section">
             <h2>Payment Details</h2>
             <div class="row"><span>Gross Pay:</span><span>£${payslip.gross_pay.toFixed(2)}</span></div>
-            <div class="row"><span>Deductions:</span><span>£${payslip.deductions.toFixed(2)}</span></div>
+            <div class="row"><span>Adjustments:</span><span>£${adjustmentTotal.toFixed(2)}</span></div>
             <div class="row total"><span>Net Pay:</span><span>£${payslip.net_pay.toFixed(2)}</span></div>
           </div>
         </body>
@@ -358,7 +405,7 @@ const FinancePayslips = () => {
                       <TableHead>Period</TableHead>
                       <TableHead>Operator ID</TableHead>
                       <TableHead>Gross Pay</TableHead>
-                      <TableHead>Deductions</TableHead>
+                      <TableHead>Adjustments</TableHead>
                       <TableHead>Net Pay</TableHead>
                       <TableHead>Actions</TableHead>
                     </TableRow>
@@ -376,7 +423,18 @@ const FinancePayslips = () => {
                         </TableCell>
                         <TableCell>{payslip.operator_id}</TableCell>
                         <TableCell>£{payslip.gross_pay.toFixed(2)}</TableCell>
-                        <TableCell>£{payslip.deductions.toFixed(2)}</TableCell>
+                        <TableCell>
+                          {(() => {
+                            const key = `${payslip.invoice_number}__${payslip.operator_id || ""}`;
+                            const adjustmentTotal = adjustmentTotals[key] ?? 0;
+                            const formatted = `${adjustmentTotal < 0 ? "-" : ""}£${Math.abs(adjustmentTotal).toFixed(2)}`;
+                            return (
+                              <span className={adjustmentTotal < 0 ? "text-red-600" : adjustmentTotal > 0 ? "text-green-600" : ""}>
+                                {formatted}
+                              </span>
+                            );
+                          })()}
+                        </TableCell>
                         <TableCell className="font-semibold">
                           £{payslip.net_pay.toFixed(2)}
                         </TableCell>
