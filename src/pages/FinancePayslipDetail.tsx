@@ -260,7 +260,9 @@ const FinancePayslipDetail = () => {
     // Generate HTML for daily breakdown
     const dailyBreakdownHTML = Object.values(dailyPayByDay).map((dayGroup, dayIdx) => {
       const dayRows = dayGroup.items.map((item, itemIdx) => {
-        const grossPayPerDay = item.qty_total * driverRate;
+        // Gross pay per day should only be based on PAID quantities
+        // i.e. (QTY Paid) * Driver Rate, NOT including unpaid quantities
+        const grossPayPerDay = item.qty_paid * driverRate;
         return `
           <tr>
             <td>${item.service_group}</td>
@@ -836,7 +838,8 @@ const FinancePayslipDetail = () => {
                       <TableBody>
                         {dayGroup.items.map((item, itemIdx) => {
                           const itemTotal = item.qty_total;
-                          const grossPayPerDay = itemTotal * driverRate;
+                          // Gross pay per day should only be based on PAID quantities
+                          const grossPayPerDay = item.qty_paid * driverRate;
                           return (
                             <TableRow key={itemIdx}>
                               <TableCell>{item.service_group}</TableCell>
