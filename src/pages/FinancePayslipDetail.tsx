@@ -173,7 +173,7 @@ const FinancePayslipDetail = () => {
       
       setDailyPaySummary(filteredDailyPay);
 
-      // Load adjustments - primary lookup by invoice + operator
+      // Load adjustments strictly for this driver on this invoice (no fallback)
       const { data: adjustmentsData, error: adjustmentsError } = await supabase
         .from("ADJUSTMENT_DETAIL")
         .select("*")
@@ -182,31 +182,7 @@ const FinancePayslipDetail = () => {
         .order("adjustment_date", { ascending: true });
 
       if (adjustmentsError) throw adjustmentsError;
-
-      let finalAdjustments = adjustmentsData || [];
-
-      // Fallback: if nothing found for this operator_id (e.g. older invoices where
-      // operator_id wasn't populated correctly), try matching by invoice + tour(s)
-      if (finalAdjustments.length === 0 && filteredWeeklyPay.length > 0) {
-        const toursForDriver = Array.from(
-          new Set(filteredWeeklyPay.map((wp) => wp.tour).filter(Boolean))
-        );
-
-        if (toursForDriver.length > 0) {
-          const { data: fallbackAdjustments, error: fallbackError } = await supabase
-            .from("ADJUSTMENT_DETAIL")
-            .select("*")
-            .eq("invoice_number", payslipData.invoice_number)
-            .in("tour", toursForDriver)
-            .order("adjustment_date", { ascending: true });
-
-          if (!fallbackError && fallbackAdjustments) {
-            finalAdjustments = fallbackAdjustments;
-          }
-        }
-      }
-
-      setAdjustments(finalAdjustments);
+      setAdjustments(adjustmentsData || []);
     } catch (error: any) {
       toast({
         title: "Error loading payslip",
