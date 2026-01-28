@@ -1,26 +1,19 @@
-import React from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { AuthGuard } from "@/components/AuthGuard";
-import { ArrowLeft, Receipt, DollarSign, FileText, TrendingUp, Users, Calculator } from "lucide-react";
+import { ArrowLeft, DollarSign, FileText, TrendingUp, Users, Calculator, Upload, CreditCard, Settings, Receipt } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "@/hooks/use-toast";
 
 const FinanceDashboard = () => {
   const navigate = useNavigate();
 
   const financeCards = [
     {
-      title: "Expense Review",
-      description: "Review and approve driver expense submissions",
-      icon: Receipt,
-      color: "text-blue-600",
-      bgColor: "bg-blue-50 dark:bg-blue-950/30",
-      route: "/finance/expenses",
-      stats: "Pending review"
-    },
-    {
       title: "Payroll Management",
-      description: "Manage driver payroll, deductions, and payouts",
+      description: "Manage driver payroll and payouts",
       icon: DollarSign,
       color: "text-green-600",
       bgColor: "bg-green-50 dark:bg-green-950/30",
@@ -35,18 +28,71 @@ const FinanceDashboard = () => {
       bgColor: "bg-purple-50 dark:bg-purple-950/30",
       route: "/finance/reports",
       stats: "Export & analyze"
+    },
+    {
+      title: "Pay Rates",
+      description: "Manage pay rates per provider and vehicle type",
+      icon: Calculator,
+      color: "text-orange-600",
+      bgColor: "bg-orange-50 dark:bg-orange-950/30",
+      route: "/finance/pay-rates",
+      stats: "Configure rates"
+    },
+    {
+      title: "Upload Invoice",
+      description: "Upload and process YODEL invoice PDFs",
+      icon: Upload,
+      color: "text-indigo-600",
+      bgColor: "bg-indigo-50 dark:bg-indigo-950/30",
+      route: "/finance/invoices/upload",
+      stats: "Process invoices"
+    },
+    {
+      title: "Invoices",
+      description: "View and manage uploaded invoices",
+      icon: FileText,
+      color: "text-cyan-600",
+      bgColor: "bg-cyan-50 dark:bg-cyan-950/30",
+      route: "/finance/invoices",
+      stats: "View invoices"
+    },
+    {
+      title: "Payslips",
+      description: "Generate and view driver payslips",
+      icon: CreditCard,
+      color: "text-pink-600",
+      bgColor: "bg-pink-50 dark:bg-pink-950/30",
+      route: "/finance/payslips",
+      stats: "Manage payslips"
+    },
+    {
+      title: "Adjustments Review",
+      description: "Review and filter adjustment details",
+      icon: Settings,
+      color: "text-blue-600",
+      bgColor: "bg-blue-50 dark:bg-blue-950/30",
+      route: "/finance/adjustments",
+      stats: "View adjustments"
+    },
+    {
+      title: "Generate Payslip",
+      description: "Generate payslips per invoice for drivers",
+      icon: Receipt,
+      color: "text-teal-600",
+      bgColor: "bg-teal-50 dark:bg-teal-950/30",
+      route: "/finance/generate-payslip",
+      stats: "Create payslips"
     }
   ];
 
   const quickStats = [
     { label: "Active Drivers", value: "0", icon: Users, color: "text-blue-600" },
-    { label: "Pending Expenses", value: "0", icon: Receipt, color: "text-orange-600" },
     { label: "This Week Payroll", value: "$0", icon: Calculator, color: "text-green-600" },
     { label: "Revenue Trend", value: "+0%", icon: TrendingUp, color: "text-purple-600" }
   ];
 
   return (
-    <AuthGuard allowedRoles={["route-admin", "admin", "finance"]}>
+    <AuthGuard allowedRoles={["admin", "finance"]}>
       <div className="min-h-screen">
         <div className="p-6">
           <div className="mb-8 animate-fade-in">
@@ -56,7 +102,7 @@ const FinanceDashboard = () => {
               </div>
               <div>
                 <h1 className="text-4xl font-bold text-foreground">Finance Dashboard</h1>
-                <p className="text-muted-foreground mt-1 text-base font-medium">Manage payroll, expenses, and financial reports</p>
+                <p className="text-muted-foreground mt-1 text-base font-medium">Manage payroll and financial reports</p>
               </div>
             </div>
           </div>
@@ -80,7 +126,7 @@ const FinanceDashboard = () => {
             </div>
 
             {/* Main Finance Sections */}
-            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {financeCards.map((card, index) => (
                 <Card 
                   key={index} 
