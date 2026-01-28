@@ -25,10 +25,7 @@ interface ProfileData {
 interface DriverData {
   license_number: string | null;
   license_expiry: string | null;
-  vehicle_make: string | null;
-  vehicle_model: string | null;
-  vehicle_year: number | null;
-  vehicle_registration: string | null;
+  operator_id: string | null;
 }
 
 export default function ProfileScreen() {
@@ -62,7 +59,7 @@ export default function ProfileScreen() {
       // Load driver-specific data from drivers table
       const { data: driverRecord, error: driverError } = await supabase
         .from("drivers")
-        .select("license_number, license_expiry, vehicle_make, vehicle_model, vehicle_year, vehicle_registration")
+        .select("license_number, license_expiry, operator_id")
         .eq("user_id", user.id)
         .maybeSingle();
 
@@ -242,24 +239,12 @@ export default function ProfileScreen() {
                 </div>
               )}
 
-              {(driverData.vehicle_make || driverData.vehicle_model) && (
+              {driverData.operator_id && (
                 <div className="flex items-start gap-3">
                   <User className="h-5 w-5 text-primary mt-0.5" />
                   <div>
-                    <p className="font-medium">Vehicle</p>
-                    <p className="text-muted-foreground">
-                      {[driverData.vehicle_make, driverData.vehicle_model, driverData.vehicle_year].filter(Boolean).join(" ")}
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {driverData.vehicle_registration && (
-                <div className="flex items-start gap-3">
-                  <User className="h-5 w-5 text-primary mt-0.5" />
-                  <div>
-                    <p className="font-medium">Vehicle Registration</p>
-                    <p className="text-muted-foreground">{driverData.vehicle_registration}</p>
+                    <p className="font-medium">Operator ID</p>
+                    <p className="text-muted-foreground">{driverData.operator_id}</p>
                   </div>
                 </div>
               )}

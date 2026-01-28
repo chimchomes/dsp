@@ -32,7 +32,7 @@ const AdminSelector = () => {
     },
     {
       title: "Finance Dashboard",
-      description: "Expense review, payroll, and financial reports",
+      description: "Payroll and financial reports",
       icon: DollarSign,
       route: "/finance",
       color: "text-green-600",

@@ -8,9 +8,6 @@ import {
   Home,
   Route,
   FileText,
-  Calculator,
-  Car,
-  Receipt,
   User
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -96,19 +93,9 @@ const Sidebar = () => {
       href: "/earnings"
     },
     {
-      title: "Expenses",
-      icon: Receipt,
-      href: "/expenses"
-    },
-    {
-      title: "Calculator",
-      icon: Calculator,
-      href: "/cost-calculator"
-    },
-    {
-      title: "Vehicle",
-      icon: Car,
-      href: "/vehicle"
+      title: "Payslips",
+      icon: FileText,
+      href: "/payslips"
     },
     {
       title: "Profile",

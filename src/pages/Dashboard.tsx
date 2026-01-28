@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "@/hooks/use-toast";
-import { LogOut, Package, DollarSign, AlertTriangle, User, MapPin, Calculator, Car } from "lucide-react";
+import { LogOut, Package, DollarSign, AlertTriangle, User, MapPin } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { NotificationBadge } from "@/components/NotificationBadge";
 import { IncidentForm } from "@/components/IncidentForm";
@@ -187,55 +187,15 @@ export default function Dashboard() {
                   <div className="p-2 rounded-lg bg-primary/10 group-hover:bg-primary/20 transition-colors">
                     <DollarSign className="h-5 w-5 text-primary" />
                   </div>
-                  Earnings & Deductions
+                  Earnings
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-muted-foreground text-base font-medium">View your earnings and deductions</p>
+                <p className="text-muted-foreground text-base font-medium">View your earnings</p>
               </CardContent>
             </Card>
 
-            <Card className="cursor-pointer hover:shadow-modern-lg transition-all duration-300 hover:-translate-y-1 border-2 hover:border-primary/50 group bg-card" onClick={() => navigate("/cost-calculator")}>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-3 text-lg font-bold">
-                  <div className="p-2 rounded-lg bg-primary/10 group-hover:bg-primary/20 transition-colors">
-                    <Calculator className="h-5 w-5 text-primary" />
-                  </div>
-                  Cost Calculator
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-muted-foreground text-base font-medium">Calculate your work costs</p>
-              </CardContent>
-            </Card>
 
-            <Card className="cursor-pointer hover:shadow-modern-lg transition-all duration-300 hover:-translate-y-1 border-2 hover:border-primary/50 group bg-card" onClick={() => navigate("/vehicle")}>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-3 text-lg font-bold">
-                  <div className="p-2 rounded-lg bg-primary/10 group-hover:bg-primary/20 transition-colors">
-                    <Car className="h-5 w-5 text-primary" />
-                  </div>
-                  Vehicle Management
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-muted-foreground text-base font-medium">Manage your vehicle details</p>
-              </CardContent>
-            </Card>
-
-            <Card className="cursor-pointer hover:shadow-modern-lg transition-all duration-300 hover:-translate-y-1 border-2 hover:border-primary/50 group bg-card" onClick={() => navigate("/expenses")}>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-3 text-lg font-bold">
-                  <div className="p-2 rounded-lg bg-primary/10 group-hover:bg-primary/20 transition-colors">
-                    <DollarSign className="h-5 w-5 text-primary" />
-                  </div>
-                  Expenses
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-muted-foreground text-base font-medium">Submit and track your expenses</p>
-              </CardContent>
-            </Card>
 
             <Card className="cursor-pointer hover:shadow-modern-lg transition-all duration-300 hover:-translate-y-1 border-2 hover:border-primary/50 group bg-card" onClick={() => navigate("/profile")}>
               <CardHeader>

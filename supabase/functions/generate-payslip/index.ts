@@ -95,7 +95,7 @@ Deno.serve(async (req) => {
     // C. Expenses Data: Sum approved expenses for the driver within date range
     const { data: expenses, error: expensesError } = await supabaseClient
       .from('expenses')
-      .select('cost')
+      .select('amount')
       .eq('driver_id', driver_id)
       .eq('status', 'approved')
       .gte('created_at', period_start_date)
@@ -109,7 +109,7 @@ Deno.serve(async (req) => {
     }
 
     const totalApprovedExpenses = expenses?.reduce((sum, expense) => {
-      return sum + Number(expense.cost || 0)
+      return sum + Number(expense.amount || 0)
     }, 0) || 0
 
     // Calculation

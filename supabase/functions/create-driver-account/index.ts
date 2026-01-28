@@ -27,7 +27,7 @@ serve(async (req) => {
     const authHeader = req.headers.get('Authorization')!;
     const token = authHeader.replace('Bearer ', '');
     
-    // Verify the user is an admin
+    // Verify the user is authenticated
     const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
     if (authError || !user) {
       throw new Error('Unauthorized');
@@ -38,12 +38,12 @@ serve(async (req) => {
       .select('role')
       .eq('user_id', user.id);
 
-    const isAdmin = roles?.some(r => r.role === 'admin');
-    if (!isAdmin) {
-      throw new Error('Only admins can create driver accounts');
+    const hasPermission = roles?.some(r => r.role === 'admin' || r.role === 'hr');
+    if (!hasPermission) {
+      throw new Error('Only admins and HR can create driver accounts');
     }
 
-    const { name, email, contactPhone, licenseNumber, address, emergencyContactName, emergencyContactPhone } = await req.json();
+    const { name, email, contactPhone, licenseNumber, address, emergencyContactName, emergencyContactPhone, operatorId } = await req.json();
 
     if (!name || !email) {
       throw new Error('Name and email are required');
@@ -79,10 +79,11 @@ serve(async (req) => {
       throw new Error(`Failed to assign role: ${roleError.message}`);
     }
 
-    // Create driver record
+    // Create driver record with user_id linked
     const { error: driverError } = await supabaseAdmin
       .from('drivers')
       .insert({
+        user_id: newUser.user.id,
         email,
         name,
         contact_phone: contactPhone,
@@ -90,6 +91,7 @@ serve(async (req) => {
         address,
         emergency_contact_name: emergencyContactName,
         emergency_contact_phone: emergencyContactPhone,
+        operator_id: operatorId || null,
         onboarded_by: user.id,
         onboarded_at: new Date().toISOString(),
         active: true

@@ -20,7 +20,11 @@ CREATE TABLE public.deductions (
   reason TEXT NOT NULL,
   deduction_type TEXT NOT NULL CHECK (deduction_type IN ('fuel', 'damage', 'lateness', 'manual')),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
-  created_by UUID REFERENCES auth.users(id)
+  created_by UUID REFERENCES auth.users(id),
+  status text NOT NULL DEFAULT 'pending'::text CHECK (status = ANY (ARRAY['pending'::text, 'approved'::text, 'rejected'::text])),
+  reviewed_by uuid REFERENCES auth.users(id),
+  reviewed_at timestamp with time zone,
+  rejection_reason text
 );
 
 ALTER TABLE public.deductions ENABLE ROW LEVEL SECURITY;

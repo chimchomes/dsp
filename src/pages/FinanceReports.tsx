@@ -30,7 +30,6 @@ const FinanceReports = () => {
   const [driverRates, setDriverRates] = useState<DriverRate[]>([]);
   const [loading, setLoading] = useState(true);
   const [totalRevenue, setTotalRevenue] = useState(0);
-  const [totalExpenses, setTotalExpenses] = useState(0);
   const [activeDrivers, setActiveDrivers] = useState(0);
 
   useEffect(() => {
@@ -67,15 +66,6 @@ const FinanceReports = () => {
         setDriverRates(rates);
         setTotalRevenue(rates.reduce((sum, r) => sum + r.total_earnings, 0));
       }
-
-      // Load expenses
-      const { data: expenses } = await supabase
-        .from("expenses")
-        .select("cost")
-        .eq("status", "approved");
-
-      const expensesTotal = expenses?.reduce((sum, e) => sum + Number(e.cost), 0) || 0;
-      setTotalExpenses(expensesTotal);
     } catch (error) {
       console.error("Error loading reports:", error);
       toast({
@@ -116,8 +106,7 @@ const FinanceReports = () => {
     });
   };
 
-  const netProfit = totalRevenue - totalExpenses;
-  const profitMargin = totalRevenue > 0 ? ((netProfit / totalRevenue) * 100).toFixed(1) : "0";
+  const profitMargin = "100";
 
   return (
     <AuthGuard allowedRoles={["route-admin", "admin", "finance"]}>
@@ -151,22 +140,11 @@ const FinanceReports = () => {
 
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Total Expenses</CardTitle>
-                <FileText className="h-4 w-4 text-red-600" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">${totalExpenses.toFixed(2)}</div>
-                <p className="text-xs text-muted-foreground mt-1">Approved expenses</p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">Net Profit</CardTitle>
                 <TrendingUp className="h-4 w-4 text-purple-600" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">${netProfit.toFixed(2)}</div>
+                <div className="text-2xl font-bold">${totalRevenue.toFixed(2)}</div>
                 <p className="text-xs text-muted-foreground mt-1">{profitMargin}% margin</p>
               </CardContent>
             </Card>

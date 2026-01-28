@@ -8,7 +8,6 @@ import { useNavigate } from "react-router-dom";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { PayslipViewer } from "@/components/finance/PayslipViewer";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface Earning {
@@ -278,18 +277,6 @@ export default function EarningsScreen() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>View Payslip</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {driverId ? (
-              <PayslipViewer driverId={driverId} />
-            ) : (
-              <p className="text-muted-foreground text-center py-4">Loading driver information...</p>
-            )}
-          </CardContent>
-        </Card>
       </main>
     </div>
   );

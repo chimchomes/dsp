@@ -40,10 +40,7 @@ type DriverProfile = {
   emergency_contact_phone: string | null;
   license_number: string | null;
   license_expiry: string | null;
-  vehicle_make: string | null;
-  vehicle_model: string | null;
-  vehicle_year: number | null;
-  vehicle_registration: string | null;
+  operator_id: string | null;
   active: boolean;
   onboarded_at: string | null;
 };
@@ -68,10 +65,7 @@ export default function DriverManagement() {
     emergency_contact_phone: "",
     license_number: "",
     license_expiry: "",
-    vehicle_make: "",
-    vehicle_model: "",
-    vehicle_year: "",
-    vehicle_registration: "",
+    operator_id: "",
     active: true,
   });
 
@@ -142,11 +136,10 @@ export default function DriverManagement() {
   const loadDrivers = async () => {
     setLoading(true);
     try {
-      // Get all drivers - select all columns including name and vehicle fields
-      // Migration 20251108030000_add_vehicle_fields_to_drivers.sql must be applied first
+      // Get all drivers - select all columns including name and operator_id
       const { data: driversData, error: driversError } = await supabase
         .from("drivers")
-        .select("id, user_id, email, name, license_number, license_expiry, vehicle_make, vehicle_model, vehicle_year, vehicle_registration, active, onboarded_at")
+        .select("id, user_id, email, name, license_number, license_expiry, operator_id, active, onboarded_at")
         .order("onboarded_at", { ascending: false, nullsLast: true });
       
       if (driversError) {
@@ -226,10 +219,7 @@ export default function DriverManagement() {
           emergency_contact_phone: profile?.emergency_contact_phone || null,
           license_number: driver.license_number || null,
           license_expiry: driver.license_expiry || null,
-          vehicle_make: driver.vehicle_make || null,
-          vehicle_model: driver.vehicle_model || null,
-          vehicle_year: driver.vehicle_year || null,
-          vehicle_registration: driver.vehicle_registration || null,
+          operator_id: driver.operator_id || null,
           active: driver.active ?? true,
           onboarded_at: driver.onboarded_at || null,
         };
@@ -269,10 +259,7 @@ export default function DriverManagement() {
       emergency_contact_phone: driver.emergency_contact_phone || "",
       license_number: driver.license_number || "",
       license_expiry: driver.license_expiry ? format(new Date(driver.license_expiry), "yyyy-MM-dd") : "",
-      vehicle_make: driver.vehicle_make || "",
-      vehicle_model: driver.vehicle_model || "",
-      vehicle_year: driver.vehicle_year?.toString() || "",
-      vehicle_registration: driver.vehicle_registration || "",
+      operator_id: driver.operator_id || "",
       active: driver.active,
     });
     setEditDialogOpen(true);
@@ -304,17 +291,27 @@ export default function DriverManagement() {
 
       if (profileError) throw profileError;
 
+      // If activating the driver, ensure the user has the driver role first
+      // The trigger enforce_driver_role() requires the user to have the driver role
+      if (formData.active && selectedDriver.user_id) {
+        const { error: roleError } = await supabase.rpc('assign_user_role', {
+          p_user_id: selectedDriver.user_id,
+          p_role: 'driver',
+        });
+
+        if (roleError) {
+          // assign_user_role uses ON CONFLICT DO NOTHING, so errors here are real issues
+          throw new Error(`Failed to assign driver role: ${roleError.message}`);
+        }
+      }
+
       // Update driver record (driver-specific information)
-      // Note: The trigger will automatically manage roles based on active status
       const { error: driverError } = await supabase
         .from("drivers")
         .update({
           license_number: formData.license_number.trim() || null,
           license_expiry: formData.license_expiry || null,
-          vehicle_make: formData.vehicle_make.trim() || null,
-          vehicle_model: formData.vehicle_model.trim() || null,
-          vehicle_year: formData.vehicle_year ? parseInt(formData.vehicle_year) : null,
-          vehicle_registration: formData.vehicle_registration.trim() || null,
+          operator_id: formData.operator_id.trim() || null,
           active: formData.active,
           updated_at: new Date().toISOString(),
         })
@@ -378,7 +375,7 @@ export default function DriverManagement() {
                 <TableHead>Email</TableHead>
                 <TableHead>Phone</TableHead>
                 <TableHead>License</TableHead>
-                <TableHead>Vehicle</TableHead>
+                <TableHead>Operator ID</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Onboarded</TableHead>
                 <TableHead>Actions</TableHead>
@@ -400,11 +397,7 @@ export default function DriverManagement() {
                     <TableCell>{driver.email}</TableCell>
                     <TableCell>{driver.contact_phone || "-"}</TableCell>
                     <TableCell>{driver.license_number || "-"}</TableCell>
-                    <TableCell>
-                      {driver.vehicle_make && driver.vehicle_model
-                        ? `${driver.vehicle_make} ${driver.vehicle_model}${driver.vehicle_year ? ` (${driver.vehicle_year})` : ""}`
-                        : "-"}
-                    </TableCell>
+                    <TableCell>{driver.operator_id || "-"}</TableCell>
                     <TableCell>
                       <Badge variant={driver.active ? "default" : "secondary"}>
                         {driver.active ? "Active" : "Inactive"}
@@ -567,48 +560,15 @@ export default function DriverManagement() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="edit_vehicle_make">Vehicle Make</Label>
-                  <Input
-                    id="edit_vehicle_make"
-                    value={formData.vehicle_make}
-                    onChange={(e) => setFormData({ ...formData, vehicle_make: e.target.value })}
-                    maxLength={100}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="edit_vehicle_model">Vehicle Model</Label>
-                  <Input
-                    id="edit_vehicle_model"
-                    value={formData.vehicle_model}
-                    onChange={(e) => setFormData({ ...formData, vehicle_model: e.target.value })}
-                    maxLength={100}
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="edit_vehicle_year">Vehicle Year</Label>
-                  <Input
-                    id="edit_vehicle_year"
-                    type="number"
-                    min="1900"
-                    max="2100"
-                    value={formData.vehicle_year}
-                    onChange={(e) => setFormData({ ...formData, vehicle_year: e.target.value })}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="edit_vehicle_registration">Vehicle Registration</Label>
-                  <Input
-                    id="edit_vehicle_registration"
-                    value={formData.vehicle_registration}
-                    onChange={(e) => setFormData({ ...formData, vehicle_registration: e.target.value })}
-                    maxLength={20}
-                  />
-                </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit_operator_id">Operator ID</Label>
+                <Input
+                  id="edit_operator_id"
+                  value={formData.operator_id}
+                  onChange={(e) => setFormData({ ...formData, operator_id: e.target.value })}
+                  placeholder="e.g., 0074666"
+                  maxLength={50}
+                />
               </div>
 
               <div className="space-y-2 pt-2 border-t">

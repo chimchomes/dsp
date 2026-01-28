@@ -49,13 +49,8 @@ const formSchema = z.object({
   passport_number: z.string().max(50, "Passport number is too long").optional(),
   passport_expiry_date: z.string().optional(),
   
-  // Page 4 - Vehicle Details
-  vehicle_make: z.string().max(100, "Make is too long").optional(),
-  vehicle_model: z.string().max(100, "Model is too long").optional(),
-  vehicle_year: z.string().optional(),
-  vehicle_registration_number: z.string().max(50, "Registration is too long").optional(),
-  vehicle_type: z.string().optional(),
-  vehicle_mileage: z.string().optional(),
+  // Page 4 - Vehicle Type
+  vehicle_type: z.enum(["own vehicle", "LEASED"]).optional(),
   
   // Page 5 - Identity
   photo_upload: z.string().optional(),
@@ -208,8 +203,6 @@ const OnboardingFormOwn = ({ existingSession }: Props) => {
             complete,
             data: {
               ...cleanedData,
-              vehicle_year: data.vehicle_year ? parseInt(data.vehicle_year) : null,
-              vehicle_mileage: data.vehicle_mileage ? parseInt(data.vehicle_mileage) : null,
             },
           },
         }
@@ -299,6 +292,18 @@ const OnboardingFormOwn = ({ existingSession }: Props) => {
         }
       }
       
+      if (currentStep === 4) {
+        if (!values.vehicle_type) {
+          toast({
+            title: "Required field missing",
+            description: "Please select a Vehicle Type",
+            variant: "destructive",
+          });
+          setIsSubmitting(false);
+          return;
+        }
+      }
+      
       if (currentStep < totalSteps) {
         const success = await saveProgress(values, false);
         if (success) {
@@ -362,7 +367,7 @@ const OnboardingFormOwn = ({ existingSession }: Props) => {
       <div className="min-h-screen bg-background p-4 md:p-8">
         <div className="max-w-2xl mx-auto">
           <div className="mb-6">
-            <h1 className="text-3xl font-bold mb-2">Own Vehicle Onboarding</h1>
+            <h1 className="text-3xl font-bold mb-2">Driver Onboarding</h1>
             <Progress value={progress} className="h-2" />
             <p className="text-sm text-muted-foreground mt-2">Step {currentStep} of {totalSteps}</p>
           </div>
@@ -522,56 +527,33 @@ const OnboardingFormOwn = ({ existingSession }: Props) => {
               </Card>
             )}
 
-            {/* Page 4 - Vehicle Details */}
+            {/* Page 4 - Vehicle Type */}
             {currentStep === 4 && (
               <Card>
                 <CardHeader>
-                  <CardTitle>Page 4 - Vehicle Details</CardTitle>
-                  <CardDescription>Details about your vehicle</CardDescription>
+                  <CardTitle>Page 4 - Vehicle Type</CardTitle>
+                  <CardDescription>Select your vehicle type</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="vehicle_make">Make</Label>
-                      <Input id="vehicle_make" {...register("vehicle_make")} placeholder="e.g., Toyota" maxLength={100} />
-                      {errors.vehicle_make && <p className="text-sm text-destructive">{errors.vehicle_make.message}</p>}
-                    </div>
-                    <div>
-                      <Label htmlFor="vehicle_model">Model</Label>
-                      <Input id="vehicle_model" {...register("vehicle_model")} placeholder="e.g., Corolla" maxLength={100} />
-                      {errors.vehicle_model && <p className="text-sm text-destructive">{errors.vehicle_model.message}</p>}
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="vehicle_year">Year</Label>
-                      <Input id="vehicle_year" type="number" {...register("vehicle_year")} placeholder="e.g., 2020" min="1900" max="2100" />
-                      {errors.vehicle_year && <p className="text-sm text-destructive">{errors.vehicle_year.message}</p>}
-                    </div>
-                    <div>
-                      <Label htmlFor="vehicle_registration_number">Registration Number</Label>
-                      <Input id="vehicle_registration_number" {...register("vehicle_registration_number")} maxLength={50} />
-                      {errors.vehicle_registration_number && <p className="text-sm text-destructive">{errors.vehicle_registration_number.message}</p>}
-                    </div>
-                  </div>
                   <div>
-                    <Label htmlFor="vehicle_type">Vehicle Type</Label>
-                    <Select onValueChange={(value) => setValue("vehicle_type", value)} defaultValue={watch("vehicle_type")}>
+                    <Label htmlFor="vehicle_type">VEHICLE TYPE <span className="text-destructive">*</span></Label>
+                    <Select 
+                      onValueChange={(value) => setValue("vehicle_type", value as "own vehicle" | "LEASED")} 
+                      defaultValue={watch("vehicle_type")}
+                      disabled={isReadOnly}
+                    >
                       <SelectTrigger>
                         <SelectValue placeholder="Select vehicle type" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="Custom">Custom</SelectItem>
-                        <SelectItem value="Long wheel base">Long wheel base</SelectItem>
-                        <SelectItem value="Extra long wheel base">Extra long wheel base</SelectItem>
+                        <SelectItem value="own vehicle">Own Vehicle</SelectItem>
+                        <SelectItem value="LEASED">LEASED</SelectItem>
                       </SelectContent>
                     </Select>
                     {errors.vehicle_type && <p className="text-sm text-destructive">{errors.vehicle_type.message}</p>}
-                  </div>
-                  <div>
-                    <Label htmlFor="vehicle_mileage">Vehicle Mileage</Label>
-                    <Input id="vehicle_mileage" type="number" {...register("vehicle_mileage")} placeholder="e.g., 50000" min="0" />
-                    {errors.vehicle_mileage && <p className="text-sm text-destructive">{errors.vehicle_mileage.message}</p>}
+                    <p className="text-sm text-muted-foreground mt-2">
+                      Admin and Finance will allocate a rate from the Pay Rates table based on your selection.
+                    </p>
                   </div>
                 </CardContent>
               </Card>

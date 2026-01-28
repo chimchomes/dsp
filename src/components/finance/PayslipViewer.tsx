@@ -31,12 +31,10 @@ interface PayslipData {
   financial: {
     gross_pay: number;
     total_deductions: number;
-    total_expenses: number;
     net_pay: number;
   };
   breakdown: {
     earnings_from_parcels: number;
-    approved_expenses: number;
     default_deductions: number;
   };
   generated_at: string;
@@ -161,7 +159,7 @@ export const PayslipViewer = ({ driverId, driverName }: PayslipViewerProps) => {
         <CardHeader>
           <CardTitle>Generate Payslip</CardTitle>
           <CardDescription>
-            Generate a payslip for a driver based on completed parcels, expenses, and deductions
+            Generate a payslip for a driver based on completed parcels and deductions
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -276,12 +274,6 @@ export const PayslipViewer = ({ driverId, driverName }: PayslipViewerProps) => {
                 <div className="flex justify-between py-2 border-b">
                   <span className="text-muted-foreground">Earnings from Parcels:</span>
                   <span className="font-medium">{formatCurrency(payslip.breakdown.earnings_from_parcels)}</span>
-                </div>
-                <div className="flex justify-between py-2 border-b">
-                  <span className="text-muted-foreground">Approved Expenses:</span>
-                  <span className="font-medium text-green-600">
-                    +{formatCurrency(payslip.breakdown.approved_expenses)}
-                  </span>
                 </div>
                 <div className="flex justify-between py-2 border-b">
                   <span className="text-muted-foreground">Default Deductions:</span>

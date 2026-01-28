@@ -14,4 +14,21 @@ export default defineConfig({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  optimizeDeps: {
+    include: ["pdfjs-dist"],
+  },
+  build: {
+    rollupOptions: {
+      output: {
+        // Ensure worker file is copied to dist
+        assetFileNames: (assetInfo) => {
+          if (assetInfo.name === "pdf.worker.min.mjs") {
+            return "pdf.worker.min.mjs";
+          }
+          return "assets/[name]-[hash][extname]";
+        },
+      },
+    },
+  },
+  publicDir: "public",
 });

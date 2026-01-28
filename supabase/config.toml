@@ -1,5 +1,8 @@
 project_id = "rkrggssktzpczxvjhrxm"
 
+[db]
+pooler = { enabled = true, port = 6543, pool_mode = "transaction" }
+
 [functions.create-onboarding-account]
 verify_jwt = false
 

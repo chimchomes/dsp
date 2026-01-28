@@ -23,6 +23,7 @@ const driverSchema = z.object({
   address: z.string().trim().max(500).optional(),
   emergencyContactName: z.string().trim().max(100).optional(),
   emergencyContactPhone: z.string().trim().max(20).optional(),
+  operatorId: z.string().trim().max(50).optional(),
 });
 
 export const CreateDriverAccountDialog = ({ onSuccess }: { onSuccess: () => void }) => {
@@ -36,6 +37,7 @@ export const CreateDriverAccountDialog = ({ onSuccess }: { onSuccess: () => void
     address: "",
     emergencyContactName: "",
     emergencyContactPhone: "",
+    operatorId: "",
   });
   const { toast } = useToast();
 
@@ -83,6 +85,7 @@ export const CreateDriverAccountDialog = ({ onSuccess }: { onSuccess: () => void
         address: "",
         emergencyContactName: "",
         emergencyContactPhone: "",
+        operatorId: "",
       });
       setOpen(false);
       onSuccess();
@@ -105,8 +108,25 @@ export const CreateDriverAccountDialog = ({ onSuccess }: { onSuccess: () => void
     }
   };
 
+  const handleOpenChange = (newOpen: boolean) => {
+    setOpen(newOpen);
+    // Reset form when dialog closes
+    if (!newOpen) {
+      setFormData({
+        name: "",
+        email: "",
+        contactPhone: "",
+        licenseNumber: "",
+        address: "",
+        emergencyContactName: "",
+        emergencyContactPhone: "",
+        operatorId: "",
+      });
+    }
+  };
+
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
         <Button>
           <UserPlus className="mr-2 h-4 w-4" />
@@ -195,6 +215,18 @@ export const CreateDriverAccountDialog = ({ onSuccess }: { onSuccess: () => void
                 maxLength={20}
               />
             </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="operatorId">Operator ID</Label>
+            <Input
+              id="operatorId"
+              value={formData.operatorId}
+              onChange={(e) => setFormData({ ...formData, operatorId: e.target.value })}
+              placeholder="e.g., 0074666"
+              maxLength={50}
+            />
+            <p className="text-xs text-muted-foreground">Only HR and Admin can add operator ID</p>
           </div>
 
           <div className="flex justify-end gap-2">

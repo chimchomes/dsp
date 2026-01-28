@@ -79,55 +79,78 @@ const DriverOnboardingForm = () => {
   const onSubmit = async (data: OnboardingFormData) => {
     setIsSubmitting(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        throw new Error("Not authenticated");
+      }
 
-      // Insert driver
-      const { data: driver, error: driverError } = await supabase
-        .from('drivers')
-        .insert({
-          name: data.name,
-          email: data.email,
-          license_number: data.license_number,
-          contact_phone: data.contact_phone,
-          address: data.address,
-          emergency_contact_name: data.emergency_contact_name,
-          emergency_contact_phone: data.emergency_contact_phone,
-          active: true,
-          onboarded_at: new Date().toISOString(),
-          onboarded_by: user?.id,
-        })
-        .select()
-        .single();
-
-      if (driverError) throw driverError;
-
-      // Upload documents
-      await Promise.all(
-        documents
-          .filter(doc => doc.file)
-          .map(doc => uploadDocument(driver.id, doc))
+      // Use the create-driver-account edge function to properly create user account,
+      // assign driver role, and create driver record with user_id linked
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-driver-account`,
+        {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${session.access_token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            name: data.name,
+            email: data.email,
+            contactPhone: data.contact_phone,
+            licenseNumber: data.license_number,
+            address: data.address,
+            emergencyContactName: data.emergency_contact_name,
+            emergencyContactPhone: data.emergency_contact_phone,
+          }),
+        }
       );
 
-      // Initialize training progress
-      const { data: trainingItems } = await supabase
-        .from('training_items')
-        .select('id');
+      const result = await response.json();
 
-      if (trainingItems) {
-        await supabase
-          .from('driver_training_progress')
-          .insert(
-            trainingItems.map(item => ({
-              driver_id: driver.id,
-              training_item_id: item.id,
-              completed: false,
-            }))
-          );
+      if (!response.ok) {
+        throw new Error(result.error || "Failed to create driver account");
+      }
+
+      // Get the created driver record to upload documents
+      const { data: driver, error: driverError } = await supabase
+        .from('drivers')
+        .select('id')
+        .eq('email', data.email)
+        .single();
+
+      if (driverError) {
+        console.error("Error fetching driver record:", driverError);
+        // Continue even if we can't fetch the driver record - documents can be uploaded later
+      } else if (driver) {
+        // Upload documents
+        await Promise.all(
+          documents
+            .filter(doc => doc.file)
+            .map(doc => uploadDocument(driver.id, doc))
+        );
+
+        // Initialize training progress
+        const { data: trainingItems } = await supabase
+          .from('training_items')
+          .select('id');
+
+        if (trainingItems) {
+          await supabase
+            .from('driver_training_progress')
+            .insert(
+              trainingItems.map(item => ({
+                driver_id: driver.id,
+                training_item_id: item.id,
+                completed: false,
+              }))
+            );
+        }
       }
 
       toast({
         title: "Driver onboarded successfully",
-        description: `${data.name} has been added to the system`,
+        description: `${data.name} has been added to the system. User account created with temporary password.`,
       });
 
       reset();

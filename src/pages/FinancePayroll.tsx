@@ -6,10 +6,7 @@ import { Card } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { ArrowLeft, Download } from "lucide-react";
 import PayrollTable from "@/components/finance/PayrollTable";
-import ManualDeductionForm from "@/components/finance/ManualDeductionForm";
-import { PayslipViewer } from "@/components/finance/PayslipViewer";
 import { AuthGuard } from "@/components/AuthGuard";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface DriverPayroll {
   driver_id: string;
@@ -24,7 +21,6 @@ const FinancePayroll = () => {
   const { toast } = useToast();
   const [payrollData, setPayrollData] = useState<DriverPayroll[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showDeductionForm, setShowDeductionForm] = useState(false);
 
   useEffect(() => {
     loadPayrollData();
@@ -140,7 +136,7 @@ const FinancePayroll = () => {
               </Button>
               <div>
                 <h1 className="text-3xl font-bold">Payroll Management</h1>
-                <p className="text-muted-foreground mt-1">Manage driver payroll, deductions, and payouts</p>
+                <p className="text-muted-foreground mt-1">Manage driver payroll and payouts</p>
               </div>
             </div>
             <div className="flex gap-2">
@@ -148,40 +144,16 @@ const FinancePayroll = () => {
                 <Download className="w-4 h-4 mr-2" />
                 Export CSV
               </Button>
-              <Button onClick={() => setShowDeductionForm(true)}>
-                Add Manual Deduction
-              </Button>
             </div>
           </div>
 
-          <Tabs defaultValue="payroll" className="space-y-4">
-            <TabsList>
-              <TabsTrigger value="payroll">Payroll Table</TabsTrigger>
-              <TabsTrigger value="payslip">Generate Payslip</TabsTrigger>
-            </TabsList>
-            <TabsContent value="payroll">
-              <Card className="p-6">
-                <PayrollTable
-                  data={payrollData}
-                  loading={loading}
-                  onTriggerPayout={handleTriggerPayout}
-                />
-              </Card>
-            </TabsContent>
-            <TabsContent value="payslip">
-              <PayslipViewer />
-            </TabsContent>
-          </Tabs>
-
-          {showDeductionForm && (
-            <ManualDeductionForm
-              onClose={() => setShowDeductionForm(false)}
-              onSuccess={() => {
-                setShowDeductionForm(false);
-                loadPayrollData();
-              }}
+          <Card className="p-6">
+            <PayrollTable
+              data={payrollData}
+              loading={loading}
+              onTriggerPayout={handleTriggerPayout}
             />
-          )}
+          </Card>
         </div>
       </div>
     </AuthGuard>

@@ -44,7 +44,6 @@ const actionTypeColors: Record<string, string> = {
   driver_deactivated: "bg-orange-500",
   message_sent: "bg-purple-500",
   incident_reported: "bg-red-500",
-  expense_submitted: "bg-blue-500",
   deduction_created: "bg-orange-500",
   payout_calculated: "bg-green-500",
   payout_processed: "bg-green-600",

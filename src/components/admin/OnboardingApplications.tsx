@@ -4,7 +4,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { CheckCircle, XCircle, Eye } from "lucide-react";
+import { CheckCircle, XCircle, Eye, Edit } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
 import {
   Table,
   TableBody,
@@ -30,6 +32,7 @@ interface OnboardingSession {
   contact_phone: string;
   email: string;
   vehicle_ownership_type: string;
+  vehicle_type?: string;
   status: string;
   created_at: string;
   submitted_at?: string;
@@ -48,6 +51,8 @@ export function OnboardingApplications() {
   const [applications, setApplications] = useState<OnboardingSession[]>([]);
   const [selectedApp, setSelectedApp] = useState<OnboardingSession | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [editingVehicleType, setEditingVehicleType] = useState(false);
+  const [vehicleTypeValue, setVehicleTypeValue] = useState<string>("");
   const { toast } = useToast();
 
   useEffect(() => {
@@ -207,10 +212,6 @@ export function OnboardingApplications() {
             name: session.full_name || fullName || session.email,
             license_number: session.license_number || null,
             license_expiry: session.license_expiry ? new Date(session.license_expiry).toISOString().split('T')[0] : null,
-            vehicle_make: session.vehicle_make || null,
-            vehicle_model: session.vehicle_model || null,
-            vehicle_year: session.vehicle_year || null,
-            vehicle_registration: session.vehicle_registration || null,
             onboarded_at: new Date().toISOString(),
             onboarded_by: (await supabase.auth.getUser()).data.user?.id,
             active: true,
@@ -364,7 +365,7 @@ export function OnboardingApplications() {
             </DialogDescription>
           </DialogHeader>
           {selectedApp && (
-            <div className="space-y-4">
+            <div className="space-y-4" onLoad={() => setEditingVehicleType(false)}>
               <div>
                 <h3 className="font-semibold">Personal Information</h3>
                 <p>Name: {selectedApp.full_name || "N/A"}</p>
@@ -374,6 +375,85 @@ export function OnboardingApplications() {
               <div>
                 <h3 className="font-semibold">Vehicle Information</h3>
                 <p className="capitalize">Ownership: {selectedApp.vehicle_ownership_type}</p>
+                <div className="mt-2">
+                  <div className="flex items-center gap-2">
+                    <Label htmlFor="vehicle_type">Vehicle Type:</Label>
+                    {editingVehicleType ? (
+                      <div className="flex items-center gap-2 flex-1">
+                        <Select
+                          value={vehicleTypeValue || selectedApp.vehicle_type || ""}
+                          onValueChange={setVehicleTypeValue}
+                        >
+                          <SelectTrigger className="w-48">
+                            <SelectValue placeholder="Select vehicle type" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="own vehicle">Own Vehicle</SelectItem>
+                            <SelectItem value="LEASED">LEASED</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <Button
+                          size="sm"
+                          onClick={async () => {
+                            try {
+                              const { error } = await supabase
+                                .from("onboarding_sessions")
+                                .update({ vehicle_type: vehicleTypeValue })
+                                .eq("id", selectedApp.id);
+                              
+                              if (error) throw error;
+                              
+                              toast({
+                                title: "Success",
+                                description: "Vehicle type updated successfully",
+                              });
+                              
+                              setEditingVehicleType(false);
+                              loadApplications();
+                              // Update selectedApp to reflect the change
+                              setSelectedApp({ ...selectedApp, vehicle_type: vehicleTypeValue });
+                            } catch (error: any) {
+                              toast({
+                                title: "Error",
+                                description: error.message,
+                                variant: "destructive",
+                              });
+                            }
+                          }}
+                        >
+                          Save
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            setEditingVehicleType(false);
+                            setVehicleTypeValue("");
+                          }}
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <span>{selectedApp.vehicle_type || "Not set"}</span>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => {
+                            setEditingVehicleType(true);
+                            setVehicleTypeValue(selectedApp.vehicle_type || "");
+                          }}
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Used for pay rate allocation by Finance
+                  </p>
+                </div>
               </div>
               <div>
                 <h3 className="font-semibold">Status</h3>

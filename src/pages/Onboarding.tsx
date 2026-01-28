@@ -2,11 +2,10 @@ import React, { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Car, Building2, PlayCircle, ArrowLeft } from "lucide-react";
+import { Car, PlayCircle, ArrowLeft } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import OnboardingFormOwn from "@/components/onboarding/OnboardingFormOwn";
-import OnboardingFormLease from "@/components/onboarding/OnboardingFormLease";
 
 type VehicleType = "own" | "lease" | null;
 
@@ -98,12 +97,9 @@ const Onboarding = () => {
   }
 
   // Forms should only be accessible after login
+  // Now we use a single unified form regardless of selectedType
   if (selectedType) {
-    return selectedType === "own" ? (
-      <OnboardingFormOwn existingSession={existingSession} />
-    ) : (
-      <OnboardingFormLease existingSession={existingSession} />
-    );
+    return <OnboardingFormOwn existingSession={existingSession} />;
   }
 
   return (
@@ -123,15 +119,15 @@ const Onboarding = () => {
           <p className="text-muted-foreground">Let's get you set up for deliveries</p>
         </div>
 
-        <div className="grid md:grid-cols-3 gap-6">
+        <div className="grid md:grid-cols-2 gap-6">
           <Card className="hover:border-primary transition-colors cursor-pointer">
             <CardHeader>
               <div className="flex justify-center mb-4">
                 <Car className="h-12 w-12 text-primary" />
               </div>
-              <CardTitle className="text-center text-xl">I Own My Vehicle</CardTitle>
+              <CardTitle className="text-center text-xl">NEW ONBOARDING</CardTitle>
               <CardDescription className="text-center">
-                Use your own vehicle for deliveries
+                Start your driver onboarding application
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -139,31 +135,9 @@ const Onboarding = () => {
                 Get Started
               </Button>
               <ul className="mt-4 space-y-2 text-sm text-muted-foreground">
-                <li>• Provide vehicle registration</li>
-                <li>• Upload insurance documents</li>
+                <li>• Complete personal information</li>
+                <li>• Upload required documents</li>
                 <li>• Complete driver verification</li>
-              </ul>
-            </CardContent>
-          </Card>
-
-          <Card className="hover:border-primary transition-colors cursor-pointer">
-            <CardHeader>
-              <div className="flex justify-center mb-4">
-                <Building2 className="h-12 w-12 text-primary" />
-              </div>
-              <CardTitle className="text-center text-xl">Need a Vehicle?</CardTitle>
-              <CardDescription className="text-center">
-                Lease a vehicle from our fleet
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button onClick={() => handleStartNew("lease")} className="w-full" size="lg">
-                Get Started
-              </Button>
-              <ul className="mt-4 space-y-2 text-sm text-muted-foreground">
-                <li>• Choose from available vehicles</li>
-                <li>• Flexible lease terms</li>
-                <li>• All maintenance included</li>
               </ul>
             </CardContent>
           </Card>
