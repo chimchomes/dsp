@@ -12,7 +12,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { FileText, Download, Eye } from "lucide-react";
+import { FileText, Eye, ArrowLeft } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 interface Payslip {
@@ -34,6 +34,7 @@ const DriverPayslips = () => {
   const [payslips, setPayslips] = useState<Payslip[]>([]);
   const [loading, setLoading] = useState(true);
   const [driverId, setDriverId] = useState<string | null>(null);
+  const [adjustmentTotals, setAdjustmentTotals] = useState<Record<string, number>>({});
 
   useEffect(() => {
     loadDriverId();
@@ -78,7 +79,10 @@ const DriverPayslips = () => {
         .order("invoice_date", { ascending: false });
 
       if (error) throw error;
-      setPayslips(data || []);
+      const payslipData = data || [];
+      setPayslips(payslipData);
+
+      await loadAdjustmentTotals(payslipData);
     } catch (error: any) {
       toast({
         title: "Error loading payslips",
@@ -90,6 +94,44 @@ const DriverPayslips = () => {
     }
   };
 
+  const loadAdjustmentTotals = async (payslips: Payslip[]) => {
+    try {
+      if (!payslips.length) {
+        setAdjustmentTotals({});
+        return;
+      }
+
+      const invoiceNumbers = Array.from(new Set(payslips.map((p) => p.invoice_number)));
+      const operatorIds = Array.from(new Set(payslips.map((p) => p.operator_id)));
+
+      const { data, error } = await supabase
+        .from("ADJUSTMENT_DETAIL")
+        .select("invoice_number, operator_id, adjustment_amount")
+        .in("invoice_number", invoiceNumbers)
+        .in("operator_id", operatorIds);
+
+      if (error) {
+        console.error("Error loading driver adjustment totals:", error);
+        return;
+      }
+
+      const totals: Record<string, number> = {};
+
+      (data || []).forEach((adj: any) => {
+        const key = `${adj.invoice_number}__${adj.operator_id || ""}`;
+        const amount = parseFloat(adj.adjustment_amount?.toString() || "0");
+        if (!totals[key]) {
+          totals[key] = 0;
+        }
+        totals[key] += isNaN(amount) ? 0 : amount;
+      });
+
+      setAdjustmentTotals(totals);
+    } catch (err) {
+      console.error("Error computing driver adjustment totals:", err);
+    }
+  };
+
   const handleViewPayslip = (payslipId: string) => {
     navigate(`/payslips/${payslipId}`);
   };
@@ -98,11 +140,19 @@ const DriverPayslips = () => {
     <AuthGuard allowedRoles={["driver"]}>
       <div className="min-h-screen bg-background p-6">
       <div className="max-w-7xl mx-auto space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold">My Payslips</h1>
-          <p className="text-muted-foreground mt-1">
-            View and download your payslips
-          </p>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <Button variant="ghost" onClick={() => navigate("/dashboard")}>
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Back to Dashboard
+            </Button>
+            <div>
+              <h1 className="text-3xl font-bold">My Payslips</h1>
+              <p className="text-muted-foreground mt-1">
+                View and download your payslips
+              </p>
+            </div>
+          </div>
         </div>
 
         <Card>
@@ -130,8 +180,8 @@ const DriverPayslips = () => {
                     <TableHead>Invoice Number</TableHead>
                     <TableHead>Period</TableHead>
                     <TableHead>Operator ID</TableHead>
-                    <TableHead>Gross Pay</TableHead>
-                    <TableHead>Deductions</TableHead>
+                  <TableHead>Gross Pay</TableHead>
+                  <TableHead>Adjustments</TableHead>
                     <TableHead>Net Pay</TableHead>
                     <TableHead>Actions</TableHead>
                   </TableRow>
@@ -148,7 +198,18 @@ const DriverPayslips = () => {
                       </TableCell>
                       <TableCell>{payslip.operator_id}</TableCell>
                       <TableCell>£{payslip.gross_pay.toFixed(2)}</TableCell>
-                      <TableCell>£{payslip.deductions.toFixed(2)}</TableCell>
+                      <TableCell>
+                        {(() => {
+                          const key = `${payslip.invoice_number}__${payslip.operator_id || ""}`;
+                          const adjustmentTotal = adjustmentTotals[key] ?? 0;
+                          const formatted = `${adjustmentTotal < 0 ? "-" : ""}£${Math.abs(adjustmentTotal).toFixed(2)}`;
+                          return (
+                            <span className={adjustmentTotal < 0 ? "text-red-600" : adjustmentTotal > 0 ? "text-green-600" : ""}>
+                              {formatted}
+                            </span>
+                          );
+                        })()}
+                      </TableCell>
                       <TableCell className="font-semibold">
                         £{payslip.net_pay.toFixed(2)}
                       </TableCell>
