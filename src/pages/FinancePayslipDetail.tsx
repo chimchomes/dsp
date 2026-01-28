@@ -500,14 +500,12 @@ const FinancePayslipDetail = () => {
                 <span class="row-label">Gross Pay:</span>
                 <span>${formatCurrency(payslip.gross_pay)}</span>
               </div>
-              ${totalAdjustments !== 0 ? `
               <div class="row">
                 <span class="row-label">Total Adjustments:</span>
-                <span style="color: ${totalAdjustments < 0 ? "#dc2626" : "#16a34a"}">
+                <span style="color: ${totalAdjustments < 0 ? "#dc2626" : totalAdjustments > 0 ? "#16a34a" : "#6b7280"}">
                   ${formatCurrency(totalAdjustments)}
                 </span>
               </div>
-              ` : ""}
               <div class="row total" style="font-size: 20px;">
                 <span>NET WEEK PAY (£):</span>
                 <span>${formatCurrency(payslip.net_pay)}</span>
@@ -778,14 +776,20 @@ const FinancePayslipDetail = () => {
                   <span>Gross Pay:</span>
                   <span className="font-medium">{formatCurrency(payslip.gross_pay)}</span>
                 </div>
-                {totalAdjustments !== 0 && (
-                  <div className="flex justify-between">
-                    <span>Total Adjustments:</span>
-                    <span className={totalAdjustments < 0 ? "text-red-600" : "text-green-600"}>
-                      {formatCurrency(totalAdjustments)}
-                    </span>
-                  </div>
-                )}
+                <div className="flex justify-between">
+                  <span>Total Adjustments:</span>
+                  <span
+                    className={
+                      totalAdjustments < 0
+                        ? "text-red-600"
+                        : totalAdjustments > 0
+                        ? "text-green-600"
+                        : "text-muted-foreground"
+                    }
+                  >
+                    {formatCurrency(totalAdjustments)}
+                  </span>
+                </div>
                 <div className="flex justify-between font-bold text-2xl border-t pt-2">
                   <span>NET WEEK PAY (£):</span>
                   <span>{formatCurrency(payslip.net_pay)}</span>
