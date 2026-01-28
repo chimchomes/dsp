@@ -57,6 +57,7 @@ const App = () => (
             <Route path="/route-details/:routeId" element={<RouteDetailsScreen />} />
             <Route path="/earnings" element={<EarningsScreen />} />
             <Route path="/payslips" element={<DriverPayslips />} />
+            <Route path="/payslips/:id" element={<FinancePayslipDetail />} />
             <Route path="/profile" element={<ProfileScreen />} />
             <Route path="/dispatcher" element={<DispatcherDashboard />} />
             <Route path="/finance" element={<FinanceDashboard />} />

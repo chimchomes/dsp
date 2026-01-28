@@ -575,7 +575,7 @@ const FinancePayslipDetail = () => {
 
   if (loading) {
     return (
-      <AuthGuard allowedRoles={["admin", "finance"]}>
+      <AuthGuard allowedRoles={["admin", "finance", "driver"]}>
         <div className="min-h-screen bg-background p-6">
           <div className="max-w-7xl mx-auto">
             <p className="text-muted-foreground">Loading payslip...</p>
@@ -587,7 +587,7 @@ const FinancePayslipDetail = () => {
 
   if (!payslip || !driver) {
     return (
-      <AuthGuard allowedRoles={["admin", "finance"]}>
+      <AuthGuard allowedRoles={["admin", "finance", "driver"]}>
         <div className="min-h-screen bg-background p-6">
           <div className="max-w-7xl mx-auto">
             <p className="text-muted-foreground">Payslip not found</p>
@@ -598,12 +598,19 @@ const FinancePayslipDetail = () => {
   }
 
   return (
-    <AuthGuard allowedRoles={["admin", "finance"]}>
+    <AuthGuard allowedRoles={["admin", "finance", "driver"]}>
       <div className="min-h-screen bg-background p-6">
         <div className="max-w-7xl mx-auto space-y-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <Button variant="ghost" onClick={() => navigate("/finance/payslips")}>
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  // If a driver is viewing, send them back to their payslips page
+                  // otherwise send finance/admin back to finance payslips
+                  navigate(window.location.pathname.startsWith("/finance") ? "/finance/payslips" : "/payslips");
+                }}
+              >
                 <ArrowLeft className="w-4 h-4 mr-2" />
                 Back to Payslips
               </Button>
