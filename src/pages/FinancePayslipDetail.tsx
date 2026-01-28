@@ -508,7 +508,7 @@ const FinancePayslipDetail = () => {
               </div>
               <div class="row total" style="font-size: 20px;">
                 <span>NET WEEK PAY (£):</span>
-                <span>${formatCurrency(payslip.net_pay)}</span>
+                <span>${formatCurrency(payslip.gross_pay + totalAdjustments)}</span>
               </div>
             </div>
           </div>
@@ -555,7 +555,14 @@ const FinancePayslipDetail = () => {
   const totalSacks = weeklyPay.reduce((sum, wp) => sum + (wp.sacks_qty || 0), 0);
   const totalPackets = weeklyPay.reduce((sum, wp) => sum + (wp.packets_qty || 0), 0);
   const totalQty = totalDelivered + totalCollected + totalSacks + totalPackets;
-  const totalAdjustments = adjustments.reduce((sum, adj) => sum + parseFloat(adj.adjustment_amount.toString()), 0);
+  const totalAdjustments = adjustments.reduce(
+    (sum, adj) => sum + parseFloat(adj.adjustment_amount.toString() || "0"),
+    0
+  );
+
+  // Always compute the displayed net pay from gross + adjustments so the page
+  // is correct even if an older payslip row has a stale net_pay value.
+  const displayedNetPay = payslip ? payslip.gross_pay + totalAdjustments : 0;
 
   // Group daily pay summary by working day and tour
   const dailyPayByDay = dailyPaySummary.reduce((acc, dps) => {
@@ -792,7 +799,7 @@ const FinancePayslipDetail = () => {
                 </div>
                 <div className="flex justify-between font-bold text-2xl border-t pt-2">
                   <span>NET WEEK PAY (£):</span>
-                  <span>{formatCurrency(payslip.net_pay)}</span>
+                  <span>{formatCurrency(displayedNetPay)}</span>
                 </div>
               </div>
             </CardContent>
