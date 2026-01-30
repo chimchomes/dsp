@@ -1,10 +1,11 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, UserPlus, UserMinus, Shield } from "lucide-react";
+import { Loader2, UserPlus, UserMinus, Shield, Search, X } from "lucide-react";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import {
   Table,
   TableBody,
@@ -45,6 +46,8 @@ const UserManagement = () => {
   const [selectedRole, setSelectedRole] = useState<string>("driver");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [availableRoles, setAvailableRoles] = useState<string[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [roleFilter, setRoleFilter] = useState<string>("all");
 
   const fetchUsers = async () => {
     try {
@@ -92,6 +95,30 @@ const UserManagement = () => {
     fetchUsers();
     fetchAvailableRoles();
   }, []);
+
+  // Filter users based on search query and role filter
+  const filteredUsers = useMemo(() => {
+    let filtered = [...users];
+
+    // Filter by search query (email)
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter((user) => 
+        user.email.toLowerCase().includes(query)
+      );
+    }
+
+    // Filter by role
+    if (roleFilter !== "all") {
+      if (roleFilter === "no-roles") {
+        filtered = filtered.filter((user) => user.roles.length === 0);
+      } else {
+        filtered = filtered.filter((user) => user.roles.includes(roleFilter));
+      }
+    }
+
+    return filtered;
+  }, [users, searchQuery, roleFilter]);
 
   const assignRole = async () => {
     if (!selectedUser) return;
@@ -154,6 +181,43 @@ const UserManagement = () => {
 
   return (
     <div className="space-y-4">
+      {/* Filter Controls */}
+      <div className="flex flex-col sm:flex-row gap-4 mb-4">
+        <div className="flex-1 relative">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search by email..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-10"
+          />
+          {searchQuery && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="absolute right-1 top-1/2 transform -translate-y-1/2 h-6 w-6 p-0"
+              onClick={() => setSearchQuery("")}
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
+        <Select value={roleFilter} onValueChange={setRoleFilter}>
+          <SelectTrigger className="w-full sm:w-[180px]">
+            <SelectValue placeholder="Filter by role" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Roles</SelectItem>
+            <SelectItem value="no-roles">No Roles</SelectItem>
+            {availableRoles.map((role) => (
+              <SelectItem key={role} value={role}>
+                {role.charAt(0).toUpperCase() + role.slice(1)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
       <div className="rounded-md border">
         <Table>
           <TableHeader>
@@ -165,14 +229,14 @@ const UserManagement = () => {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {users.length === 0 ? (
+            {filteredUsers.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
-                  No users found
+                  {users.length === 0 ? "No users found" : "No users match the current filters"}
                 </TableCell>
               </TableRow>
             ) : (
-              users.map((user) => (
+              filteredUsers.map((user) => (
                 <TableRow key={user.id}>
                   <TableCell className="font-medium">{user.email}</TableCell>
                   <TableCell>

@@ -1,0 +1,18 @@
+---
+name: git-safety
+description: This is a new rule
+---
+
+# Overview
+
+---
+description: Prevent autonomous git commits and ensure user testing first
+globs: **/*
+alwaysApply: true
+---
+
+# Git Safety Protocol
+- NEVER execute `git commit` or `git push` on your own.
+- You must WAIT for the user to explicitly type "COMMIT" or "PUSH" in the chat.
+- After making a change, summarize what you did and ask: "Changes are ready for testing. Should I COMMIT these now?"
+- If the user says something is broken, DO NOT try to fix it by writing more code—ask if they want to REVERT to the last working commit first.

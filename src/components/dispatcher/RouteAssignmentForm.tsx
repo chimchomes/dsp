@@ -132,7 +132,7 @@ export const RouteAssignmentForm = ({ drivers: driversProp, onClose, onSuccess }
     setLoadingDrivers(true);
     try {
       const { data, error } = await supabase
-        .from("drivers")
+        .from("driver_profiles")
         .select("id, name, email")
         .eq("active", true)
         .order("name");

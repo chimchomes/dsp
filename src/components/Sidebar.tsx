@@ -3,10 +3,8 @@ import {
   Shield, 
   DollarSign, 
   Users, 
-  Truck, 
   Mail,
   Home,
-  Route,
   FileText,
   User
 } from "lucide-react";
@@ -63,12 +61,6 @@ const Sidebar = () => {
       roles: ["admin", "hr"]
     },
     {
-      title: "Route Admin",
-      icon: Truck,
-      href: "/dispatcher",
-      roles: ["admin", "route-admin"]
-    },
-    {
       title: "Messages",
       icon: Mail,
       href: "/inbox"
@@ -81,16 +73,6 @@ const Sidebar = () => {
       title: "Dashboard",
       icon: Home,
       href: "/dashboard"
-    },
-    {
-      title: "Routes",
-      icon: Route,
-      href: "/routes"
-    },
-    {
-      title: "Earnings",
-      icon: DollarSign,
-      href: "/earnings"
     },
     {
       title: "Payslips",

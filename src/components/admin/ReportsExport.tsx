@@ -80,10 +80,10 @@ const ReportsExport = () => {
 
       if (error) throw error;
 
-      // Fetch driver info separately
+      // Fetch driver info separately from driver_profiles
       const driverIds = [...new Set(incidents?.map(i => i.driver_id) || [])];
       const { data: drivers } = await supabase
-        .from('drivers')
+        .from('driver_profiles')
         .select('id, name, email')
         .in('id', driverIds);
 
@@ -126,10 +126,10 @@ const ReportsExport = () => {
 
       if (error) throw error;
 
-      // Fetch driver info separately
+      // Fetch driver info separately from driver_profiles
       const driverIds = [...new Set(statements?.map(s => s.driver_id) || [])];
       const { data: drivers } = await supabase
-        .from('drivers')
+        .from('driver_profiles')
         .select('id, name, email')
         .in('id', driverIds);
 
@@ -170,7 +170,7 @@ const ReportsExport = () => {
     setExporting('drivers');
     try {
       const { data, error } = await supabase
-        .from('drivers')
+        .from('driver_profiles')
         .select('*')
         .order('name');
 

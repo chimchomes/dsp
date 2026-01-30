@@ -43,22 +43,44 @@ serve(async (req) => {
       throw new Error('Only admins and HR can create driver accounts');
     }
 
-    const { name, email, contactPhone, licenseNumber, address, emergencyContactName, emergencyContactPhone, operatorId } = await req.json();
+    // Parse request body with all fields
+    const { 
+      firstName, 
+      surname, 
+      email, 
+      password,
+      contactPhone, 
+      licenseNumber, 
+      addressLine1,
+      addressLine2,
+      addressLine3,
+      postcode,
+      emergencyContactName, 
+      emergencyContactPhone, 
+      operatorId,
+      nationalInsurance
+    } = await req.json();
 
-    if (!name || !email) {
-      throw new Error('Name and email are required');
+    // Validate required fields
+    if (!firstName || !surname || !email || !password) {
+      throw new Error('First name, surname, email, and password are required');
     }
 
-    // Generate a secure random temporary password
-    const tempPassword = crypto.randomUUID() + crypto.randomUUID().substring(0, 8);
+    if (password.length < 8) {
+      throw new Error('Password must be at least 8 characters');
+    }
 
-    // Create the user account
+    const fullName = `${firstName} ${surname}`.trim();
+
+    // Create the user account with the provided password
     const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
       email,
-      password: tempPassword,
+      password: password,
       email_confirm: true,
       user_metadata: {
-        name,
+        name: fullName,
+        first_name: firstName,
+        surname: surname,
         requires_password_change: true
       }
     });
@@ -79,19 +101,50 @@ serve(async (req) => {
       throw new Error(`Failed to assign role: ${roleError.message}`);
     }
 
-    // Create driver record with user_id linked
+    // Create profile record with personal information
+    const { error: profileError } = await supabaseAdmin
+      .from('profiles')
+      .upsert({
+        user_id: newUser.user.id,
+        email,
+        first_name: firstName,
+        surname: surname,
+        full_name: fullName,
+        contact_phone: contactPhone || null,
+        address_line_1: addressLine1 || null,
+        address_line_2: addressLine2 || null,
+        address_line_3: addressLine3 || null,
+        postcode: postcode || null,
+        emergency_contact_name: emergencyContactName || null,
+        emergency_contact_phone: emergencyContactPhone || null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'user_id' });
+
+    if (profileError) {
+      console.error('Profile creation error:', profileError);
+      // Don't fail - profile might be created by trigger
+    }
+
+    // Create driver record with all information
     const { error: driverError } = await supabaseAdmin
       .from('drivers')
       .insert({
         user_id: newUser.user.id,
         email,
-        name,
-        contact_phone: contactPhone,
-        license_number: licenseNumber,
-        address,
-        emergency_contact_name: emergencyContactName,
-        emergency_contact_phone: emergencyContactPhone,
+        name: fullName,
+        first_name: firstName,
+        surname: surname,
+        contact_phone: contactPhone || null,
+        address_line_1: addressLine1 || null,
+        address_line_2: addressLine2 || null,
+        address_line_3: addressLine3 || null,
+        postcode: postcode || null,
+        license_number: licenseNumber || null,
+        emergency_contact_name: emergencyContactName || null,
+        emergency_contact_phone: emergencyContactPhone || null,
         operator_id: operatorId || null,
+        national_insurance: nationalInsurance || null,
         onboarded_by: user.id,
         onboarded_at: new Date().toISOString(),
         active: true
@@ -102,22 +155,26 @@ serve(async (req) => {
     }
 
     // Log the activity
-    await supabaseAdmin.rpc('log_activity', {
-      p_action_type: 'driver_account_created',
-      p_resource_type: 'driver',
-      p_resource_id: newUser.user.id,
-      p_action_details: { name, email }
-    });
+    try {
+      await supabaseAdmin.rpc('log_activity', {
+        p_action_type: 'driver_created',
+        p_resource_type: 'driver',
+        p_resource_id: newUser.user.id,
+        p_action_details: { name: fullName, email }
+      });
+    } catch (logError) {
+      console.error('Activity log error:', logError);
+      // Don't fail if logging fails
+    }
 
-    // Log password creation for admin reference (not returned in response)
-    console.log(`Driver account created for ${email}. Temporary password generated (not logged for security).`);
+    console.log(`Driver account created for ${email} by ${user.email}`);
     
     return new Response(
       JSON.stringify({ 
         success: true, 
         userId: newUser.user.id,
         email,
-        message: 'Driver account created successfully. Temporary password has been generated and must be provided to the driver securely.'
+        message: 'Driver account created successfully. The driver must change their password on first login.'
       }),
       { 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -126,6 +183,7 @@ serve(async (req) => {
     );
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
+    console.error('Create driver account error:', errorMessage);
     return new Response(
       JSON.stringify({ error: errorMessage }),
       { 

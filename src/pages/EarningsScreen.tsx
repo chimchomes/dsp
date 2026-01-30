@@ -85,7 +85,7 @@ export default function EarningsScreen() {
       if (!user) return;
 
       const { data: driverData } = await supabase
-        .from("drivers")
+        .from("driver_profiles")
         .select("id")
         .eq("email", user.email)
         .single();

@@ -29,8 +29,8 @@ const SystemMetrics = () => {
       const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
       const [driversRes, activeDriversRes, routesRes, incidentsRes, loginsRes] = await Promise.all([
-        supabase.from('drivers').select('id', { count: 'exact', head: true }),
-        supabase.from('drivers').select('id', { count: 'exact', head: true }).eq('active', true),
+        supabase.from('driver_profiles').select('id', { count: 'exact', head: true }),
+        supabase.from('driver_profiles').select('id', { count: 'exact', head: true }).eq('active', true),
         supabase.from('routes').select('id', { count: 'exact', head: true }).eq('scheduled_date', today),
         supabase.from('incidents').select('id', { count: 'exact', head: true }).gte('created_at', today),
         supabase

@@ -3,17 +3,13 @@ import { useNavigate } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Shield, FileText, Users, Activity, ClipboardCheck, ArrowLeft, Truck, LogOut, Package } from "lucide-react";
+import { Shield, FileText, Users, Activity, ClipboardCheck, LogOut } from "lucide-react";
 import { AuthGuard } from "@/components/AuthGuard";
 import ActivityLogsTable from "@/components/admin/ActivityLogsTable";
 import UserManagement from "@/components/admin/UserManagement";
-import StaffManagement from "@/components/admin/StaffManagement";
 import ReportsExport from "@/components/admin/ReportsExport";
 import SystemMetrics from "@/components/admin/SystemMetrics";
 import { OnboardingApplications } from "@/components/admin/OnboardingApplications";
-import { DispatcherManagement } from "@/components/admin/DispatcherManagement";
-import DriverManagement from "@/components/admin/DriverManagement";
-import { RouteManagement } from "@/components/admin/RouteManagement";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -73,27 +69,11 @@ const AdminDashboard = () => {
             </AlertDialogContent>
           </AlertDialog>
 
-          <Tabs defaultValue="staff" className="space-y-6">
-            <TabsList className="grid w-full grid-cols-9 lg:w-auto bg-card border border-border rounded-lg p-1">
-              <TabsTrigger value="staff" className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-md transition-all">
-                <Users className="h-4 w-4" />
-                <span className="hidden sm:inline">Staff</span>
-              </TabsTrigger>
-              <TabsTrigger value="drivers" className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-md transition-all">
-                <Truck className="h-4 w-4" />
-                <span className="hidden sm:inline">Drivers</span>
-              </TabsTrigger>
-              <TabsTrigger value="routes" className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-md transition-all">
-                <Package className="h-4 w-4" />
-                <span className="hidden sm:inline">Routes</span>
-              </TabsTrigger>
+          <Tabs defaultValue="metrics" className="space-y-6">
+            <TabsList className="grid w-full grid-cols-5 lg:w-auto bg-card border border-border rounded-lg p-1">
               <TabsTrigger value="metrics" className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-md transition-all">
                 <Activity className="h-4 w-4" />
                 <span className="hidden sm:inline">Metrics</span>
-              </TabsTrigger>
-              <TabsTrigger value="dispatchers" className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-md transition-all">
-                <Truck className="h-4 w-4" />
-                <span className="hidden sm:inline">Dispatchers</span>
               </TabsTrigger>
               <TabsTrigger value="onboarding" className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-md transition-all">
                 <ClipboardCheck className="h-4 w-4" />
@@ -113,34 +93,6 @@ const AdminDashboard = () => {
               </TabsTrigger>
             </TabsList>
 
-            <TabsContent value="staff" className="space-y-4 animate-fade-in">
-              <Card className="border-2 shadow-modern-lg">
-                <CardHeader>
-                  <CardTitle className="text-2xl">Staff Management</CardTitle>
-                  <CardDescription>Create and manage staff accounts (HR, Finance, Dispatcher, Admin)</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <StaffManagement />
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            <TabsContent value="drivers" className="space-y-4 animate-fade-in">
-              <DriverManagement />
-            </TabsContent>
-
-            <TabsContent value="routes" className="space-y-4 animate-fade-in">
-              <Card className="border-2 shadow-modern-lg">
-                <CardHeader>
-                  <CardTitle className="text-2xl">Route Management</CardTitle>
-                  <CardDescription>Assign imported routes to drivers and view route details</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <RouteManagement />
-                </CardContent>
-              </Card>
-            </TabsContent>
-
             <TabsContent value="metrics" className="space-y-4 animate-fade-in">
               <Card className="border-2 shadow-modern-lg">
                 <CardHeader>
@@ -149,18 +101,6 @@ const AdminDashboard = () => {
                 </CardHeader>
                 <CardContent>
                   <SystemMetrics />
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            <TabsContent value="dispatchers" className="space-y-4 animate-fade-in">
-              <Card className="border-2 shadow-modern-lg">
-                <CardHeader>
-                  <CardTitle className="text-2xl">Dispatcher Management</CardTitle>
-                  <CardDescription>Manage dispatcher companies and commission rates</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <DispatcherManagement />
                 </CardContent>
               </Card>
             </TabsContent>

@@ -103,7 +103,7 @@ export default function Login() {
 
       // Check if user is a driver by user_id (RLS-safe) - do this regardless of roles query result
       const { data: driverData, error: driverError } = await supabase
-        .from("drivers")
+        .from("driver_profiles")
         .select("id, active")
         .eq("user_id", data.user.id)
         .maybeSingle();
@@ -249,7 +249,7 @@ export default function Login() {
 
     // Check if user is a driver
     const { data: driverData } = await supabase
-      .from("drivers")
+      .from("driver_profiles")
       .select("id")
       .eq("user_id", user.id)
       .maybeSingle();

@@ -31,7 +31,7 @@ interface Payslip {
   deductions: number;
   net_pay: number;
   generated_at: string;
-  drivers?: {
+  driver_profiles?: {
     name: string;
     email: string;
   };
@@ -79,7 +79,7 @@ const FinancePayslips = () => {
   const loadDrivers = async () => {
     try {
       const { data, error } = await supabase
-        .from("drivers")
+        .from("driver_profiles")
         .select("id, name")
         .order("name", { ascending: true });
 
@@ -110,7 +110,7 @@ const FinancePayslips = () => {
         .from("payslips")
         .select(`
           *,
-          drivers (
+          driver_profiles (
             name,
             email
           )
@@ -183,7 +183,7 @@ const FinancePayslips = () => {
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `Payslip_${payslip.invoice_number}_${payslip.drivers?.name || payslip.driver_id}.pdf`;
+      link.download = `Payslip_${payslip.invoice_number}_${payslip.driver_profiles?.name || payslip.driver_id}.pdf`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -207,7 +207,7 @@ const FinancePayslips = () => {
     const adjustmentTotal = adjustmentTotals[key] ?? 0;
     const csvContent = [
       ['Field', 'Value'],
-      ['Driver Name', payslip.drivers?.name || 'N/A'],
+      ['Driver Name', payslip.driver_profiles?.name || 'N/A'],
       ['Invoice Number', payslip.invoice_number],
       ['Invoice Date', new Date(payslip.invoice_date).toLocaleDateString()],
       ['Period Start', new Date(payslip.period_start).toLocaleDateString()],
@@ -225,7 +225,7 @@ const FinancePayslips = () => {
     const link = document.createElement('a');
     const url = URL.createObjectURL(blob);
     link.href = url;
-    link.download = `Payslip_${payslip.invoice_number}_${payslip.drivers?.name || payslip.driver_id}.csv`;
+    link.download = `Payslip_${payslip.invoice_number}_${payslip.driver_profiles?.name || payslip.driver_id}.csv`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -262,8 +262,8 @@ const FinancePayslips = () => {
           
           <div class="section">
             <h2>Driver Information</h2>
-            <div class="row"><span>Name:</span><span>${payslip.drivers?.name || 'N/A'}</span></div>
-            <div class="row"><span>Email:</span><span>${payslip.drivers?.email || 'N/A'}</span></div>
+            <div class="row"><span>Name:</span><span>${payslip.driver_profiles?.name || 'N/A'}</span></div>
+            <div class="row"><span>Email:</span><span>${payslip.driver_profiles?.email || 'N/A'}</span></div>
             <div class="row"><span>Operator ID:</span><span>${payslip.operator_id}</span></div>
           </div>
           
@@ -414,7 +414,7 @@ const FinancePayslips = () => {
                     {payslips.map((payslip) => (
                       <TableRow key={payslip.id}>
                         <TableCell className="font-medium">
-                          {payslip.drivers?.name || "N/A"}
+                          {payslip.driver_profiles?.name || "N/A"}
                         </TableCell>
                         <TableCell>{payslip.invoice_number}</TableCell>
                         <TableCell>

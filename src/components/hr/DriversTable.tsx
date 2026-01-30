@@ -24,6 +24,8 @@ import {
 interface Driver {
   id: string;
   name: string;
+  first_name: string | null;
+  surname: string | null;
   email: string;
   license_number: string | null;
   contact_phone: string | null;
@@ -43,7 +45,7 @@ const DriversTable = () => {
   const fetchDrivers = async () => {
     try {
       const { data, error } = await supabase
-        .from('drivers')
+        .from('driver_profiles')
         .select('*')
         .order('created_at', { ascending: false });
 
@@ -64,10 +66,10 @@ const DriversTable = () => {
     fetchDrivers();
 
     const channel = supabase
-      .channel('drivers-changes')
+      .channel('driver-profiles-changes')
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'drivers' },
+        { event: '*', schema: 'public', table: 'driver_profiles' },
         () => fetchDrivers()
       )
       .subscribe();
@@ -80,7 +82,7 @@ const DriversTable = () => {
   const toggleDriverStatus = async (driverId: string, currentStatus: boolean | null) => {
     try {
       const { error } = await supabase
-        .from('drivers')
+        .from('driver_profiles')
         .update({ active: !currentStatus })
         .eq('id', driverId);
 
@@ -128,6 +130,14 @@ const DriversTable = () => {
     }
   };
 
+  // Helper function to get full name from first_name/surname or fallback to name
+  const getFullName = (driver: Driver) => {
+    if (driver.first_name && driver.surname) {
+      return `${driver.first_name} ${driver.surname}`;
+    }
+    return driver.name || 'Unknown';
+  };
+
   if (loading) {
     return (
       <div className="flex justify-center items-center py-8">
@@ -161,7 +171,7 @@ const DriversTable = () => {
             ) : (
               drivers.map((driver) => (
                 <TableRow key={driver.id}>
-                  <TableCell className="font-medium">{driver.name}</TableCell>
+                  <TableCell className="font-medium">{getFullName(driver)}</TableCell>
                   <TableCell>{driver.email}</TableCell>
                   <TableCell>{driver.license_number || '-'}</TableCell>
                   <TableCell>{driver.contact_phone || '-'}</TableCell>
@@ -214,40 +224,46 @@ const DriversTable = () => {
       <Dialog open={showTrainingDialog} onOpenChange={setShowTrainingDialog}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Training Progress - {selectedDriver?.name}</DialogTitle>
+            <DialogTitle>Training Progress - {selectedDriver ? getFullName(selectedDriver) : ''}</DialogTitle>
             <DialogDescription>
               View training checklist completion status
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            {trainingProgress.map((progress) => (
-              <div
-                key={progress.id}
-                className="flex items-start gap-3 p-3 border rounded-lg"
-              >
-                <div className="mt-1">
-                  {progress.completed ? (
-                    <CheckCircle className="h-5 w-5 text-green-600" />
-                  ) : (
-                    <XCircle className="h-5 w-5 text-muted-foreground" />
-                  )}
-                </div>
-                <div className="flex-1">
-                  <h4 className="font-medium">{progress.training_items.title}</h4>
-                  <p className="text-sm text-muted-foreground">
-                    {progress.training_items.description}
-                  </p>
-                  {progress.completed && progress.completed_at && (
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Completed on {format(new Date(progress.completed_at), 'MMM d, yyyy')}
+            {trainingProgress.length === 0 ? (
+              <p className="text-center text-muted-foreground py-8">
+                No training items assigned to this driver
+              </p>
+            ) : (
+              trainingProgress.map((progress) => (
+                <div
+                  key={progress.id}
+                  className="flex items-start gap-3 p-3 border rounded-lg"
+                >
+                  <div className="mt-1">
+                    {progress.completed ? (
+                      <CheckCircle className="h-5 w-5 text-green-600" />
+                    ) : (
+                      <XCircle className="h-5 w-5 text-muted-foreground" />
+                    )}
+                  </div>
+                  <div className="flex-1">
+                    <h4 className="font-medium">{progress.training_items.title}</h4>
+                    <p className="text-sm text-muted-foreground">
+                      {progress.training_items.description}
                     </p>
+                    {progress.completed && progress.completed_at && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Completed on {format(new Date(progress.completed_at), 'MMM d, yyyy')}
+                      </p>
+                    )}
+                  </div>
+                  {progress.training_items.required && (
+                    <Badge variant="outline" className="text-xs">Required</Badge>
                   )}
                 </div>
-                {progress.training_items.required && (
-                  <Badge variant="outline" className="text-xs">Required</Badge>
-                )}
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </DialogContent>
       </Dialog>

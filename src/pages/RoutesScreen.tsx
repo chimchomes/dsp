@@ -51,7 +51,7 @@ export default function RoutesScreen() {
 
       // Use user_id for more reliable lookup (matches RLS policy)
       const { data: driverData, error: driverError } = await supabase
-        .from("drivers")
+        .from("driver_profiles")
         .select("*")
         .eq("user_id", user.id)
         .single();
@@ -59,7 +59,7 @@ export default function RoutesScreen() {
       if (driverError) {
         // Fallback to email if user_id lookup fails
         const { data: driverDataEmail, error: driverErrorEmail } = await supabase
-          .from("drivers")
+          .from("driver_profiles")
           .select("*")
           .eq("email", user.email)
           .single();

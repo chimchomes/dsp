@@ -92,9 +92,9 @@ const FinancePayslipDetail = () => {
 
       setPayslip(payslipData);
 
-      // Load driver
+      // Load driver from driver_profiles (single source of truth)
       const { data: driverData, error: driverError } = await supabase
-        .from("drivers")
+        .from("driver_profiles")
         .select("id, name, email, address")
         .eq("id", payslipData.driver_id)
         .single();

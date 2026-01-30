@@ -116,9 +116,9 @@ const FinanceGeneratePayslip = () => {
       const payslipsToInsert = [];
 
       for (const operatorId of operatorIds) {
-        // Get driver info
+        // Get driver info from driver_profiles (single source of truth for drivers)
         const { data: driver, error: driverError } = await supabase
-          .from("drivers")
+          .from("driver_profiles")
           .select("id, name, email, address, operator_id")
           .eq("operator_id", operatorId)
           .single();

@@ -6,16 +6,20 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Upload } from "lucide-react";
 
 const onboardingSchema = z.object({
-  name: z.string().min(2, "Name must be at least 2 characters"),
+  first_name: z.string().min(2, "First name must be at least 2 characters"),
+  surname: z.string().min(2, "Surname must be at least 2 characters"),
   email: z.string().email("Invalid email address"),
   license_number: z.string().min(5, "License number is required"),
   contact_phone: z.string().min(10, "Valid phone number is required"),
-  address: z.string().min(5, "Address is required"),
+  address_line_1: z.string().min(1, "Address line 1 is required"),
+  address_line_2: z.string().optional(),
+  address_line_3: z.string().optional(),
+  postcode: z.string().min(1, "Postcode is required"),
+  national_insurance: z.string().optional(),
   emergency_contact_name: z.string().min(2, "Emergency contact name is required"),
   emergency_contact_phone: z.string().min(10, "Emergency contact phone is required"),
 });
@@ -84,6 +88,9 @@ const DriverOnboardingForm = () => {
         throw new Error("Not authenticated");
       }
 
+      // Full name is first_name + surname
+      const fullName = `${data.first_name} ${data.surname}`.trim();
+
       // Use the create-driver-account edge function to properly create user account,
       // assign driver role, and create driver record with user_id linked
       const response = await fetch(
@@ -95,13 +102,18 @@ const DriverOnboardingForm = () => {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            name: data.name,
+            firstName: data.first_name,
+            surname: data.surname,
             email: data.email,
             contactPhone: data.contact_phone,
             licenseNumber: data.license_number,
-            address: data.address,
+            addressLine1: data.address_line_1,
+            addressLine2: data.address_line_2 || null,
+            addressLine3: data.address_line_3 || null,
+            postcode: data.postcode,
             emergencyContactName: data.emergency_contact_name,
             emergencyContactPhone: data.emergency_contact_phone,
+            nationalInsurance: data.national_insurance || null,
           }),
         }
       );
@@ -114,7 +126,7 @@ const DriverOnboardingForm = () => {
 
       // Get the created driver record to upload documents
       const { data: driver, error: driverError } = await supabase
-        .from('drivers')
+        .from('driver_profiles')
         .select('id')
         .eq('email', data.email)
         .single();
@@ -150,7 +162,7 @@ const DriverOnboardingForm = () => {
 
       toast({
         title: "Driver onboarded successfully",
-        description: `${data.name} has been added to the system. User account created with temporary password.`,
+        description: `${fullName} has been added to the system. User account created with temporary password.`,
       });
 
       reset();
@@ -170,9 +182,15 @@ const DriverOnboardingForm = () => {
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
-          <Label htmlFor="name">Full Name *</Label>
-          <Input id="name" {...register("name")} />
-          {errors.name && <p className="text-sm text-destructive mt-1">{errors.name.message}</p>}
+          <Label htmlFor="first_name">First Name *</Label>
+          <Input id="first_name" {...register("first_name")} />
+          {errors.first_name && <p className="text-sm text-destructive mt-1">{errors.first_name.message}</p>}
+        </div>
+
+        <div>
+          <Label htmlFor="surname">Surname *</Label>
+          <Input id="surname" {...register("surname")} />
+          {errors.surname && <p className="text-sm text-destructive mt-1">{errors.surname.message}</p>}
         </div>
 
         <div>
@@ -182,21 +200,45 @@ const DriverOnboardingForm = () => {
         </div>
 
         <div>
+          <Label htmlFor="contact_phone">Contact Phone *</Label>
+          <Input id="contact_phone" {...register("contact_phone")} />
+          {errors.contact_phone && <p className="text-sm text-destructive mt-1">{errors.contact_phone.message}</p>}
+        </div>
+
+        <div>
           <Label htmlFor="license_number">License Number *</Label>
           <Input id="license_number" {...register("license_number")} />
           {errors.license_number && <p className="text-sm text-destructive mt-1">{errors.license_number.message}</p>}
         </div>
 
         <div>
-          <Label htmlFor="contact_phone">Contact Phone *</Label>
-          <Input id="contact_phone" {...register("contact_phone")} />
-          {errors.contact_phone && <p className="text-sm text-destructive mt-1">{errors.contact_phone.message}</p>}
+          <Label htmlFor="national_insurance">National Insurance Number</Label>
+          <Input id="national_insurance" {...register("national_insurance")} placeholder="e.g., AB123456C" />
+          {errors.national_insurance && <p className="text-sm text-destructive mt-1">{errors.national_insurance.message}</p>}
         </div>
 
         <div className="md:col-span-2">
-          <Label htmlFor="address">Address *</Label>
-          <Textarea id="address" {...register("address")} rows={2} />
-          {errors.address && <p className="text-sm text-destructive mt-1">{errors.address.message}</p>}
+          <Label htmlFor="address_line_1">Address Line 1 *</Label>
+          <Input id="address_line_1" {...register("address_line_1")} />
+          {errors.address_line_1 && <p className="text-sm text-destructive mt-1">{errors.address_line_1.message}</p>}
+        </div>
+
+        <div>
+          <Label htmlFor="address_line_2">Address Line 2</Label>
+          <Input id="address_line_2" {...register("address_line_2")} />
+          {errors.address_line_2 && <p className="text-sm text-destructive mt-1">{errors.address_line_2.message}</p>}
+        </div>
+
+        <div>
+          <Label htmlFor="address_line_3">Address Line 3</Label>
+          <Input id="address_line_3" {...register("address_line_3")} />
+          {errors.address_line_3 && <p className="text-sm text-destructive mt-1">{errors.address_line_3.message}</p>}
+        </div>
+
+        <div>
+          <Label htmlFor="postcode">Postcode *</Label>
+          <Input id="postcode" {...register("postcode")} />
+          {errors.postcode && <p className="text-sm text-destructive mt-1">{errors.postcode.message}</p>}
         </div>
 
         <div>

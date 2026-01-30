@@ -81,9 +81,9 @@ export const RouteManagement = () => {
 
       if (routesError) throw routesError;
 
-      // Load all active drivers
+      // Load all active drivers from driver_profiles
       const { data: driversData, error: driversError } = await supabase
-        .from("drivers")
+        .from("driver_profiles")
         .select("*")
         .eq("active", true)
         .order("name");

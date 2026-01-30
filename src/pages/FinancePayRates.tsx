@@ -142,10 +142,10 @@ const FinancePayRates = () => {
 
   const loadDrivers = async () => {
     try {
-      // Simple query - load all drivers that RLS allows (no active filter in query)
+      // Load all drivers from driver_profiles (single source of truth)
       const { data: driversData, error: driversError } = await supabase
-        .from("drivers")
-        .select("id, name, email, operator_id, user_id, active")
+        .from("driver_profiles")
+        .select("id, name, email, operator_id, user_id, active, first_name, surname")
         .order("name", { ascending: true, nullsLast: true });
 
       if (driversError) {
@@ -167,33 +167,15 @@ const FinancePayRates = () => {
       // Filter for active drivers client-side
       const activeDrivers = driversData.filter(d => d.active !== false);
 
-      // Load profiles for all drivers
-      const userIds = activeDrivers.map(d => d.user_id).filter(Boolean) as string[];
-      let profilesData: any[] = [];
-      
-      if (userIds.length > 0) {
-        const { data, error: profileError } = await supabase
-          .from("profiles")
-          .select("user_id, first_name, surname, full_name")
-          .in("user_id", userIds);
-        
-        if (!profileError && data) {
-          profilesData = data;
-        }
-      }
-
-      // Combine data - match profiles to drivers
+      // driver_profiles already contains first_name and surname, no need for separate profile lookup
       const driversWithProfiles = activeDrivers.map(driver => {
-        const profile = profilesData.find(p => p.user_id === driver.user_id);
+        // Get first_name and surname from driver_profiles, or try to parse from name
+        let firstName = driver.first_name || null;
+        let surname = driver.surname || null;
         
-        // Get first_name and surname from profile, or try to parse from name/full_name
-        let firstName = profile?.first_name || null;
-        let surname = profile?.surname || null;
-        
-        // Fallback: try to parse from full_name or name
-        if ((!firstName || !surname) && (profile?.full_name || driver.name)) {
-          const fullName = profile?.full_name || driver.name || "";
-          const nameParts = fullName.trim().split(/\s+/);
+        // Fallback: try to parse from name field
+        if ((!firstName || !surname) && driver.name) {
+          const nameParts = driver.name.trim().split(/\s+/);
           if (nameParts.length >= 2) {
             firstName = firstName || nameParts[0];
             surname = surname || nameParts.slice(1).join(" ");
@@ -376,9 +358,9 @@ const FinancePayRates = () => {
     let surname = driver?.surname || "";
     
     if ((!firstName || !surname) && driver?.user_id) {
-      // Try to load profile if missing
+      // Try to load from driver_profiles if missing
       const { data: profile } = await supabase
-        .from("profiles")
+        .from("driver_profiles")
         .select("first_name, surname")
         .eq("user_id", driver.user_id)
         .single();

@@ -80,7 +80,7 @@ export const NotificationProvider = ({ children }: { children: ReactNode }) => {
         async (payload) => {
           // Check if this route belongs to the current user
           const { data: driver } = await supabase
-            .from("drivers")
+            .from("driver_profiles")
             .select("id")
             .eq("email", (await supabase.auth.getUser()).data.user?.email)
             .single();

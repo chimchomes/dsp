@@ -39,7 +39,7 @@ const FinanceReports = () => {
   const loadReportsData = async () => {
     try {
       // Load driver rates
-      const { data: drivers } = await supabase.from("drivers").select("*").eq("active", true);
+      const { data: drivers } = await supabase.from("driver_profiles").select("*").eq("active", true);
       
       if (drivers) {
         setActiveDrivers(drivers.length);

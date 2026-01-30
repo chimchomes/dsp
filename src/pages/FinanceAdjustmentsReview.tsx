@@ -72,7 +72,7 @@ const FinanceAdjustmentsReview = () => {
   const loadDrivers = async () => {
     try {
       const { data, error } = await supabase
-        .from("drivers")
+        .from("driver_profiles")
         .select("id, name, operator_id")
         .order("name", { ascending: true });
 

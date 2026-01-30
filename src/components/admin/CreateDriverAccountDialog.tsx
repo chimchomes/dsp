@@ -16,28 +16,40 @@ import { Label } from "@/components/ui/label";
 import { UserPlus } from "lucide-react";
 
 const driverSchema = z.object({
-  name: z.string().trim().min(1, "Name is required").max(100),
+  firstName: z.string().trim().min(1, "First name is required").max(100),
+  surname: z.string().trim().min(1, "Surname is required").max(100),
   email: z.string().trim().email("Invalid email").max(255),
+  password: z.string().min(8, "Password must be at least 8 characters").max(100),
   contactPhone: z.string().trim().max(20).optional(),
   licenseNumber: z.string().trim().max(50).optional(),
-  address: z.string().trim().max(500).optional(),
+  addressLine1: z.string().trim().max(200).optional(),
+  addressLine2: z.string().trim().max(200).optional(),
+  addressLine3: z.string().trim().max(200).optional(),
+  postcode: z.string().trim().max(20).optional(),
   emergencyContactName: z.string().trim().max(100).optional(),
   emergencyContactPhone: z.string().trim().max(20).optional(),
   operatorId: z.string().trim().max(50).optional(),
+  nationalInsurance: z.string().trim().max(20).optional(),
 });
 
 export const CreateDriverAccountDialog = ({ onSuccess }: { onSuccess: () => void }) => {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
-    name: "",
+    firstName: "",
+    surname: "",
     email: "",
+    password: "",
     contactPhone: "",
     licenseNumber: "",
-    address: "",
+    addressLine1: "",
+    addressLine2: "",
+    addressLine3: "",
+    postcode: "",
     emergencyContactName: "",
     emergencyContactPhone: "",
     operatorId: "",
+    nationalInsurance: "",
   });
   const { toast } = useToast();
 
@@ -74,18 +86,24 @@ export const CreateDriverAccountDialog = ({ onSuccess }: { onSuccess: () => void
 
       toast({
         title: "Driver account created",
-        description: `Account created for ${validated.name}. Temporary password: ${result.tempPassword}`,
+        description: `Account created for ${validated.firstName} ${validated.surname}. They must change their password on first login.`,
       });
 
       setFormData({
-        name: "",
+        firstName: "",
+        surname: "",
         email: "",
+        password: "",
         contactPhone: "",
         licenseNumber: "",
-        address: "",
+        addressLine1: "",
+        addressLine2: "",
+        addressLine3: "",
+        postcode: "",
         emergencyContactName: "",
         emergencyContactPhone: "",
         operatorId: "",
+        nationalInsurance: "",
       });
       setOpen(false);
       onSuccess();
@@ -113,14 +131,20 @@ export const CreateDriverAccountDialog = ({ onSuccess }: { onSuccess: () => void
     // Reset form when dialog closes
     if (!newOpen) {
       setFormData({
-        name: "",
+        firstName: "",
+        surname: "",
         email: "",
+        password: "",
         contactPhone: "",
         licenseNumber: "",
-        address: "",
+        addressLine1: "",
+        addressLine2: "",
+        addressLine3: "",
+        postcode: "",
         emergencyContactName: "",
         emergencyContactPhone: "",
         operatorId: "",
+        nationalInsurance: "",
       });
     }
   };
@@ -143,26 +167,54 @@ export const CreateDriverAccountDialog = ({ onSuccess }: { onSuccess: () => void
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="name">Full Name *</Label>
+              <Label htmlFor="firstName">First Name *</Label>
               <Input
-                id="name"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                id="firstName"
+                value={formData.firstName}
+                onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
                 required
                 maxLength={100}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="email">Email *</Label>
+              <Label htmlFor="surname">Surname *</Label>
               <Input
-                id="email"
-                type="email"
-                value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                id="surname"
+                value={formData.surname}
+                onChange={(e) => setFormData({ ...formData, surname: e.target.value })}
                 required
-                maxLength={255}
+                maxLength={100}
               />
             </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="email">Email *</Label>
+            <Input
+              id="email"
+              type="email"
+              value={formData.email}
+              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+              required
+              maxLength={255}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="password">Temporary Password *</Label>
+            <Input
+              id="password"
+              type="password"
+              value={formData.password}
+              onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+              required
+              minLength={8}
+              maxLength={100}
+              placeholder="Min 8 characters"
+            />
+            <p className="text-xs text-muted-foreground">
+              The driver must change this password on their first login
+            </p>
           </div>
           
           <div className="grid grid-cols-2 gap-4">
@@ -187,13 +239,55 @@ export const CreateDriverAccountDialog = ({ onSuccess }: { onSuccess: () => void
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="address">Address</Label>
+            <Label htmlFor="nationalInsurance">National Insurance Number</Label>
             <Input
-              id="address"
-              value={formData.address}
-              onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-              maxLength={500}
+              id="nationalInsurance"
+              value={formData.nationalInsurance}
+              onChange={(e) => setFormData({ ...formData, nationalInsurance: e.target.value })}
+              placeholder="e.g., AB123456C"
+              maxLength={20}
             />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="addressLine1">Address Line 1</Label>
+            <Input
+              id="addressLine1"
+              value={formData.addressLine1}
+              onChange={(e) => setFormData({ ...formData, addressLine1: e.target.value })}
+              maxLength={200}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="addressLine2">Address Line 2</Label>
+            <Input
+              id="addressLine2"
+              value={formData.addressLine2}
+              onChange={(e) => setFormData({ ...formData, addressLine2: e.target.value })}
+              maxLength={200}
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="addressLine3">Address Line 3</Label>
+              <Input
+                id="addressLine3"
+                value={formData.addressLine3}
+                onChange={(e) => setFormData({ ...formData, addressLine3: e.target.value })}
+                maxLength={200}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="postcode">Postcode</Label>
+              <Input
+                id="postcode"
+                value={formData.postcode}
+                onChange={(e) => setFormData({ ...formData, postcode: e.target.value })}
+                maxLength={20}
+              />
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">

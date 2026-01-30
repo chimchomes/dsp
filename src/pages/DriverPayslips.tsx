@@ -52,7 +52,7 @@ const DriverPayslips = () => {
       if (!user) return;
 
       const { data: driver, error } = await supabase
-        .from("drivers")
+        .from("driver_profiles")
         .select("id")
         .eq("user_id", user.id)
         .single();

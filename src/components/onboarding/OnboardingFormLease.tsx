@@ -352,7 +352,8 @@ const OnboardingFormLease = ({ existingSession }: Props) => {
             <p className="text-sm text-muted-foreground mt-2">Step {currentStep} of {totalSteps}</p>
           </div>
 
-          {statusBanner}<form onSubmit={handleSubmit(() => {})} className="space-y-6">
+          {statusBanner}
+          <form onSubmit={handleSubmit(() => {})} className="space-y-6">
             {/* Page 1 - Personal Details */}
             {currentStep === 1 && (
               <Card>

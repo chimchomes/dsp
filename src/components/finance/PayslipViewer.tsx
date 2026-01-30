@@ -70,7 +70,7 @@ export const PayslipViewer = ({ driverId, driverName }: PayslipViewerProps) => {
   const loadDrivers = async () => {
     try {
       const { data, error } = await supabase
-        .from("drivers")
+        .from("driver_profiles")
         .select("id, name")
         .eq("active", true)
         .order("name");

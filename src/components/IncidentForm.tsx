@@ -9,11 +9,13 @@ import { X, Upload } from "lucide-react";
 
 interface IncidentFormProps {
   driverId: string;
+  driverName?: string;
+  driverEmail?: string;
   onClose: () => void;
   onSuccess: () => void;
 }
 
-export const IncidentForm = ({ driverId, onClose, onSuccess }: IncidentFormProps) => {
+export const IncidentForm = ({ driverId, driverName, driverEmail, onClose, onSuccess }: IncidentFormProps) => {
   const [description, setDescription] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -79,6 +81,21 @@ export const IncidentForm = ({ driverId, onClose, onSuccess }: IncidentFormProps
         </div>
 
         <form onSubmit={handleSubmit} className="p-4 space-y-4">
+          {/* Driver Details Section */}
+          {(driverName || driverEmail) && (
+            <div className="p-3 bg-muted/50 rounded-lg border">
+              <Label className="text-sm font-medium text-muted-foreground mb-2 block">Reporting Driver</Label>
+              <div className="space-y-1">
+                {driverName && (
+                  <p className="text-sm font-semibold">{driverName}</p>
+                )}
+                {driverEmail && (
+                  <p className="text-sm text-muted-foreground">{driverEmail}</p>
+                )}
+              </div>
+            </div>
+          )}
+
           <div className="space-y-2">
             <Label htmlFor="description">Description</Label>
             <Textarea

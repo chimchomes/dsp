@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { AuthGuard } from "@/components/AuthGuard";
 import { ArrowLeft, DollarSign, FileText, TrendingUp, Users, Calculator, Upload, CreditCard, Settings, Receipt } from "lucide-react";
+// DollarSign is used for the header icon
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 
@@ -11,15 +12,6 @@ const FinanceDashboard = () => {
   const navigate = useNavigate();
 
   const financeCards = [
-    {
-      title: "Payroll Management",
-      description: "Manage driver payroll and payouts",
-      icon: DollarSign,
-      color: "text-green-600",
-      bgColor: "bg-green-50 dark:bg-green-950/30",
-      route: "/finance/payroll",
-      stats: "Weekly payroll"
-    },
     {
       title: "Financial Reports",
       description: "View invoices, driver rates, and financial analytics",

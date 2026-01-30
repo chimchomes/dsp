@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "@/hooks/use-toast";
-import { LogOut, Package, DollarSign, AlertTriangle, User, MapPin, FileText } from "lucide-react";
+import { AlertTriangle, User, FileText } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { NotificationBadge } from "@/components/NotificationBadge";
 import { IncidentForm } from "@/components/IncidentForm";
@@ -69,7 +69,7 @@ export default function Dashboard() {
 
     // Check if user has a driver record (use maybeSingle to avoid error if not found)
     const { data: driverData, error: driverError } = await supabase
-      .from("drivers")
+      .from("driver_profiles")
       .select("id, active")
       .eq("user_id", user.id)
       .maybeSingle();
@@ -101,7 +101,7 @@ export default function Dashboard() {
       if (!user) return;
 
       const { data: driverData, error: driverError } = await supabase
-        .from("drivers")
+        .from("driver_profiles")
         .select("*")
         .eq("user_id", user.id)
         .maybeSingle();
@@ -166,39 +166,11 @@ export default function Dashboard() {
             <p className="text-muted-foreground text-base font-medium">Access your most used features</p>
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            <Card className="cursor-pointer hover:shadow-modern-lg transition-all duration-300 hover:-translate-y-1 border-2 hover:border-primary/50 group bg-card" onClick={() => navigate("/routes")}>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-3 text-lg font-bold">
-                  <div className="p-2 rounded-lg bg-primary/10 group-hover:bg-primary/20 transition-colors">
-                    <Package className="h-5 w-5 text-primary" />
-                  </div>
-                  My Routes
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-muted-foreground text-base font-medium">View and manage your delivery routes</p>
-              </CardContent>
-            </Card>
-
-            <Card className="cursor-pointer hover:shadow-modern-lg transition-all duration-300 hover:-translate-y-1 border-2 hover:border-primary/50 group bg-card" onClick={() => navigate("/earnings")}>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-3 text-lg font-bold">
-                  <div className="p-2 rounded-lg bg-primary/10 group-hover:bg-primary/20 transition-colors">
-                    <DollarSign className="h-5 w-5 text-primary" />
-                  </div>
-                  Earnings
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-muted-foreground text-base font-medium">View your earnings</p>
-              </CardContent>
-            </Card>
-
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <Card className="cursor-pointer hover:shadow-modern-lg transition-all duration-300 hover:-translate-y-1 border-2 hover:border-primary/50 group bg-card" onClick={() => navigate("/payslips")}>
               <CardHeader>
                 <CardTitle className="flex items-center gap-3 text-lg font-bold">
-                  <div className="p2 rounded-lg bg-primary/10 group-hover:bg-primary/20 transition-colors">
+                  <div className="p-2 rounded-lg bg-primary/10 group-hover:bg-primary/20 transition-colors">
                     <FileText className="h-5 w-5 text-primary" />
                   </div>
                   My Payslips
@@ -208,8 +180,6 @@ export default function Dashboard() {
                 <p className="text-muted-foreground text-base font-medium">View and download your payslips</p>
               </CardContent>
             </Card>
-
-
 
             <Card className="cursor-pointer hover:shadow-modern-lg transition-all duration-300 hover:-translate-y-1 border-2 hover:border-primary/50 group bg-card" onClick={() => navigate("/profile")}>
               <CardHeader>
@@ -251,6 +221,8 @@ export default function Dashboard() {
         {showIncidentForm && driver && (
           <IncidentForm
             driverId={driver.id}
+            driverName={driver.name}
+            driverEmail={driver.email}
             onClose={() => setShowIncidentForm(false)}
             onSuccess={loadDriverAndRoutes}
           />

@@ -41,6 +41,7 @@ type DriverProfile = {
   license_number: string | null;
   license_expiry: string | null;
   operator_id: string | null;
+  national_insurance: string | null;
   active: boolean;
   onboarded_at: string | null;
 };
@@ -66,6 +67,7 @@ export default function DriverManagement() {
     license_number: "",
     license_expiry: "",
     operator_id: "",
+    national_insurance: "",
     active: true,
   });
 
@@ -74,10 +76,10 @@ export default function DriverManagement() {
 
     // Subscribe to real-time changes
     const channel = supabase
-      .channel('drivers-changes')
+      .channel('driver-profiles-changes')
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'drivers' },
+        { event: '*', schema: 'public', table: 'driver_profiles' },
         () => {
           loadDrivers();
         }
@@ -105,20 +107,20 @@ export default function DriverManagement() {
 
         // Check total drivers count (bypass RLS with service role would be ideal, but we can't)
         const { count } = await supabase
-          .from("drivers")
+          .from("driver_profiles")
           .select("*", { count: "exact", head: true });
         console.log("Total drivers in database (visible to current user):", count);
 
         // Check drivers with user_id
         const { data: driversWithUserId } = await supabase
-          .from("drivers")
+          .from("driver_profiles")
           .select("id, email, name, user_id")
           .not("user_id", "is", null);
         console.log("Drivers with user_id:", driversWithUserId?.length || 0);
 
         // Check drivers without user_id
         const { data: driversWithoutUserId } = await supabase
-          .from("drivers")
+          .from("driver_profiles")
           .select("id, email, name, user_id")
           .is("user_id", null);
         console.log("Drivers without user_id:", driversWithoutUserId?.length || 0);
@@ -136,19 +138,18 @@ export default function DriverManagement() {
   const loadDrivers = async () => {
     setLoading(true);
     try {
-      // Get all drivers - select all columns including name and operator_id
+      // Get all drivers from driver_profiles (single source of truth)
       const { data: driversData, error: driversError } = await supabase
-        .from("drivers")
-        .select("id, user_id, email, name, license_number, license_expiry, operator_id, active, onboarded_at")
+        .from("driver_profiles")
+        .select("id, user_id, email, name, first_name, surname, contact_phone, address_line_1, address_line_2, address_line_3, postcode, emergency_contact_name, emergency_contact_phone, license_number, license_expiry, operator_id, national_insurance, active, onboarded_at")
         .order("onboarded_at", { ascending: false, nullsLast: true });
       
       if (driversError) {
         console.error("Drivers query error:", driversError);
         console.error("Full error details:", JSON.stringify(driversError, null, 2));
-        // Show more detailed error
         toast({
           title: "Error loading drivers",
-          description: `Failed to load drivers: ${driversError.message}. Please ensure you have admin role and the RLS policy allows admin to read drivers.`,
+          description: `Failed to load drivers: ${driversError.message}. Please ensure you have admin/HR role and the RLS policy allows access.`,
           variant: "destructive",
         });
         setLoading(false);
@@ -164,44 +165,20 @@ export default function DriverManagement() {
         console.warn("No drivers found in database. This could be due to:");
         console.warn("1. RLS policies blocking access");
         console.warn("2. No drivers exist in the database");
-        console.warn("3. Admin role not properly assigned");
+        console.warn("3. Admin/HR role not properly assigned");
         setDrivers([]);
         setLoading(false);
         return;
       }
 
-      // Get profiles for all drivers (optional - drivers table has name field as fallback)
-      const userIds = driversData.map((d) => d.user_id).filter(Boolean);
-      
-      let profilesData: any[] = [];
-      if (userIds.length > 0) {
-        const { data, error: profilesError } = await supabase
-          .from("profiles")
-          .select("user_id, first_name, surname, full_name, contact_phone, address_line_1, address_line_2, address_line_3, postcode, emergency_contact_name, emergency_contact_phone")
-          .in("user_id", userIds);
-
-        if (profilesError) {
-          console.error("Error loading profiles:", profilesError);
-          // Continue without profiles - drivers will show with limited info
-        } else {
-          profilesData = data || [];
-        }
-      }
-
-      // Combine driver and profile data
-      // Use profile data when available, fallback to drivers.name field
+      // driver_profiles is now the single source of truth - no need to join with profiles
       const combined = driversData.map((driver) => {
-        const profile = profilesData.find((p) => p.user_id === driver.user_id);
-        
-        // Determine name: prefer profile full_name, then profile first_name + surname, then drivers.name, then email
-        const fullName = profile?.full_name || 
-                        (profile?.first_name && profile?.surname ? `${profile.first_name} ${profile.surname}` : null) ||
+        // Determine name: prefer first_name/surname fields, then legacy name field
+        const firstName = driver.first_name || (driver.name ? driver.name.split(' ')[0] : null);
+        const surname = driver.surname || (driver.name && driver.name.includes(' ') ? driver.name.split(' ').slice(1).join(' ') : null);
+        const fullName = (firstName && surname) ? `${firstName} ${surname}` : 
                         driver.name || 
                         driver.email;
-        
-        // Split full name into first_name and surname if not in profile
-        const firstName = profile?.first_name || (fullName ? fullName.split(' ')[0] : null);
-        const surname = profile?.surname || (fullName && fullName.includes(' ') ? fullName.split(' ').slice(1).join(' ') : null);
         
         return {
           driver_id: driver.id,
@@ -210,16 +187,17 @@ export default function DriverManagement() {
           first_name: firstName,
           surname: surname,
           full_name: fullName,
-          contact_phone: profile?.contact_phone || null,
-          address_line_1: profile?.address_line_1 || null,
-          address_line_2: profile?.address_line_2 || null,
-          address_line_3: profile?.address_line_3 || null,
-          postcode: profile?.postcode || null,
-          emergency_contact_name: profile?.emergency_contact_name || null,
-          emergency_contact_phone: profile?.emergency_contact_phone || null,
+          contact_phone: driver.contact_phone || null,
+          address_line_1: driver.address_line_1 || null,
+          address_line_2: driver.address_line_2 || null,
+          address_line_3: driver.address_line_3 || null,
+          postcode: driver.postcode || null,
+          emergency_contact_name: driver.emergency_contact_name || null,
+          emergency_contact_phone: driver.emergency_contact_phone || null,
           license_number: driver.license_number || null,
           license_expiry: driver.license_expiry || null,
           operator_id: driver.operator_id || null,
+          national_insurance: driver.national_insurance || null,
           active: driver.active ?? true,
           onboarded_at: driver.onboarded_at || null,
         };
@@ -260,6 +238,7 @@ export default function DriverManagement() {
       license_number: driver.license_number || "",
       license_expiry: driver.license_expiry ? format(new Date(driver.license_expiry), "yyyy-MM-dd") : "",
       operator_id: driver.operator_id || "",
+      national_insurance: driver.national_insurance || "",
       active: driver.active,
     });
     setEditDialogOpen(true);
@@ -271,13 +250,33 @@ export default function DriverManagement() {
 
     setIsSubmitting(true);
     try {
-      // Update profile (personal information)
-      const { error: profileError } = await supabase
-        .from("profiles")
+      // Only call role assignment if the active status has CHANGED
+      if (selectedDriver.user_id && formData.active !== selectedDriver.active) {
+        if (formData.active) {
+          // Activating: Ensure user has the driver role
+          const { error: roleError } = await supabase.rpc('assign_user_role', {
+            p_user_id: selectedDriver.user_id,
+            p_role: 'driver',
+          });
+
+          if (roleError) {
+            throw new Error(`Failed to assign driver role: ${roleError.message}`);
+          }
+        } else {
+          // Deactivating: Remove driver role and assign inactive role
+          // Note: The database function remove_user_role also needs to be called if we want full role cleanup,
+          // but usually assign_user_role 'inactive' is used for deactivation.
+          // For now, we'll just follow the pattern of ensuring 'driver' role is there when active.
+        }
+      }
+
+      // Update driver_profiles record (single source of truth for all driver data)
+      const { error: driverError } = await supabase
+        .from("driver_profiles")
         .update({
           first_name: formData.first_name.trim() || null,
           surname: formData.surname.trim() || null,
-          full_name: `${formData.first_name.trim()} ${formData.surname.trim()}`.trim() || null,
+          name: `${formData.first_name.trim()} ${formData.surname.trim()}`.trim() || null,
           contact_phone: formData.contact_phone.trim() || null,
           address_line_1: formData.address_line_1.trim() || null,
           address_line_2: formData.address_line_2.trim() || null,
@@ -285,33 +284,10 @@ export default function DriverManagement() {
           postcode: formData.postcode.trim() || null,
           emergency_contact_name: formData.emergency_contact_name.trim() || null,
           emergency_contact_phone: formData.emergency_contact_phone.trim() || null,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("user_id", selectedDriver.user_id);
-
-      if (profileError) throw profileError;
-
-      // If activating the driver, ensure the user has the driver role first
-      // The trigger enforce_driver_role() requires the user to have the driver role
-      if (formData.active && selectedDriver.user_id) {
-        const { error: roleError } = await supabase.rpc('assign_user_role', {
-          p_user_id: selectedDriver.user_id,
-          p_role: 'driver',
-        });
-
-        if (roleError) {
-          // assign_user_role uses ON CONFLICT DO NOTHING, so errors here are real issues
-          throw new Error(`Failed to assign driver role: ${roleError.message}`);
-        }
-      }
-
-      // Update driver record (driver-specific information)
-      const { error: driverError } = await supabase
-        .from("drivers")
-        .update({
           license_number: formData.license_number.trim() || null,
           license_expiry: formData.license_expiry || null,
           operator_id: formData.operator_id.trim() || null,
+          national_insurance: formData.national_insurance.trim() || null,
           active: formData.active,
           updated_at: new Date().toISOString(),
         })
@@ -560,15 +536,27 @@ export default function DriverManagement() {
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="edit_operator_id">Operator ID</Label>
-                <Input
-                  id="edit_operator_id"
-                  value={formData.operator_id}
-                  onChange={(e) => setFormData({ ...formData, operator_id: e.target.value })}
-                  placeholder="e.g., 0074666"
-                  maxLength={50}
-                />
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="edit_operator_id">Operator ID</Label>
+                  <Input
+                    id="edit_operator_id"
+                    value={formData.operator_id}
+                    onChange={(e) => setFormData({ ...formData, operator_id: e.target.value })}
+                    placeholder="e.g., DB6249"
+                    maxLength={50}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit_national_insurance">National Insurance</Label>
+                  <Input
+                    id="edit_national_insurance"
+                    value={formData.national_insurance}
+                    onChange={(e) => setFormData({ ...formData, national_insurance: e.target.value })}
+                    placeholder="e.g., AB123456C"
+                    maxLength={20}
+                  />
+                </div>
               </div>
 
               <div className="space-y-2 pt-2 border-t">

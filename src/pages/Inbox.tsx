@@ -330,13 +330,13 @@ export default function Inbox() {
         });
       }
 
-      // Fallback to profiles table for any missing senders
+      // Fallback to role_profiles view for any missing senders (covers both staff and drivers)
       const foundSenderIds = Array.from(senderMap.keys());
       const missingSenderIds = senderIds.filter(id => !foundSenderIds.includes(id));
       
       if (missingSenderIds.length > 0) {
         const { data: profileRows } = await supabase
-          .from('profiles')
+          .from('role_profiles')
           .select('user_id, full_name, first_name, surname, email')
           .in('user_id', missingSenderIds);
 
@@ -514,10 +514,10 @@ export default function Inbox() {
         email: message.sender_email ?? undefined,
       };
 
-      // If we don't have first_name/surname, fetch from profiles
+      // If we don't have first_name/surname, fetch from role_profiles view (covers staff and drivers)
       if (!senderProfile.first_name && !senderProfile.surname && message.sender_id) {
         const { data: profileData } = await supabase
-          .from('profiles')
+          .from('role_profiles')
           .select('user_id, full_name, first_name, surname, email')
           .eq('user_id', message.sender_id)
           .single();

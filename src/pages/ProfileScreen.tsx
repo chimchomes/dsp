@@ -26,6 +26,7 @@ interface DriverData {
   license_number: string | null;
   license_expiry: string | null;
   operator_id: string | null;
+  national_insurance: string | null;
 }
 
 export default function ProfileScreen() {
@@ -33,6 +34,7 @@ export default function ProfileScreen() {
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [driverData, setDriverData] = useState<DriverData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isDriver, setIsDriver] = useState(false);
 
   useEffect(() => {
     loadProfile();
@@ -46,27 +48,62 @@ export default function ProfileScreen() {
         return;
       }
 
-      // Load profile data (personal information) from profiles table
-      const { data: profileData, error: profileError } = await supabase
-        .from("profiles")
-        .select("user_id, first_name, surname, full_name, email, contact_phone, address_line_1, address_line_2, address_line_3, postcode, emergency_contact_name, emergency_contact_phone")
-        .eq("user_id", user.id)
-        .single();
+      // Check user role to determine which table to query
+      const { data: roles, error: rolesError } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user.id);
 
-      if (profileError) throw profileError;
-      setProfile(profileData);
+      if (rolesError) throw rolesError;
 
-      // Load driver-specific data from drivers table
-      const { data: driverRecord, error: driverError } = await supabase
-        .from("drivers")
-        .select("license_number, license_expiry, operator_id")
-        .eq("user_id", user.id)
-        .maybeSingle();
+      const userRoles = roles?.map(r => r.role) || [];
+      const userIsDriver = userRoles.includes("driver");
+      setIsDriver(userIsDriver);
 
-      if (driverError && driverError.code !== 'PGRST116') { // PGRST116 is "not found" which is okay
-        console.error("Error loading driver data:", driverError);
-      } else if (driverRecord) {
-        setDriverData(driverRecord);
+      if (userIsDriver) {
+        // For drivers: driver_profiles is the single source of truth for all data
+        const { data: driverProfile, error: driverError } = await supabase
+          .from("driver_profiles")
+          .select("user_id, first_name, surname, name, email, contact_phone, address_line_1, address_line_2, address_line_3, postcode, emergency_contact_name, emergency_contact_phone, license_number, license_expiry, operator_id, national_insurance")
+          .eq("user_id", user.id)
+          .single();
+
+        if (driverError) throw driverError;
+
+        // Map driver_profiles data to ProfileData interface
+        setProfile({
+          user_id: driverProfile.user_id,
+          first_name: driverProfile.first_name,
+          surname: driverProfile.surname,
+          full_name: driverProfile.name || (driverProfile.first_name && driverProfile.surname ? `${driverProfile.first_name} ${driverProfile.surname}` : null),
+          email: driverProfile.email,
+          contact_phone: driverProfile.contact_phone,
+          address_line_1: driverProfile.address_line_1,
+          address_line_2: driverProfile.address_line_2,
+          address_line_3: driverProfile.address_line_3,
+          postcode: driverProfile.postcode,
+          emergency_contact_name: driverProfile.emergency_contact_name,
+          emergency_contact_phone: driverProfile.emergency_contact_phone,
+        });
+
+        // Set driver-specific data
+        setDriverData({
+          license_number: driverProfile.license_number,
+          license_expiry: driverProfile.license_expiry,
+          operator_id: driverProfile.operator_id,
+          national_insurance: driverProfile.national_insurance,
+        });
+      } else {
+        // For staff (admin, hr, finance): use staff_profiles
+        const { data: profileData, error: profileError } = await supabase
+          .from("staff_profiles")
+          .select("user_id, first_name, surname, full_name, email, contact_phone, address_line_1, address_line_2, address_line_3, postcode, emergency_contact_name, emergency_contact_phone")
+          .eq("user_id", user.id)
+          .single();
+
+        if (profileError) throw profileError;
+        setProfile(profileData);
+        setDriverData(null); // Staff don't have driver data
       }
     } catch (error: any) {
       toast({
@@ -235,6 +272,16 @@ export default function ProfileScreen() {
                   <div>
                     <p className="font-medium">License Expiry</p>
                     <p className="text-muted-foreground">{new Date(driverData.license_expiry).toLocaleDateString()}</p>
+                  </div>
+                </div>
+              )}
+
+              {driverData.national_insurance && (
+                <div className="flex items-start gap-3">
+                  <User className="h-5 w-5 text-primary mt-0.5" />
+                  <div>
+                    <p className="font-medium">National Insurance</p>
+                    <p className="text-muted-foreground">{driverData.national_insurance}</p>
                   </div>
                 </div>
               )}

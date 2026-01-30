@@ -28,7 +28,7 @@ const FinancePayroll = () => {
 
   const loadPayrollData = async () => {
     try {
-      const { data: drivers } = await supabase.from("drivers").select("*");
+      const { data: drivers } = await supabase.from("driver_profiles").select("*");
 
       if (!drivers) {
         setPayrollData([]);

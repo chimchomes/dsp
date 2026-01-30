@@ -36,15 +36,23 @@ interface OnboardingSession {
   status: string;
   created_at: string;
   submitted_at?: string;
+  // Legacy license fields
   license_number?: string;
   license_expiry?: string;
+  // New license fields
+  drivers_license_number?: string;
+  license_expiry_date?: string;
+  // Address fields
   address?: string;
+  address_line_1?: string;
+  address_line_2?: string;
+  address_line_3?: string;
+  post_code?: string;
+  // Emergency contact
   emergency_contact_name?: string;
   emergency_contact_phone?: string;
-  vehicle_make?: string;
-  vehicle_model?: string;
-  vehicle_year?: number;
-  vehicle_registration?: string;
+  // National Insurance
+  national_insurance_number?: string;
 }
 
 export function OnboardingApplications() {
@@ -104,9 +112,9 @@ export function OnboardingApplications() {
       if (status === "accepted") {
         console.log("Processing acceptance for user:", session.user_id, session.email);
         
-        // Check if driver record already exists
+        // Check if driver record already exists in driver_profiles
         const { data: existingDriver, error: checkError } = await supabase
-          .from("drivers")
+          .from("driver_profiles")
           .select("id, user_id, email, name")
           .eq("user_id", session.user_id)
           .maybeSingle();
@@ -170,58 +178,45 @@ export function OnboardingApplications() {
 
           console.log("Driver role assigned successfully");
 
-          // Update profile with personal info from onboarding session
           // Use first_name/surname if available, otherwise parse from full_name
           const firstName = session.first_name || session.full_name?.split(' ')[0] || null;
           const surname = session.surname || session.full_name?.split(' ').slice(1).join(' ') || null;
           const fullName = session.full_name || (firstName && surname ? `${firstName} ${surname}` : null);
           
-          console.log("Updating profile with:", { firstName, surname, fullName });
+          // Get license info - prefer new fields, fallback to legacy
+          const licenseNumber = session.drivers_license_number || session.license_number || null;
+          const licenseExpiry = session.license_expiry_date || session.license_expiry || null;
           
-          const { error: profileError } = await supabase
-            .from("profiles")
-            .upsert({
-              user_id: session.user_id,
-              first_name: firstName,
-              surname: surname,
-              full_name: fullName,
-              email: session.email,
-              contact_phone: session.contact_phone || null,
-              address_line_1: session.address_line_1 || null,
-              address_line_2: session.address_line_2 || null,
-              address_line_3: session.address_line_3 || null,
-              postcode: session.post_code || null,
-              emergency_contact_name: session.emergency_contact_name || null,
-              emergency_contact_phone: session.emergency_contact_phone || null,
-              updated_at: new Date().toISOString(),
-            }, {
-              onConflict: "user_id"
-            });
+          // Get approver user ID
+          const { data: { user: approver } } = await supabase.auth.getUser();
 
-          if (profileError) {
-            console.error("Error updating profile:", profileError);
-            // Don't fail - profile update is optional, but log it
-          } else {
-            console.log("Profile updated successfully");
-          }
-
-          // Prepare driver data
+          // Prepare driver data - driver_profiles is now the single source of truth
           const driverData = {
-            user_id: session.user_id, // Link to user via FK
+            user_id: session.user_id,
             email: session.email,
-            name: session.full_name || fullName || session.email,
-            license_number: session.license_number || null,
-            license_expiry: session.license_expiry ? new Date(session.license_expiry).toISOString().split('T')[0] : null,
+            name: fullName || session.email,
+            first_name: firstName,
+            surname: surname,
+            contact_phone: session.contact_phone || null,
+            address_line_1: session.address_line_1 || null,
+            address_line_2: session.address_line_2 || null,
+            address_line_3: session.address_line_3 || null,
+            postcode: session.post_code || null,
+            emergency_contact_name: session.emergency_contact_name || null,
+            emergency_contact_phone: session.emergency_contact_phone || null,
+            license_number: licenseNumber,
+            license_expiry: licenseExpiry ? new Date(licenseExpiry).toISOString().split('T')[0] : null,
+            national_insurance: session.national_insurance_number || null,
             onboarded_at: new Date().toISOString(),
-            onboarded_by: (await supabase.auth.getUser()).data.user?.id,
+            onboarded_by: approver?.id || null,
             active: true,
           };
 
-          console.log("Creating driver record with data:", driverData);
+          console.log("Creating driver_profiles record with data:", driverData);
 
-          // Create driver record (driver-specific data: license, vehicle)
+          // Create driver_profiles record (single source of truth for driver data)
           const { data: newDriver, error: driverError } = await supabase
-            .from("drivers")
+            .from("driver_profiles")
             .insert(driverData)
             .select("id, user_id, email, name")
             .single();
