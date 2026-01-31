@@ -49,9 +49,14 @@ export default function Dashboard() {
       return;
     }
 
-    // If user has inactive role, redirect to inbox
+    // If user has inactive role, redirect to login
     if (roles?.some(r => r.role === "inactive")) {
-      navigate("/inbox");
+      toast({
+        title: "Access denied",
+        description: "Your account is inactive. Please contact support.",
+        variant: "destructive",
+      });
+      navigate("/login");
       return;
     }
 
@@ -82,7 +87,12 @@ export default function Dashboard() {
     // If driver record exists, check if active
     if (driverData) {
       if (driverData.active === false) {
-        navigate("/inbox");
+        toast({
+          title: "Access denied",
+          description: "Your account is inactive. Please contact support.",
+          variant: "destructive",
+        });
+        navigate("/login");
         return;
       }
     } else {

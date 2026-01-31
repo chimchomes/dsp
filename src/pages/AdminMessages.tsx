@@ -28,12 +28,9 @@ export default function AdminMessages() {
       // Load roles centrally
       const { data: rolesList } = await supabase.from('roles_list').select('role');
       let allRoles = (rolesList || []).map(r => r.role as string);
-      // Filter out 'dispatcher' role (replaced by 'route-admin') and ensure 'route-admin' is included
-      allRoles = allRoles.filter(role => role !== 'dispatcher');
-      if (!allRoles.includes('route-admin')) {
-        allRoles.push('route-admin');
-      }
-      // Admin can message any role
+      // Filter out 'dispatcher', 'route-admin', and 'inactive' roles
+      allRoles = allRoles.filter(role => role !== 'dispatcher' && role !== 'route-admin' && role !== 'inactive');
+      // Admin can message any of the remaining roles
       setRoles(allRoles);
 
       // Get active drivers only (exclude inactive)

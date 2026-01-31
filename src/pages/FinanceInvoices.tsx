@@ -152,6 +152,7 @@ const FinanceInvoices = () => {
                       <TableHead>Period</TableHead>
                       <TableHead>Provider</TableHead>
                       <TableHead>Net Total</TableHead>
+                      <TableHead>VAT@20%</TableHead>
                       <TableHead>Gross Total</TableHead>
                       <TableHead>Actions</TableHead>
                     </TableRow>
@@ -172,6 +173,9 @@ const FinanceInvoices = () => {
                         <TableCell>{invoice.provider || "N/A"}</TableCell>
                         <TableCell>
                           {invoice.net_total ? `£${invoice.net_total.toFixed(2)}` : "N/A"}
+                        </TableCell>
+                        <TableCell>
+                          {invoice.vat != null ? `£${invoice.vat.toFixed(2)}` : "£0.00"}
                         </TableCell>
                         <TableCell>
                           {invoice.gross_total ? `£${invoice.gross_total.toFixed(2)}` : "N/A"}

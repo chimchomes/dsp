@@ -133,41 +133,34 @@ export default function Inbox() {
     }
 
     // Filter out 'dispatcher' role (replaced by 'route-admin') and ensure 'route-admin' is included
-    baseRoles = baseRoles.filter(role => role !== 'dispatcher');
-    if (!baseRoles.includes('route-admin') && baseRoles.some(r => r === 'dispatcher')) {
-      baseRoles.push('route-admin');
-    }
+    baseRoles = baseRoles.filter(role => role !== 'dispatcher' && role !== 'route-admin' && role !== 'inactive');
 
     let filteredRoles = baseRoles;
     
     // Enforce messaging rules:
-    // 1. Route-admin can message all but onboarding and inactive
-    if (isRouteAdmin && !isAdmin) {
-      filteredRoles = baseRoles.filter(role => role !== 'onboarding' && role !== 'inactive');
-    }
-    // 2. Onboarding can only message admin
-    else if (isOnboarding) {
+    // 1. Onboarding can only message admin
+    if (isOnboarding) {
       filteredRoles = baseRoles.filter(role => role === 'admin');
     }
-    // 3. Admin can message all (no filter needed)
+    // 2. Admin can message all (no filter needed)
     else if (isAdmin) {
       filteredRoles = baseRoles; // Admin can message all
     }
-    // 4. Driver can only message all apart from onboarding, other drivers
+    // 3. Driver can message hr, finance, admin
     else if (isDriverOnly) {
-      filteredRoles = baseRoles.filter(role => role !== 'driver' && role !== 'onboarding');
+      filteredRoles = baseRoles.filter(role => ['hr', 'finance', 'admin'].includes(role));
     }
-    // 5. Finance can message all but onboarding and inactive
+    // 4. Finance can message driver, admin, hr
     else if (isFinance) {
-      filteredRoles = baseRoles.filter(role => role !== 'onboarding' && role !== 'inactive');
+      filteredRoles = baseRoles.filter(role => ['driver', 'admin', 'hr'].includes(role));
     }
-    // 6. HR can message all but onboarding and inactive
+    // 5. HR can message finance, admin, driver
     else if (isHR) {
-      filteredRoles = baseRoles.filter(role => role !== 'onboarding' && role !== 'inactive');
+      filteredRoles = baseRoles.filter(role => ['finance', 'admin', 'driver'].includes(role));
     }
-    // 7. Inactive users can only message admin
-    else if (isInactive) {
-      filteredRoles = baseRoles.filter(role => role === 'admin');
+    // 6. Default fallback (should not be hit if roles are assigned correctly)
+    else {
+      filteredRoles = [];
     }
 
     const sortedRoles = [...filteredRoles].sort((a, b) => a.localeCompare(b));

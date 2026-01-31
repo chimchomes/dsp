@@ -140,12 +140,26 @@ export default function Login() {
           navigate("/hr");
           return;
         } else if (roleList.includes("inactive")) {
-          navigate("/inbox");
+          toast({
+            title: "Access denied",
+            description: "Your account is inactive. Please contact support.",
+            variant: "destructive",
+          });
+          setIsLoading(false);
           return;
         } else if (roleList.includes("driver")) {
-          if (driverData) {
-            navigate(driverData.active === false ? "/inbox" : "/dashboard");
-          } else {
+        if (driverData) {
+          if (driverData.active === false) {
+            toast({
+              title: "Access denied",
+              description: "Your account is inactive. Please contact support.",
+              variant: "destructive",
+            });
+            setIsLoading(false);
+            return;
+          }
+          navigate("/dashboard");
+        } else {
             navigate("/dashboard");
           }
           return;
@@ -158,7 +172,16 @@ export default function Login() {
       // If roles query failed or no roles found, try to infer from driver record
       if (driverData && !driverError) {
         // User has driver record - likely a driver
-        navigate(driverData.active === false ? "/inbox" : "/dashboard");
+        if (driverData.active === false) {
+          toast({
+            title: "Access denied",
+            description: "Your account is inactive. Please contact support.",
+            variant: "destructive",
+          });
+          setIsLoading(false);
+          return;
+        }
+        navigate("/dashboard");
         return;
       }
       
@@ -265,8 +288,12 @@ export default function Login() {
           } else if (roles?.some(r => r.role === "hr")) {
             navigate("/hr");
           } else if (roles?.some(r => r.role === "inactive")) {
-            // Inactive users can only access inbox to message admin
-            navigate("/inbox");
+            toast({
+              title: "Access denied",
+              description: "Your account is inactive. Please contact support.",
+              variant: "destructive",
+            });
+            navigate("/login");
           } else if (driverData) {
             navigate("/dashboard");
           } else if (roles?.some(r => r.role === "onboarding")) {

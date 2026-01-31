@@ -128,7 +128,7 @@ serve(async (req) => {
       }
     });
 
-    const driverAllowedRoles = ['admin', 'hr', 'finance', 'route-admin'];
+    const driverAllowedRoles = ['admin', 'hr', 'finance'];
     const sanitizedRecipients = recipients.filter((rid) => {
       const roles = roleMap.get(rid) || [];
       
@@ -151,23 +151,10 @@ serve(async (req) => {
         return false;
       }
 
-      // Rule 1: Route-admin can message all but onboarding and inactive
-      if (isRouteAdmin && !isAdmin) {
-        if (roles.includes('onboarding')) {
-          console.log(`Route-admin: Recipient ${rid} has onboarding role - filtering out`);
-          return false;
-        }
-        if (roles.includes('inactive')) {
-          console.log(`Route-admin: Recipient ${rid} has inactive role - filtering out`);
-          return false;
-        }
-        if (requestedRole && (requestedRole === 'onboarding' || requestedRole === 'inactive')) {
-          console.log(`Route-admin: Requested role is ${requestedRole} - filtering out`);
-          return false;
-        }
-        // Route-admin can message anyone except onboarding and inactive
-        console.log(`Route-admin: Allowing recipient ${rid} with roles: ${roles.join(', ')}`);
-        return true;
+      // Rule 1: Route-admin and Inactive cannot message anyone (removed from messaging)
+      if ((isRouteAdmin && !isAdmin) || isInactive) {
+        console.log(`Route-admin/Inactive: User ${caller.id} is not allowed to message anyone`);
+        return false;
       }
 
       // Rule 2: Onboarding can only message admin
@@ -175,38 +162,30 @@ serve(async (req) => {
         return roles.includes('admin');
       }
 
-      // Admin check already handled above (before role check)
-
-      // Rule 4: Driver can only message all apart from onboarding, other drivers
+      // Rule 4: Driver can message hr, finance, admin
       if (isDriverOnly) {
-        if (roles.includes('driver') || roles.includes('onboarding')) {
-          return false;
-        }
         if (requestedRole) {
           return driverAllowedRoles.includes(requestedRole) && roles.includes(requestedRole);
         }
         return roles.some((role) => driverAllowedRoles.includes(role));
       }
 
-      // Rule 5: Finance can message all but onboarding and inactive
+      // Rule 5: Finance can message driver, admin, hr
       if (isFinance) {
-        if (roles.includes('onboarding')) return false;
-        if (roles.includes('inactive')) return false;
-        if (requestedRole && (requestedRole === 'onboarding' || requestedRole === 'inactive')) return false;
-        return true;
+        const financeAllowedRoles = ['driver', 'admin', 'hr'];
+        if (requestedRole) {
+          return financeAllowedRoles.includes(requestedRole) && roles.includes(requestedRole);
+        }
+        return roles.some((role) => financeAllowedRoles.includes(role));
       }
 
-      // Rule 6: HR can message all but onboarding and inactive
+      // Rule 6: HR can message finance, admin, driver
       if (isHR) {
-        if (roles.includes('onboarding')) return false;
-        if (roles.includes('inactive')) return false;
-        if (requestedRole && (requestedRole === 'onboarding' || requestedRole === 'inactive')) return false;
-        return true;
-      }
-
-      // Inactive users can only message admin
-      if (isInactive) {
-        return roles.includes('admin');
+        const hrAllowedRoles = ['finance', 'admin', 'driver'];
+        if (requestedRole) {
+          return hrAllowedRoles.includes(requestedRole) && roles.includes(requestedRole);
+        }
+        return roles.some((role) => hrAllowedRoles.includes(role));
       }
 
       // Default: allow if requested role matches
@@ -220,43 +199,32 @@ serve(async (req) => {
     if (sanitizedRecipients.length === 0) {
       // Check why recipients were filtered out
       const recipientsWithNoRoles = recipients.filter(rid => (roleMap.get(rid) || []).length === 0);
-      const recipientsWithOnboarding = recipients.filter(rid => (roleMap.get(rid) || []).includes('onboarding'));
       
       let errorMsg = "No valid recipients. ";
       
       if (recipientsWithNoRoles.length > 0) {
-        errorMsg += `${recipientsWithNoRoles.length} recipient(s) have no roles assigned: ${recipientsWithNoRoles.join(', ')}. `;
+        errorMsg += `${recipientsWithNoRoles.length} recipient(s) have no roles assigned. `;
       }
       
       if (isAdmin) {
         errorMsg += `Admin should be able to message all roles. `;
         if (recipientsWithNoRoles.length > 0) {
-          errorMsg += `However, ${recipientsWithNoRoles.length} recipient(s) have no roles assigned: ${recipientsWithNoRoles.join(', ')}. Users must have at least one role to receive messages.`;
+          errorMsg += `However, ${recipientsWithNoRoles.length} recipient(s) have no roles assigned. Users must have at least one role to receive messages.`;
         } else {
           errorMsg += `All ${recipients.length} recipient(s) were filtered out. This should not happen for admin.`;
         }
       } else if (isInactive) {
-        errorMsg += "Inactive users can only message admins.";
+        errorMsg += "Inactive users cannot send messages.";
       } else if (isOnboarding) {
         errorMsg += "Onboarding users can only message admins.";
       } else if (isRouteAdmin && !isAdmin) {
-        if (recipientsWithOnboarding.length > 0) {
-          errorMsg += `Route-admins cannot message onboarding users (${recipientsWithOnboarding.length} recipient(s) have onboarding role). `;
-        }
-        const recipientsWithInactive = recipients.filter(rid => (roleMap.get(rid) || []).includes('inactive'));
-        if (recipientsWithInactive.length > 0) {
-          errorMsg += `Route-admins cannot message inactive users (${recipientsWithInactive.length} recipient(s) have inactive role). `;
-        }
-        if (recipientsWithOnboarding.length === 0 && recipientsWithInactive.length === 0) {
-          errorMsg += "Route-admins cannot message onboarding or inactive users. All other roles are allowed. ";
-          errorMsg += `Recipients provided: ${recipients.length}, but none have valid roles or all were filtered out.`;
-        }
+        errorMsg += "Route-admins cannot send messages.";
       } else if (isDriverOnly) {
-        errorMsg += "Drivers cannot message other drivers, onboarding users, or inactive users. They can only message admin, HR, finance, or route-admin staff.";
+        errorMsg += "Drivers can only message admin, HR, or finance staff.";
       } else if (isFinance) {
-        errorMsg += "Finance staff cannot message onboarding or inactive users.";
+        errorMsg += "Finance staff can only message drivers, admin, or HR staff.";
       } else if (isHR) {
-        errorMsg += "HR staff cannot message onboarding or inactive users.";
+        errorMsg += "HR staff can only message finance, admin, or drivers.";
       } else if (requestedRole) {
         errorMsg += `No users found with role '${requestedRole}' that match the recipient criteria.`;
       } else {

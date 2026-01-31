@@ -314,9 +314,19 @@ const FinanceInvoiceUpload = () => {
     const providerMatch = t.match(/\b(YODEL|ROYAL\s+MAIL|DPD|HERMES)\b/i);
     const provider = providerMatch?.[1]?.toUpperCase().replace(/\s+/g, " ") || "YODEL";
 
-    const netTotal = extractNumber(t, [/Net\s+Total\s*Â£\s*([\d,]+\.\d{2})/i]);
-    const vat = extractNumber(t, [/VAT\s*@\s*[\d.]+%\s*Â£\s*([\d,]+\.\d{2})/i]);
-    const grossTotal = extractNumber(t, [/Gross\s+Total\s*Â£\s*([\d,]+\.\d{2})/i]);
+    const netTotal = extractNumber(t, [
+      /Net\s+Total\s*[Â£€$]?\s*([\d,]+\.\d{2})/i,
+      /Net\s+Total[^\d]*([\d,]+\.\d{2})/i,
+    ]);
+    const vat = extractNumber(t, [
+      /VAT\s*@\s*[\d.]+%\s*[Â£€$]?\s*([\d,]+\.\d{2})/i,
+      /VAT\s*@\s*20(?:\.00)?%\s*[^\d]*([\d,]+\.\d{2})/i,
+      /VAT[^\d]*([\d,]+\.\d{2})/i,
+    ]);
+    const grossTotal = extractNumber(t, [
+      /Gross\s+Total\s*[Â£€$]?\s*([\d,]+\.\d{2})/i,
+      /Gross\s+Total[^\d]*([\d,]+\.\d{2})/i,
+    ]);
 
     return { invoiceNumber, invoiceDate, periodStart, periodEnd, supplierId, provider, netTotal, vat, grossTotal };
   };
