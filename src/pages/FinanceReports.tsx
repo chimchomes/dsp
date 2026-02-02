@@ -4,68 +4,195 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Download, FileText, TrendingUp, Users, DollarSign } from "lucide-react";
+import { ArrowLeft, TrendingUp, TrendingDown, Users, PoundSterling, Package, AlertTriangle, FileText, CalendarIcon } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { format, subDays, subMonths, startOfMonth, endOfMonth, startOfYear } from "date-fns";
 import { AuthGuard } from "@/components/AuthGuard";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { DateRange } from "react-day-picker";
 
-interface DriverRate {
-  driver_id: string;
-  driver_name: string;
-  total_routes: number;
-  total_earnings: number;
-  avg_per_route: number;
+interface InsightsData {
+  totalRevenue: number;       // net_total from invoices (before VAT)
+  totalGrossRevenue: number;  // gross_total from invoices (after VAT)
+  totalVAT: number;           // VAT amount
+  totalPayouts: number;       // gross_pay from payslips
+  netProfit: number;          // revenue - payouts
+  profitMargin: number;       // (netProfit / totalRevenue) * 100
+  totalAdjustments: number;   // sum of ADJUSTMENT_DETAIL amounts
+  adjustmentCount: number;    // number of adjustments
+  totalParcels: number;       // total parcels delivered
+  invoiceCount: number;       // number of invoices
+  payslipCount: number;       // number of payslips generated
 }
+
+type DatePreset = "all" | "7d" | "30d" | "this-month" | "last-month" | "ytd" | "custom";
 
 const FinanceReports = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [driverRates, setDriverRates] = useState<DriverRate[]>([]);
   const [loading, setLoading] = useState(true);
-  const [totalRevenue, setTotalRevenue] = useState(0);
   const [activeDrivers, setActiveDrivers] = useState(0);
+  const [datePreset, setDatePreset] = useState<DatePreset>("all");
+  const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
+  const [insights, setInsights] = useState<InsightsData>({
+    totalRevenue: 0,
+    totalGrossRevenue: 0,
+    totalVAT: 0,
+    totalPayouts: 0,
+    netProfit: 0,
+    profitMargin: 0,
+    totalAdjustments: 0,
+    adjustmentCount: 0,
+    totalParcels: 0,
+    invoiceCount: 0,
+    payslipCount: 0,
+  });
+
+  // Get effective date range based on preset or custom selection
+  const getEffectiveDateRange = (): { from: Date | null; to: Date | null } => {
+    const today = new Date();
+    
+    switch (datePreset) {
+      case "7d":
+        return { from: subDays(today, 7), to: today };
+      case "30d":
+        return { from: subDays(today, 30), to: today };
+      case "this-month":
+        return { from: startOfMonth(today), to: endOfMonth(today) };
+      case "last-month":
+        const lastMonth = subMonths(today, 1);
+        return { from: startOfMonth(lastMonth), to: endOfMonth(lastMonth) };
+      case "ytd":
+        return { from: startOfYear(today), to: today };
+      case "custom":
+        return { from: dateRange?.from || null, to: dateRange?.to || null };
+      case "all":
+      default:
+        return { from: null, to: null };
+    }
+  };
+
+  const handlePresetChange = (preset: DatePreset) => {
+    setDatePreset(preset);
+    if (preset !== "custom") {
+      setDateRange(undefined);
+    }
+  };
 
   useEffect(() => {
     loadReportsData();
-  }, []);
+
+    // Set up realtime subscriptions for dynamic updates
+    const channel = supabase
+      .channel('finance-insights-updates')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'invoices' }, () => {
+        console.log('Invoices changed, refreshing data...');
+        loadReportsData();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'payslips' }, () => {
+        console.log('Payslips changed, refreshing data...');
+        loadReportsData();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'ADJUSTMENT_DETAIL' }, () => {
+        console.log('Adjustments changed, refreshing data...');
+        loadReportsData();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'WEEKLY_PAY' }, () => {
+        console.log('Weekly pay changed, refreshing data...');
+        loadReportsData();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'driver_profiles' }, () => {
+        console.log('Driver profiles changed, refreshing data...');
+        loadReportsData();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [datePreset, dateRange]);
 
   const loadReportsData = async () => {
     try {
-      // Load driver rates
-      const { data: drivers } = await supabase.from("driver_profiles").select("*").eq("active", true);
+      setLoading(true);
       
-      if (drivers) {
-        setActiveDrivers(drivers.length);
-        
-        const ratesPromises = drivers.map(async (driver) => {
-          const { data: earnings } = await supabase
-            .from("earnings")
-            .select("gross_amount, route_count")
-            .eq("driver_id", driver.id);
-
-          const totalEarnings = earnings?.reduce((sum, e) => sum + Number(e.gross_amount), 0) || 0;
-          const totalRoutes = earnings?.reduce((sum, e) => sum + Number(e.route_count), 0) || 0;
-
-          return {
-            driver_id: driver.id,
-            driver_name: driver.name,
-            total_routes: totalRoutes,
-            total_earnings: totalEarnings,
-            avg_per_route: totalRoutes > 0 ? totalEarnings / totalRoutes : 0,
-          };
-        });
-
-        const rates = await Promise.all(ratesPromises);
-        setDriverRates(rates);
-        setTotalRevenue(rates.reduce((sum, r) => sum + r.total_earnings, 0));
+      const { from, to } = getEffectiveDateRange();
+      
+      // Build queries with optional date filtering
+      let invoicesQuery = supabase.from("invoices").select("net_total, gross_total, vat, invoice_date");
+      let payslipsQuery = supabase.from("payslips").select("gross_pay, net_pay, invoice_date");
+      let adjustmentsQuery = supabase.from("ADJUSTMENT_DETAIL").select("adjustment_amount, adjustment_date");
+      let weeklyPayQuery = supabase.from("WEEKLY_PAY").select("total_qty, invoice_date");
+      
+      // Apply date filters if set
+      if (from) {
+        const fromStr = format(from, "yyyy-MM-dd");
+        invoicesQuery = invoicesQuery.gte("invoice_date", fromStr);
+        payslipsQuery = payslipsQuery.gte("invoice_date", fromStr);
+        adjustmentsQuery = adjustmentsQuery.gte("adjustment_date", fromStr);
+        weeklyPayQuery = weeklyPayQuery.gte("invoice_date", fromStr);
       }
+      if (to) {
+        const toStr = format(to, "yyyy-MM-dd");
+        invoicesQuery = invoicesQuery.lte("invoice_date", toStr);
+        payslipsQuery = payslipsQuery.lte("invoice_date", toStr);
+        adjustmentsQuery = adjustmentsQuery.lte("adjustment_date", toStr);
+        weeklyPayQuery = weeklyPayQuery.lte("invoice_date", toStr);
+      }
+
+      // Parallel fetch all data for insights
+      const [
+        { data: invoices },
+        { data: payslips },
+        { data: adjustments },
+        { data: weeklyPay },
+        { data: drivers },
+      ] = await Promise.all([
+        invoicesQuery,
+        payslipsQuery,
+        adjustmentsQuery,
+        weeklyPayQuery,
+        supabase.from("driver_profiles").select("*").eq("active", true),
+      ]);
+
+      // Calculate insights
+      // Revenue = net_total (before VAT) - this is the actual revenue
+      const totalRevenue = invoices?.reduce((sum, inv) => sum + Number(inv.net_total || 0), 0) || 0;
+      const totalGrossRevenue = invoices?.reduce((sum, inv) => sum + Number(inv.gross_total || 0), 0) || 0;
+      const totalVAT = invoices?.reduce((sum, inv) => sum + Number(inv.vat || 0), 0) || 0;
+      
+      // Payouts = gross_pay from payslips (what we pay drivers)
+      const totalPayouts = payslips?.reduce((sum, ps) => sum + Number(ps.gross_pay || 0), 0) || 0;
+      
+      // Net Profit = Revenue - Payouts
+      const netProfit = totalRevenue - totalPayouts;
+      
+      // Profit Margin
+      const profitMargin = totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : 0;
+      
+      // Adjustments (can be positive or negative)
+      const totalAdjustments = adjustments?.reduce((sum, adj) => sum + Number(adj.adjustment_amount || 0), 0) || 0;
+      
+      // Total parcels delivered
+      const totalParcels = weeklyPay?.reduce((sum, wp) => sum + Number(wp.total_qty || 0), 0) || 0;
+
+      setInsights({
+        totalRevenue,
+        totalGrossRevenue,
+        totalVAT,
+        totalPayouts,
+        netProfit,
+        profitMargin,
+        totalAdjustments,
+        adjustmentCount: adjustments?.length || 0,
+        totalParcels,
+        invoiceCount: invoices?.length || 0,
+        payslipCount: payslips?.length || 0,
+      });
+
+      // Set active drivers count
+      setActiveDrivers(drivers?.length || 0);
     } catch (error) {
       console.error("Error loading reports:", error);
       toast({
@@ -78,35 +205,27 @@ const FinanceReports = () => {
     }
   };
 
-  const exportDriverRates = () => {
-    const headers = ["Driver Name", "Total Routes", "Total Earnings", "Avg Per Route"];
-    const rows = driverRates.map(d => [
-      d.driver_name,
-      d.total_routes,
-      d.total_earnings.toFixed(2),
-      d.avg_per_route.toFixed(2),
-    ]);
-
-    const csvContent = [
-      headers.join(","),
-      ...rows.map(row => row.join(","))
-    ].join("\n");
-
-    const blob = new Blob([csvContent], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `driver-rates-${new Date().toISOString().split('T')[0]}.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
-
-    toast({
-      title: "Success",
-      description: "Driver rates exported to CSV",
-    });
+  const getDateRangeLabel = () => {
+    const { from, to } = getEffectiveDateRange();
+    if (!from && !to) return "All Time";
+    if (from && to) {
+      return `${format(from, "dd MMM yyyy")} - ${format(to, "dd MMM yyyy")}`;
+    }
+    if (from) return `From ${format(from, "dd MMM yyyy")}`;
+    if (to) return `Until ${format(to, "dd MMM yyyy")}`;
+    return "All Time";
   };
 
-  const profitMargin = "100";
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('en-GB', {
+      style: 'currency',
+      currency: 'GBP',
+    }).format(amount);
+  };
+
+  const formatNumber = (num: number) => {
+    return new Intl.NumberFormat('en-GB').format(num);
+  };
 
   return (
     <AuthGuard allowedRoles={["route-admin", "admin", "finance"]}>
@@ -120,124 +239,241 @@ const FinanceReports = () => {
               </Button>
               <div>
                 <h1 className="text-3xl font-bold">Financial Reports</h1>
-                <p className="text-muted-foreground mt-1">View invoices, driver rates, and financial analytics</p>
+                <p className="text-muted-foreground mt-1">Real-time financial insights and analytics</p>
               </div>
             </div>
           </div>
 
-          {/* Summary Cards */}
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
-                <DollarSign className="h-4 w-4 text-green-600" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">${totalRevenue.toFixed(2)}</div>
-                <p className="text-xs text-muted-foreground mt-1">All-time earnings</p>
-              </CardContent>
-            </Card>
+          {/* Date Filters */}
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex flex-wrap items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <CalendarIcon className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm font-medium">Period:</span>
+                </div>
+                
+                <Select value={datePreset} onValueChange={(v) => handlePresetChange(v as DatePreset)}>
+                  <SelectTrigger className="w-[180px]">
+                    <SelectValue placeholder="Select period" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Time</SelectItem>
+                    <SelectItem value="7d">Last 7 Days</SelectItem>
+                    <SelectItem value="30d">Last 30 Days</SelectItem>
+                    <SelectItem value="this-month">This Month</SelectItem>
+                    <SelectItem value="last-month">Last Month</SelectItem>
+                    <SelectItem value="ytd">Year to Date</SelectItem>
+                    <SelectItem value="custom">Custom Range</SelectItem>
+                  </SelectContent>
+                </Select>
 
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Net Profit</CardTitle>
-                <TrendingUp className="h-4 w-4 text-purple-600" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">${totalRevenue.toFixed(2)}</div>
-                <p className="text-xs text-muted-foreground mt-1">{profitMargin}% margin</p>
-              </CardContent>
-            </Card>
+                {datePreset === "custom" && (
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" className="min-w-[240px] justify-start text-left font-normal">
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {dateRange?.from ? (
+                          dateRange.to ? (
+                            <>
+                              {format(dateRange.from, "dd MMM yyyy")} - {format(dateRange.to, "dd MMM yyyy")}
+                            </>
+                          ) : (
+                            format(dateRange.from, "dd MMM yyyy")
+                          )
+                        ) : (
+                          <span>Pick a date range</span>
+                        )}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        initialFocus
+                        mode="range"
+                        defaultMonth={dateRange?.from}
+                        selected={dateRange}
+                        onSelect={setDateRange}
+                        numberOfMonths={2}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                )}
 
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Active Drivers</CardTitle>
-                <Users className="h-4 w-4 text-blue-600" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{activeDrivers}</div>
-                <p className="text-xs text-muted-foreground mt-1">Currently active</p>
-              </CardContent>
-            </Card>
-          </div>
+                <div className="ml-auto text-sm text-muted-foreground">
+                  Showing data for: <span className="font-medium text-foreground">{getDateRangeLabel()}</span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
 
-          {/* Reports Tabs */}
-          <Tabs defaultValue="driver-rates" className="w-full">
-            <TabsList>
-              <TabsTrigger value="driver-rates">Driver Rates</TabsTrigger>
-              <TabsTrigger value="invoices">Invoices</TabsTrigger>
-              <TabsTrigger value="analytics">Analytics</TabsTrigger>
-            </TabsList>
+          {/* Insights Content */}
+          <div className="space-y-6">
+            {loading ? (
+                <div className="flex justify-center p-12">
+                  <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary"></div>
+                </div>
+              ) : (
+                <>
+                  {/* Key Financial Metrics */}
+                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                    <Card className="border-l-4 border-l-emerald-500">
+                      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
+                        <PoundSterling className="h-4 w-4 text-emerald-600" />
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-2xl font-bold text-emerald-600">
+                          {formatCurrency(insights.totalRevenue)}
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Net amount (excl. VAT) from {insights.invoiceCount} invoice{insights.invoiceCount !== 1 ? 's' : ''}
+                        </p>
+                      </CardContent>
+                    </Card>
 
-            <TabsContent value="driver-rates" className="mt-6">
-              <Card>
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <CardTitle>Driver Performance & Rates</CardTitle>
-                      <CardDescription>Earnings breakdown by driver</CardDescription>
-                    </div>
-                    <Button onClick={exportDriverRates} variant="outline">
-                      <Download className="w-4 h-4 mr-2" />
-                      Export
-                    </Button>
+                    <Card className="border-l-4 border-l-orange-500">
+                      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">Total Payouts</CardTitle>
+                        <TrendingDown className="h-4 w-4 text-orange-600" />
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-2xl font-bold text-orange-600">
+                          {formatCurrency(insights.totalPayouts)}
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Paid to drivers via {insights.payslipCount} payslip{insights.payslipCount !== 1 ? 's' : ''}
+                        </p>
+                      </CardContent>
+                    </Card>
+
+                    <Card className={`border-l-4 ${insights.netProfit >= 0 ? 'border-l-blue-500' : 'border-l-red-500'}`}>
+                      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">Net Profit</CardTitle>
+                        <TrendingUp className={`h-4 w-4 ${insights.netProfit >= 0 ? 'text-blue-600' : 'text-red-600'}`} />
+                      </CardHeader>
+                      <CardContent>
+                        <div className={`text-2xl font-bold ${insights.netProfit >= 0 ? 'text-blue-600' : 'text-red-600'}`}>
+                          {formatCurrency(insights.netProfit)}
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {insights.profitMargin.toFixed(1)}% profit margin
+                        </p>
+                      </CardContent>
+                    </Card>
+
+                    <Card className="border-l-4 border-l-purple-500">
+                      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">Active Drivers</CardTitle>
+                        <Users className="h-4 w-4 text-purple-600" />
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-2xl font-bold text-purple-600">{activeDrivers}</div>
+                        <p className="text-xs text-muted-foreground mt-1">Currently active in system</p>
+                      </CardContent>
+                    </Card>
                   </div>
-                </CardHeader>
-                <CardContent>
-                  {loading ? (
-                    <div className="flex justify-center p-8">
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-                    </div>
-                  ) : (
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Driver Name</TableHead>
-                          <TableHead className="text-right">Total Routes</TableHead>
-                          <TableHead className="text-right">Total Earnings</TableHead>
-                          <TableHead className="text-right">Avg Per Route</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {driverRates.map((rate) => (
-                          <TableRow key={rate.driver_id}>
-                            <TableCell className="font-medium">{rate.driver_name}</TableCell>
-                            <TableCell className="text-right">{rate.total_routes}</TableCell>
-                            <TableCell className="text-right">${rate.total_earnings.toFixed(2)}</TableCell>
-                            <TableCell className="text-right">${rate.avg_per_route.toFixed(2)}</TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  )}
-                </CardContent>
-              </Card>
-            </TabsContent>
 
-            <TabsContent value="invoices" className="mt-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Invoice Management</CardTitle>
-                  <CardDescription>Dispatcher and driver invoices</CardDescription>
-                </CardHeader>
-                <CardContent className="p-8 text-center">
-                  <p className="text-muted-foreground">Invoice management coming soon</p>
-                </CardContent>
-              </Card>
-            </TabsContent>
+                  {/* Secondary Metrics */}
+                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                    <Card>
+                      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">Total Parcels Delivered</CardTitle>
+                        <Package className="h-4 w-4 text-cyan-600" />
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-2xl font-bold">{formatNumber(insights.totalParcels)}</div>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Across all invoices
+                        </p>
+                      </CardContent>
+                    </Card>
 
-            <TabsContent value="analytics" className="mt-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Financial Analytics</CardTitle>
-                  <CardDescription>Trends and insights</CardDescription>
-                </CardHeader>
-                <CardContent className="p-8 text-center">
-                  <p className="text-muted-foreground">Analytics dashboard coming soon</p>
-                </CardContent>
-              </Card>
-            </TabsContent>
-          </Tabs>
+                    <Card>
+                      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">Adjustments Impact</CardTitle>
+                        <AlertTriangle className={`h-4 w-4 ${insights.totalAdjustments >= 0 ? 'text-green-600' : 'text-amber-600'}`} />
+                      </CardHeader>
+                      <CardContent>
+                        <div className={`text-2xl font-bold ${insights.totalAdjustments >= 0 ? 'text-green-600' : 'text-amber-600'}`}>
+                          {formatCurrency(insights.totalAdjustments)}
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {insights.adjustmentCount} adjustment{insights.adjustmentCount !== 1 ? 's' : ''} recorded
+                        </p>
+                      </CardContent>
+                    </Card>
+
+                    <Card>
+                      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">VAT Collected</CardTitle>
+                        <FileText className="h-4 w-4 text-slate-600" />
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-2xl font-bold text-slate-600">{formatCurrency(insights.totalVAT)}</div>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Gross total: {formatCurrency(insights.totalGrossRevenue)}
+                        </p>
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  {/* Profitability Breakdown */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Profitability Breakdown</CardTitle>
+                      <CardDescription>Revenue vs Payouts analysis</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-medium">Revenue (Net)</span>
+                          <span className="text-sm font-bold text-emerald-600">{formatCurrency(insights.totalRevenue)}</span>
+                        </div>
+                        <div className="w-full bg-muted rounded-full h-3">
+                          <div 
+                            className="bg-emerald-500 h-3 rounded-full transition-all duration-500"
+                            style={{ width: '100%' }}
+                          />
+                        </div>
+
+                        <div className="flex items-center justify-between mt-4">
+                          <span className="text-sm font-medium">Driver Payouts</span>
+                          <span className="text-sm font-bold text-orange-600">{formatCurrency(insights.totalPayouts)}</span>
+                        </div>
+                        <div className="w-full bg-muted rounded-full h-3">
+                          <div 
+                            className="bg-orange-500 h-3 rounded-full transition-all duration-500"
+                            style={{ width: insights.totalRevenue > 0 ? `${Math.min((insights.totalPayouts / insights.totalRevenue) * 100, 100)}%` : '0%' }}
+                          />
+                        </div>
+
+                        <div className="flex items-center justify-between mt-4 pt-4 border-t">
+                          <span className="text-sm font-medium">Remaining (Net Profit)</span>
+                          <span className={`text-sm font-bold ${insights.netProfit >= 0 ? 'text-blue-600' : 'text-red-600'}`}>
+                            {formatCurrency(insights.netProfit)}
+                          </span>
+                        </div>
+                        <div className="w-full bg-muted rounded-full h-3">
+                          <div 
+                            className={`h-3 rounded-full transition-all duration-500 ${insights.netProfit >= 0 ? 'bg-blue-500' : 'bg-red-500'}`}
+                            style={{ width: insights.totalRevenue > 0 ? `${Math.max(Math.min((insights.netProfit / insights.totalRevenue) * 100, 100), 0)}%` : '0%' }}
+                          />
+                        </div>
+
+                        {insights.totalRevenue > 0 && (
+                          <div className="mt-4 p-4 bg-muted/50 rounded-lg">
+                            <p className="text-sm text-muted-foreground">
+                              For every £1.00 of revenue, <span className="font-semibold text-orange-600">{formatCurrency(insights.totalRevenue > 0 ? insights.totalPayouts / insights.totalRevenue : 0)}</span> goes to driver payouts, 
+                              leaving <span className={`font-semibold ${insights.netProfit >= 0 ? 'text-blue-600' : 'text-red-600'}`}>{formatCurrency(insights.totalRevenue > 0 ? insights.netProfit / insights.totalRevenue : 0)}</span> as profit.
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                </>
+              )}
+          </div>
         </div>
       </div>
     </AuthGuard>
