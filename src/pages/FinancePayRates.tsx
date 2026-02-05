@@ -67,7 +67,6 @@ const FinancePayRates = () => {
   const [supplierRatesLoading, setSupplierRatesLoading] = useState(true);
   const [isSupplierRateDialogOpen, setIsSupplierRateDialogOpen] = useState(false);
   const [editingSupplierRate, setEditingSupplierRate] = useState<SupplierRate | null>(null);
-  const [rateStatuses, setRateStatuses] = useState<Array<{ status_code: string; description: string | null }>>([]);
   const [supplierRateFormData, setSupplierRateFormData] = useState({
     rate_id: "",
     provider: "",
@@ -96,7 +95,6 @@ const FinancePayRates = () => {
     loadSupplierRates();
     loadDriverRates();
     loadDrivers();
-    loadRateStatuses();
   }, []);
 
   const loadSupplierRates = async () => {
@@ -200,24 +198,6 @@ const FinancePayRates = () => {
         variant: "destructive",
       });
       setDrivers([]);
-    }
-  };
-
-  const loadRateStatuses = async () => {
-    try {
-      const { data, error } = await supabase
-        .from("rate_status")
-        .select("status_code, description")
-        .order("status_code", { ascending: true });
-
-      if (error) throw error;
-      setRateStatuses(data || []);
-    } catch (error: any) {
-      toast({
-        title: "Error loading rate statuses",
-        description: error.message,
-        variant: "destructive",
-      });
     }
   };
 
@@ -680,21 +660,12 @@ const FinancePayRates = () => {
                 </div>
                 <div>
                   <Label htmlFor="sr_status">Status *</Label>
-                  <Select
+                  <Input
+                    id="sr_status"
                     value={supplierRateFormData.status}
-                    onValueChange={(value) => setSupplierRateFormData({ ...supplierRateFormData, status: value })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select a status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {rateStatuses.map((status) => (
-                        <SelectItem key={status.status_code} value={status.status_code}>
-                          {status.status_code} {status.description ? `- ${status.description}` : ""}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    onChange={(e) => setSupplierRateFormData({ ...supplierRateFormData, status: e.target.value })}
+                    placeholder="e.g., Weekday Rate"
+                  />
                 </div>
                 <div>
                   <Label htmlFor="sr_rate">Rate (£) *</Label>
