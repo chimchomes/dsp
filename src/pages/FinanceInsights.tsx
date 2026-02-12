@@ -73,9 +73,9 @@ const INSIGHTS: InsightDef[] = [
   { id: "net-adjustments", name: "Net Adjustments Per Driver", desc: "Total adjustments per driver", category: "adjustments", filters: ["dateRange", "driver", "invoice"] },
   { id: "adjustment-percentage", name: "% of Adjustments", desc: "Positive vs negative split", category: "adjustments", filters: ["dateRange", "driver", "invoice"] },
   { id: "adjustment-losses", name: "Adjustment Losses", desc: "Negative adjustments breakdown", category: "adjustments", filters: ["dateRange", "driver", "invoice"] },
-  { id: "net-income-supplier", name: "Net Income from Supplier", desc: "Total and per period income", category: "revenue", filters: ["dateRange", "invoice"] },
-  { id: "invoice-vs-payouts", name: "Invoice vs Driver Payouts", desc: "Margin per period/invoice", category: "revenue", filters: ["dateRange", "driver", "invoice"] },
-  { id: "paid-vs-unpaid", name: "Paid vs Unpaid Deliveries", desc: "Payment status breakdown", category: "revenue", filters: ["dateRange", "driver", "invoice", "tour"] },
+  { id: "net-income-supplier", name: "Net Income from Supplier", desc: "Total and per period income", category: "revenue", filters: ["dateRange", "invoiceMulti"] },
+  { id: "invoice-vs-payouts", name: "Invoice vs Driver Payouts", desc: "Margin per period/invoice", category: "revenue", filters: ["dateRange", "driver", "invoiceMulti"] },
+  { id: "paid-vs-unpaid", name: "Paid vs Unpaid Deliveries", desc: "Payment status breakdown", category: "revenue", filters: ["dateRange", "driver", "invoiceMulti", "tour"] },
   { id: "deliveries-by-route", name: "Total Deliveries by Route", desc: "Per tour/route totals", category: "routes", filters: ["dateRange", "driver", "invoice", "tour"] },
   { id: "best-worst-routes", name: "Best/Worst Routes", desc: "Ranked by performance", category: "routes", filters: ["dateRange", "driver", "invoice"] },
   { id: "most-profitable-route", name: "Most Profitable Route", desc: "Revenue vs cost per route", category: "routes", filters: ["dateRange", "driver", "invoice"] },
@@ -196,7 +196,9 @@ const FinanceInsights = () => {
     if (opts.dateField && dateRange?.to) query = query.lte(opts.dateField, format(dateRange.to, "yyyy-MM-dd"));
     if (opts.opField && selectedOperatorId()) query = query.eq(opts.opField, selectedOperatorId());
     if (opts.driverIdField && selectedDriver !== "all") query = query.eq(opts.driverIdField, selectedDriver);
-    if (opts.invField && selectedInvoice !== "all") query = query.eq(opts.invField, selectedInvoice);
+    // Support both single-select and multi-select invoices
+    if (opts.invField && selectedInvoices.length > 0) query = query.in(opts.invField, selectedInvoices);
+    else if (opts.invField && selectedInvoice !== "all") query = query.eq(opts.invField, selectedInvoice);
     if (opts.tourField && selectedTour !== "all") query = query.eq(opts.tourField, selectedTour);
     return query;
   };
@@ -523,15 +525,46 @@ const FinanceInsights = () => {
 
   // 11. Invoice vs Driver Payouts
   const runInvoiceVsPayouts = async () => {
+    // 1. Fetch payslips first (driver + date + invoice filters all apply)
+    let payQ = supabase.from("payslips").select("invoice_number, net_pay, driver_id, invoice_date");
+    payQ = applyFilters(payQ, { dateField: "invoice_date", driverIdField: "driver_id", invField: "invoice_number" });
+    const payRes = await payQ;
+    if (payRes.error) throw payRes.error;
+
+    const payoutMap: Record<string, number> = {};
+    (payRes.data || []).forEach((p: any) => {
+      payoutMap[p.invoice_number] = (payoutMap[p.invoice_number] || 0) + Number(p.net_pay || 0);
+    });
+
+    // 2. Build invoice query — when a driver is selected, only include
+    //    invoices that driver actually worked on so cards reflect the filter
     let invQ = supabase.from("invoices").select("invoice_number, invoice_date, net_total");
     invQ = applyFilters(invQ, { dateField: "invoice_date", invField: "invoice_number" });
-    let payQ = supabase.from("payslips").select("invoice_number, net_pay, driver_id");
-    payQ = applyFilters(payQ, { driverIdField: "driver_id", invField: "invoice_number" });
-    const [invRes, payRes] = await Promise.all([invQ, payQ]);
+
+    if (selectedDriver !== "all") {
+      const driverInvoiceNums = [...new Set((payRes.data || []).map((p: any) => p.invoice_number))];
+      if (driverInvoiceNums.length > 0) {
+        invQ = invQ.in("invoice_number", driverInvoiceNums);
+      } else {
+        // Driver has no payslips — show empty
+        setReportData({
+          chartData: [],
+          summary: [
+            { label: "Total Revenue", value: fmt(0) },
+            { label: "Total Payouts", value: fmt(0) },
+            { label: "Net Margin", value: fmt(0) },
+            { label: "Margin %", value: "N/A" },
+          ],
+          tableHeaders: ["Invoice", "Revenue", "Driver Payouts", "Margin", "Margin %"],
+          tableRows: [],
+        });
+        return;
+      }
+    }
+
+    const invRes = await invQ;
     if (invRes.error) throw invRes.error;
-    if (payRes.error) throw payRes.error;
-    const payoutMap: Record<string, number> = {};
-    (payRes.data || []).forEach((p: any) => { payoutMap[p.invoice_number] = (payoutMap[p.invoice_number] || 0) + Number(p.net_pay || 0); });
+
     const chartData = (invRes.data || []).map((inv: any) => {
       const revenue = Number(inv.net_total || 0);
       const payouts = payoutMap[inv.invoice_number] || 0;
@@ -761,7 +794,6 @@ const FinanceInsights = () => {
       summary: [
         { label: "Total Expenses", value: fmt(totalAmount) },
         { label: "Total Reclaimable VAT", value: fmt(totalReclaimableVat), color: "text-green-600" },
-        { label: "Reclaimable Amount", value: fmt(totalReclaimableAmount) },
         { label: "Non-Reclaimable", value: fmt(totalNonReclaimableAmount), color: "text-red-600" },
       ],
       tableHeaders: ["Date", "Category", "Description", "Amount", "Reclaimable", "VAT Amount", "Status"],
@@ -954,8 +986,8 @@ const FinanceInsights = () => {
       const d = drivers.find(dr => dr.id === selectedDriver);
       filtersText += `Driver: ${d ? driverNameById(d.id) : selectedDriver} | `;
     }
-    if (selectedInvoice !== "all") filtersText += `Invoice: ${selectedInvoice} | `;
     if (selectedInvoices.length > 0) filtersText += `Invoices: ${selectedInvoices.join(", ")} | `;
+    else if (selectedInvoice !== "all") filtersText += `Invoice: ${selectedInvoice} | `;
     if (selectedTour !== "all") filtersText += `Tour: ${selectedTour} | `;
 
     // VAT Liability uses a special PDF format per user spec
@@ -1028,7 +1060,7 @@ const FinanceInsights = () => {
   <h1>${insight.name}</h1>
   <div class="sub">DSP Portal Finance Insights &mdash; Generated ${new Date().toLocaleDateString("en-GB")} at ${new Date().toLocaleTimeString("en-GB")}</div>
   ${vatPeriodHtml}
-  ${filtersText && !vatPeriodHtml ? `<div class="filters">Filters: ${filtersText.replace(/\| $/, "")}</div>` : ""}
+  ${filtersText ? `<div class="filters"><strong>Filtered by:</strong> ${filtersText.replace(/\| $/, "")}</div>` : `<div class="filters"><strong>Filtered by:</strong> All data (no filters applied)</div>`}
   ${summaryHtml}
   ${chartSvg ? `<div class="chart">${chartSvg}</div>` : ""}
   ${tableHtml}
@@ -1497,6 +1529,26 @@ const FinanceInsights = () => {
           {/* Results */}
           {!loading && reportData && (
             <div id="insights-report-content" className="space-y-6">
+              {/* Active Filters Indicator */}
+              {(() => {
+                const parts: string[] = [];
+                if (dateRange?.from) parts.push(`Period: ${format(dateRange.from, "dd/MM/yyyy")}${dateRange.to ? ` – ${format(dateRange.to, "dd/MM/yyyy")}` : ""}`);
+                if (selectedDriver !== "all") {
+                  const d = drivers.find(dr => dr.id === selectedDriver);
+                  parts.push(`Driver: ${d ? (d.first_name && d.surname ? `${d.first_name} ${d.surname}` : d.name || d.email || d.id) : selectedDriver}`);
+                }
+                if (selectedInvoices.length > 0) parts.push(`Invoices: ${selectedInvoices.join(", ")}`);
+                else if (selectedInvoice !== "all") parts.push(`Invoice: ${selectedInvoice}`);
+                if (selectedTour !== "all") parts.push(`Tour: ${selectedTour}`);
+                if (parts.length === 0) return null;
+                return (
+                  <div className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-primary/5 border border-primary/20 text-sm">
+                    <span className="font-semibold text-primary">Filtered by:</span>
+                    <span className="text-muted-foreground">{parts.join(" · ")}</span>
+                  </div>
+                );
+              })()}
+
               {/* Summary Cards */}
               {reportData.summary && reportData.summary.length > 0 && (
                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
