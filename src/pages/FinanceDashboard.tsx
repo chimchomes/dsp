@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { AuthGuard } from "@/components/AuthGuard";
-import { ArrowLeft, DollarSign, FileText, Users, Calculator, Upload, CreditCard, Settings, Receipt } from "lucide-react";
+import { ArrowLeft, DollarSign, FileText, Users, Calculator, Upload, CreditCard, Settings, Receipt, Building2 } from "lucide-react";
 // DollarSign is used for the header icon
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
@@ -92,6 +92,15 @@ const FinanceDashboard = () => {
       bgColor: "bg-teal-50 dark:bg-teal-950/30",
       route: "/finance/generate-payslip",
       stats: "Create payslips"
+    },
+    {
+      title: "Company Settings",
+      description: "Manage company details for reports and VAT documents",
+      icon: Building2,
+      color: "text-slate-600",
+      bgColor: "bg-slate-50 dark:bg-slate-950/30",
+      route: "/finance/settings",
+      stats: "Edit details"
     }
   ];
 

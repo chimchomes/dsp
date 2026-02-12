@@ -7,7 +7,8 @@ import {
   Home,
   FileText,
   User,
-  BarChart3
+  BarChart3,
+  Receipt
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useEffect, useState } from "react";
@@ -53,6 +54,12 @@ const Sidebar = () => {
       title: "Finance",
       icon: DollarSign,
       href: "/finance",
+      roles: ["admin", "finance"]
+    },
+    {
+      title: "Expenses",
+      icon: Receipt,
+      href: "/finance/expenses",
       roles: ["admin", "finance"]
     },
     {

@@ -16,7 +16,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import {
   ArrowLeft, Download, CalendarIcon, Loader2, Users, PoundSterling,
-  TrendingUp, MapPin, BarChart3, Percent, Play,
+  TrendingUp, MapPin, BarChart3, Percent, Play, Receipt,
 } from "lucide-react";
 import { format } from "date-fns";
 import { DateRange } from "react-day-picker";
@@ -24,10 +24,11 @@ import {
   BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, AreaChart, Area,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from "recharts";
+import { MultiSelect } from "@/components/ui/multi-select";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
-type InsightCategory = "driver-pay" | "adjustments" | "revenue" | "routes";
+type InsightCategory = "driver-pay" | "adjustments" | "revenue" | "routes" | "vat-expenses";
 
 interface InsightDef {
   id: string;
@@ -79,6 +80,9 @@ const INSIGHTS: InsightDef[] = [
   { id: "best-worst-routes", name: "Best/Worst Routes", desc: "Ranked by performance", category: "routes", filters: ["dateRange", "driver", "invoice"] },
   { id: "most-profitable-route", name: "Most Profitable Route", desc: "Revenue vs cost per route", category: "routes", filters: ["dateRange", "driver", "invoice"] },
   { id: "busy-periods", name: "Identify Busy Periods", desc: "Volume patterns over time", category: "routes", filters: ["dateRange", "tour"] },
+  { id: "vat-total-reclaimable", name: "Total Amount We Can Reclaim", desc: "From expenses marked reclaimable, calculate what we can reclaim", category: "vat-expenses", filters: ["dateRange"] },
+  { id: "vat-output", name: "Output VAT (Received)", desc: "Cumulative VAT from invoices", category: "vat-expenses", filters: ["dateRange", "invoiceMulti"] },
+  { id: "vat-liability", name: "VAT Liability", desc: "VAT received minus VAT reclaimable from expenses = Total liability", category: "vat-expenses", filters: ["dateRange", "invoiceMulti"] },
 ];
 
 const CATEGORY_META: Record<InsightCategory, { label: string; icon: React.ElementType }> = {
@@ -86,6 +90,7 @@ const CATEGORY_META: Record<InsightCategory, { label: string; icon: React.Elemen
   adjustments: { label: "Adjustments", icon: Percent },
   revenue: { label: "Revenue & Profitability", icon: PoundSterling },
   routes: { label: "Route / Tour Analysis", icon: MapPin },
+  "vat-expenses": { label: "VAT & Expenses", icon: Receipt },
 };
 
 const fmt = (n: number) =>
@@ -135,6 +140,7 @@ const FinanceInsights = () => {
   const [dateRange, setDateRange] = useState<DateRange | undefined>();
   const [selectedDriver, setSelectedDriver] = useState("all");
   const [selectedInvoice, setSelectedInvoice] = useState("all");
+  const [selectedInvoices, setSelectedInvoices] = useState<string[]>([]);
   const [selectedTour, setSelectedTour] = useState("all");
 
   // Filter options
@@ -222,6 +228,9 @@ const FinanceInsights = () => {
         case "best-worst-routes": await runBestWorstRoutes(); break;
         case "most-profitable-route": await runMostProfitableRoute(); break;
         case "busy-periods": await runBusyPeriods(); break;
+        case "vat-total-reclaimable": await runVatTotalReclaimable(); break;
+        case "vat-output": await runVatOutput(); break;
+        case "vat-liability": await runVatLiability(); break;
         default: break;
       }
     } catch (err: any) {
@@ -722,11 +731,194 @@ const FinanceInsights = () => {
     });
   };
 
+  // ── VAT & Expenses Reports ─────────────────────────────────────────────────
+
+  // 17. Total Amount We Can Reclaim
+  const runVatTotalReclaimable = async () => {
+    let q = supabase.from("internal_expenses").select("*");
+    if (dateRange?.from) q = q.gte("date", format(dateRange.from, "yyyy-MM-dd"));
+    if (dateRange?.to) q = q.lte("date", format(dateRange.to, "yyyy-MM-dd"));
+    q = q.order("date", { ascending: false });
+    const { data, error } = await q;
+    if (error) throw error;
+
+    const expenses = (data || []) as any[];
+    const totalAmount = expenses.reduce((s: number, e: any) => s + Number(e.amount || 0), 0);
+    const reclaimable = expenses.filter((e: any) => e.reclaimable_vat);
+    const nonReclaimable = expenses.filter((e: any) => !e.reclaimable_vat);
+    const totalReclaimableVat = reclaimable.reduce((s: number, e: any) => s + Number(e.vat_amount || 0), 0);
+    const totalReclaimableAmount = reclaimable.reduce((s: number, e: any) => s + Number(e.amount || 0), 0);
+    const totalNonReclaimableAmount = nonReclaimable.reduce((s: number, e: any) => s + Number(e.amount || 0), 0);
+
+    const chartData = [
+      { name: "Reclaimable VAT", value: totalReclaimableVat, fill: "#10b981" },
+      { name: "Reclaimable Expenses", value: totalReclaimableAmount, fill: "#3b82f6" },
+      { name: "Non-Reclaimable", value: totalNonReclaimableAmount, fill: "#ef4444" },
+    ];
+
+    setReportData({
+      chartData,
+      summary: [
+        { label: "Total Expenses", value: fmt(totalAmount) },
+        { label: "Total Reclaimable VAT", value: fmt(totalReclaimableVat), color: "text-green-600" },
+        { label: "Reclaimable Amount", value: fmt(totalReclaimableAmount) },
+        { label: "Non-Reclaimable", value: fmt(totalNonReclaimableAmount), color: "text-red-600" },
+      ],
+      tableHeaders: ["Date", "Category", "Description", "Amount", "Reclaimable", "VAT Amount", "Status"],
+      tableRows: expenses.map((e: any) => [
+        fmtDate(e.date),
+        e.category,
+        e.description || "-",
+        fmt(Number(e.amount)),
+        e.reclaimable_vat ? "Yes (20%)" : "No",
+        fmt(Number(e.vat_amount)),
+        e.status,
+      ]),
+    });
+  };
+
+  // 18. Output VAT (from invoices) - multi-select invoice support
+  const runVatOutput = async () => {
+    let q = supabase.from("invoices").select("invoice_number, invoice_date, net_total, vat, gross_total");
+    if (dateRange?.from) q = q.gte("invoice_date", format(dateRange.from, "yyyy-MM-dd"));
+    if (dateRange?.to) q = q.lte("invoice_date", format(dateRange.to, "yyyy-MM-dd"));
+    if (selectedInvoices.length > 0) q = q.in("invoice_number", selectedInvoices);
+    q = q.order("invoice_date", { ascending: true });
+    const { data, error } = await q;
+    if (error) throw error;
+
+    const invoices = (data || []) as any[];
+    const totalOutputVat = invoices.reduce((s: number, inv: any) => s + Number(inv.vat || 0), 0);
+    const totalNetTotal = invoices.reduce((s: number, inv: any) => s + Number(inv.net_total || 0), 0);
+    const totalGrossTotal = invoices.reduce((s: number, inv: any) => s + Number(inv.gross_total || 0), 0);
+
+    const chartData = invoices.map((inv: any) => ({
+      name: inv.invoice_number,
+      date: fmtDate(inv.invoice_date),
+      vat: Number(inv.vat || 0),
+    }));
+
+    setReportData({
+      chartData,
+      summary: [
+        { label: "Total Output VAT", value: fmt(totalOutputVat), color: "text-blue-600" },
+        { label: "Total Net", value: fmt(totalNetTotal) },
+        { label: "Total Gross", value: fmt(totalGrossTotal) },
+        { label: "Invoices", value: invoices.length.toString() },
+      ],
+      tableHeaders: ["Invoice", "Date", "Net Total", "VAT", "Gross Total"],
+      tableRows: invoices.map((inv: any) => [
+        inv.invoice_number,
+        fmtDate(inv.invoice_date),
+        fmt(Number(inv.net_total || 0)),
+        fmt(Number(inv.vat || 0)),
+        fmt(Number(inv.gross_total || 0)),
+      ]),
+    });
+  };
+
+  // 19. VAT Liability (Output - Input) - multi-select invoice support
+  const runVatLiability = async () => {
+    // Fetch Output VAT (invoices) with multi-select
+    let invQ = supabase.from("invoices").select("invoice_number, invoice_date, net_total, vat, gross_total");
+    if (dateRange?.from) invQ = invQ.gte("invoice_date", format(dateRange.from, "yyyy-MM-dd"));
+    if (dateRange?.to) invQ = invQ.lte("invoice_date", format(dateRange.to, "yyyy-MM-dd"));
+    if (selectedInvoices.length > 0) invQ = invQ.in("invoice_number", selectedInvoices);
+    invQ = invQ.order("invoice_date", { ascending: true });
+    const { data: invData, error: invError } = await invQ;
+    if (invError) throw invError;
+
+    // Fetch Input VAT (reclaimable expenses) for same date range
+    let expQ = supabase.from("internal_expenses").select("*").eq("reclaimable_vat", true);
+    if (dateRange?.from) expQ = expQ.gte("date", format(dateRange.from, "yyyy-MM-dd"));
+    if (dateRange?.to) expQ = expQ.lte("date", format(dateRange.to, "yyyy-MM-dd"));
+    const { data: expData, error: expError } = await expQ;
+    if (expError) throw expError;
+
+    const invoices = (invData || []) as any[];
+    const expenses = (expData || []) as any[];
+    const outputVat = invoices.reduce((s: number, inv: any) => s + Number(inv.vat || 0), 0);
+    const inputVat = expenses.reduce((s: number, e: any) => s + Number(e.vat_amount || 0), 0);
+    const liability = outputVat - inputVat;
+
+    const chartData = [
+      { name: "Output VAT", value: outputVat, fill: "#3b82f6" },
+      { name: "Input VAT (Reclaimable)", value: inputVat, fill: "#f59e0b" },
+      { name: "VAT Liability", value: Math.abs(liability), fill: liability >= 0 ? "#ef4444" : "#10b981" },
+    ];
+
+    // Build full breakdown table rows
+    const tableRows: (string | number)[][] = [];
+    // Invoice rows
+    invoices.forEach((inv: any) => {
+      tableRows.push([
+        "Output VAT",
+        inv.invoice_number,
+        fmtDate(inv.invoice_date),
+        fmt(Number(inv.net_total || 0)),
+        fmt(Number(inv.vat || 0)),
+        fmt(Number(inv.gross_total || 0)),
+      ]);
+    });
+    // Expense rows
+    expenses.forEach((e: any) => {
+      tableRows.push([
+        "Input VAT",
+        e.category,
+        fmtDate(e.date),
+        fmt(Number(e.amount || 0)),
+        fmt(Number(e.vat_amount || 0)),
+        e.description || "-",
+      ]);
+    });
+    // Summary row
+    tableRows.push(["", "", "", "", "", ""]);
+    tableRows.push(["TOTAL OUTPUT VAT", "", "", "", fmt(outputVat), ""]);
+    tableRows.push(["TOTAL INPUT VAT", "", "", "", fmt(inputVat), ""]);
+    tableRows.push(["TOTAL VAT LIABILITY", "", "", "", fmt(liability), ""]);
+
+    setReportData({
+      chartData,
+      summary: [
+        { label: "Output VAT", value: fmt(outputVat), color: "text-blue-600" },
+        { label: "Input VAT", value: fmt(inputVat), color: "text-orange-600" },
+        { label: "VAT Liability", value: fmt(liability), color: liability >= 0 ? "text-red-600" : "text-green-600" },
+      ],
+      tableHeaders: ["Type", "Reference", "Date", "Net/Amount", "VAT", "Gross/Desc"],
+      tableRows,
+    });
+  };
+
   // ── PDF Export ──────────────────────────────────────────────────────────────
 
-  const handleDownloadPDF = () => {
+  const handleDownloadPDF = async () => {
     const insight = INSIGHTS.find(i => i.id === selectedInsight);
     if (!insight || !reportData) return;
+
+    // Fetch company details for header
+    let companyHtml = "";
+    try {
+      const { data: companyData } = await supabase
+        .from("company_details")
+        .select("*")
+        .limit(1)
+        .maybeSingle();
+      if (companyData) {
+        const cd = companyData as any;
+        const addressParts = [cd.address_line_1, cd.address_line_2, cd.address_line_3, cd.address_line_4].filter(Boolean).join(", ");
+        companyHtml = `<div style="border-bottom:2px solid #333;padding-bottom:16px;margin-bottom:20px">
+          <div style="font-size:18px;font-weight:700">${cd.company_name || ""}</div>
+          ${addressParts ? `<div style="font-size:12px;color:#555;margin-top:4px">${addressParts}</div>` : ""}
+          ${cd.postcode ? `<div style="font-size:12px;color:#555">${cd.postcode}</div>` : ""}
+          <div style="display:flex;gap:24px;margin-top:8px;font-size:12px;color:#555">
+            ${cd.company_number ? `<span>Company No: <strong>${cd.company_number}</strong></span>` : ""}
+            ${cd.vat_registration_number ? `<span>VAT Reg No: <strong>${cd.vat_registration_number}</strong></span>` : ""}
+          </div>
+        </div>`;
+      }
+    } catch (err) {
+      console.error("Error loading company details for PDF:", err);
+    }
 
     // Grab chart SVG from DOM
     const chartEl = document.getElementById("insights-chart-container");
@@ -763,7 +955,64 @@ const FinanceInsights = () => {
       filtersText += `Driver: ${d ? driverNameById(d.id) : selectedDriver} | `;
     }
     if (selectedInvoice !== "all") filtersText += `Invoice: ${selectedInvoice} | `;
+    if (selectedInvoices.length > 0) filtersText += `Invoices: ${selectedInvoices.join(", ")} | `;
     if (selectedTour !== "all") filtersText += `Tour: ${selectedTour} | `;
+
+    // VAT Liability uses a special PDF format per user spec
+    if (selectedInsight === "vat-liability" && reportData.summary) {
+      const outputVatVal = reportData.summary.find(s => s.label === "Output VAT")?.value || "£0.00";
+      const inputVatVal = reportData.summary.find(s => s.label === "Input VAT")?.value || "£0.00";
+      const liabilityVal = reportData.summary.find(s => s.label === "VAT Liability")?.value || "£0.00";
+      const vatPeriod = dateRange?.from
+        ? `${format(dateRange.from, "dd/MM/yyyy")}${dateRange.to ? ` – ${format(dateRange.to, "dd/MM/yyyy")}` : ""}`
+        : "All dates";
+
+      // Fetch company details
+      let cd: any = {};
+      try {
+        const { data: compData } = await supabase.from("company_details").select("*").limit(1).maybeSingle();
+        if (compData) cd = compData;
+      } catch {}
+
+      const addressParts = [cd.address_line_1, cd.address_line_2, cd.address_line_3, cd.address_line_4, cd.postcode].filter(Boolean).join(", ");
+
+      const vatHtml = `<!DOCTYPE html><html><head><title>VAT Liability - DSP Portal</title>
+<style>
+  body{font-family:Arial,Helvetica,sans-serif;padding:40px;color:#1a1a1a;max-width:800px;margin:0 auto}
+  .field{margin-bottom:8px;font-size:14px}
+  .field strong{display:inline-block;min-width:220px}
+  .section{margin-top:24px;padding-top:16px;border-top:1px solid #ccc}
+  .total{font-size:18px;font-weight:700;margin-top:16px;padding-top:12px;border-top:2px solid #333}
+  @media print{body{padding:20px}}
+</style></head><body>
+  <h1 style="font-size:20px;margin-bottom:24px">VAT Return Summary</h1>
+  <div class="field"><strong>COMPANY NAME:</strong> ${cd.company_name || "—"}</div>
+  <div class="field"><strong>ADDRESS:</strong> ${addressParts || "—"}</div>
+  <div class="field"><strong>COMPANY NO:</strong> ${cd.company_number || "—"}</div>
+  <div class="field"><strong>VAT REGISTRATION NO:</strong> ${cd.vat_registration_number || "—"}</div>
+  <div class="section">
+    <div class="field"><strong>VAT PERIOD:</strong> ${vatPeriod}</div>
+    <div class="field"><strong>OUTPUT VAT:</strong> ${outputVatVal}</div>
+    <div class="field"><strong>INPUT VAT:</strong> ${inputVatVal}</div>
+  </div>
+  <div class="total"><strong>TOTAL VAT LIABILITY:</strong> ${liabilityVal}</div>
+  <div style="margin-top:32px;font-size:11px;color:#888">Generated ${new Date().toLocaleDateString("en-GB")} at ${new Date().toLocaleTimeString("en-GB")} — DSP Portal</div>
+</body></html>`;
+
+      const w = window.open("", "_blank");
+      if (w) { w.document.write(vatHtml); w.document.close(); w.onload = () => setTimeout(() => w.print(), 500); }
+      return;
+    }
+
+    // VAT-specific header for other VAT reports
+    let vatPeriodHtml = "";
+    if (insight.category === "vat-expenses" && reportData.summary) {
+      vatPeriodHtml = `<div style="margin-bottom:16px;padding:12px;background:#f0f4ff;border-radius:6px;font-size:13px">
+        <div style="display:flex;gap:24px;flex-wrap:wrap">
+          ${filtersText ? `<div><strong>VAT Period:</strong> ${filtersText.replace(/\| $/, "")}</div>` : "<div><strong>VAT Period:</strong> All dates</div>"}
+        </div>
+      </div>`;
+    }
 
     const html = `<!DOCTYPE html><html><head><title>${insight.name} - DSP Portal</title>
 <style>
@@ -775,9 +1024,11 @@ const FinanceInsights = () => {
   .chart svg{max-width:100%;height:auto}
   @media print{body{padding:10px}}
 </style></head><body>
+  ${companyHtml}
   <h1>${insight.name}</h1>
   <div class="sub">DSP Portal Finance Insights &mdash; Generated ${new Date().toLocaleDateString("en-GB")} at ${new Date().toLocaleTimeString("en-GB")}</div>
-  ${filtersText ? `<div class="filters">Filters: ${filtersText.replace(/\| $/, "")}</div>` : ""}
+  ${vatPeriodHtml}
+  ${filtersText && !vatPeriodHtml ? `<div class="filters">Filters: ${filtersText.replace(/\| $/, "")}</div>` : ""}
   ${summaryHtml}
   ${chartSvg ? `<div class="chart">${chartSvg}</div>` : ""}
   ${tableHtml}
@@ -1019,6 +1270,46 @@ const FinanceInsights = () => {
           </div>
         );
 
+      case "vat-total-reclaimable":
+        return (
+          <ResponsiveContainer width="100%" height={350}>
+            <PieChart>
+              <Pie data={d} cx="50%" cy="50%" labelLine outerRadius={120}
+                dataKey="value" nameKey="name"
+                label={({ name, value }: any) => `${name}: ${fmt(value)}`}>
+                {d.map((entry: any, i: number) => <Cell key={i} fill={entry.fill} />)}
+              </Pie>
+              <Tooltip content={<CurrTooltip />} /><Legend />
+            </PieChart>
+          </ResponsiveContainer>
+        );
+
+      case "vat-output":
+        return (
+          <ResponsiveContainer width="100%" height={400}>
+            <BarChart data={d}><CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="name" angle={-20} textAnchor="end" height={80} fontSize={11} />
+              <YAxis tickFormatter={v => `£${v}`} />
+              <Tooltip content={<CurrTooltip />} /><Legend />
+              <Bar dataKey="vat" name="VAT" fill={COLORS[0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        );
+
+      case "vat-liability":
+        return (
+          <ResponsiveContainer width="100%" height={350}>
+            <BarChart data={d}><CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="name" fontSize={13} />
+              <YAxis tickFormatter={v => `£${v}`} />
+              <Tooltip content={<CurrTooltip />} />
+              <Bar dataKey="value" name="Amount">
+                {d.map((entry: any, i: number) => <Cell key={i} fill={entry.fill} />)}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        );
+
       default:
         return null;
     }
@@ -1058,7 +1349,7 @@ const FinanceInsights = () => {
 
           {/* Category Tabs */}
           <Tabs value={activeCategory} onValueChange={(v) => { setActiveCategory(v as InsightCategory); setSelectedInsight(""); setReportData(null); }} className="print:hidden">
-            <TabsList className="grid w-full grid-cols-4">
+            <TabsList className="grid w-full grid-cols-5">
               {(Object.keys(CATEGORY_META) as InsightCategory[]).map(cat => {
                 const meta = CATEGORY_META[cat];
                 const Icon = meta.icon;
@@ -1153,6 +1444,20 @@ const FinanceInsights = () => {
                     </div>
                   )}
 
+                  {/* Invoice Multi-Select (for VAT reports) */}
+                  {currentInsight.filters.includes("invoiceMulti") && (
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-medium text-muted-foreground">Invoices</label>
+                      <MultiSelect
+                        options={invoiceNumbers.map(inv => ({ label: inv, value: inv }))}
+                        selected={selectedInvoices}
+                        onChange={setSelectedInvoices}
+                        placeholder="All Invoices"
+                        className="w-[260px]"
+                      />
+                    </div>
+                  )}
+
                   {/* Tour */}
                   {currentInsight.filters.includes("tour") && (
                     <div className="space-y-1.5">
@@ -1173,7 +1478,7 @@ const FinanceInsights = () => {
                     Run Report
                   </Button>
                   <Button variant="ghost" className="h-10" onClick={() => {
-                    setDateRange(undefined); setSelectedDriver("all"); setSelectedInvoice("all"); setSelectedTour("all");
+                    setDateRange(undefined); setSelectedDriver("all"); setSelectedInvoice("all"); setSelectedInvoices([]); setSelectedTour("all");
                   }}>
                     Reset Filters
                   </Button>
