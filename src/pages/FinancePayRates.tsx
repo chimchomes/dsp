@@ -62,7 +62,7 @@ const FinancePayRates = () => {
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState("supplier-rates");
   
-  // Supplier Rates state
+  // Internal Rates state
   const [supplierRates, setSupplierRates] = useState<SupplierRate[]>([]);
   const [supplierRatesLoading, setSupplierRatesLoading] = useState(true);
   const [isSupplierRateDialogOpen, setIsSupplierRateDialogOpen] = useState(false);
@@ -109,7 +109,7 @@ const FinancePayRates = () => {
       setSupplierRates(data || []);
     } catch (error: any) {
       toast({
-        title: "Error loading supplier rates",
+        title: "Error loading internal rates",
         description: error.message,
         variant: "destructive",
       });
@@ -201,7 +201,7 @@ const FinancePayRates = () => {
     }
   };
 
-  // Supplier Rates handlers
+  // Internal Rates handlers
   const handleOpenSupplierRateDialog = (rate?: SupplierRate) => {
     if (rate) {
       setEditingSupplierRate(rate);
@@ -246,6 +246,24 @@ const FinancePayRates = () => {
         return;
       }
 
+      // Check for duplicate rate_id (skip if editing and rate_id hasn't changed)
+      if (!editingSupplierRate || editingSupplierRate.rate_id !== supplierRateFormData.rate_id) {
+        const { data: existingRate } = await supabase
+          .from("supplier_rates")
+          .select("id")
+          .eq("rate_id", supplierRateFormData.rate_id)
+          .maybeSingle();
+
+        if (existingRate) {
+          toast({
+            title: "Duplicate Rate ID",
+            description: `A rate with ID "${supplierRateFormData.rate_id}" already exists. Rate IDs must be unique.`,
+            variant: "destructive",
+          });
+          return;
+        }
+      }
+
       if (editingSupplierRate) {
         const { error } = await supabase
           .from("supplier_rates")
@@ -260,7 +278,28 @@ const FinancePayRates = () => {
           .eq("id", editingSupplierRate.id);
 
         if (error) throw error;
-        toast({ title: "Success", description: "Supplier rate updated successfully" });
+
+        // Cascade update to driver_rates table
+        // This ensures that all drivers linked to this rate_id get the updated rate value
+        // which is critical for correct payslip generation.
+        const { error: cascadeError } = await supabase
+          .from("driver_rates")
+          .update({ 
+            rate: rateValue,
+            updated_at: new Date().toISOString()
+          })
+          .eq("rate_id", editingSupplierRate.rate_id);
+
+        if (cascadeError) {
+          console.error("Error cascading rate update to driver_rates:", cascadeError);
+          toast({
+            title: "Partial Success",
+            description: "Internal rate updated, but failed to sync driver rates. Please check driver rates manually.",
+            variant: "destructive",
+          });
+        } else {
+          toast({ title: "Success", description: "Internal rate and linked driver rates updated successfully" });
+        }
       } else {
         const { error } = await supabase
           .from("supplier_rates")
@@ -273,7 +312,7 @@ const FinancePayRates = () => {
           });
 
         if (error) throw error;
-        toast({ title: "Success", description: "Supplier rate created successfully" });
+        toast({ title: "Success", description: "Internal rate created successfully" });
       }
 
       setIsSupplierRateDialogOpen(false);
@@ -289,11 +328,11 @@ const FinancePayRates = () => {
   };
 
   const handleDeleteSupplierRate = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this supplier rate?")) return;
+    if (!confirm("Are you sure you want to delete this internal rate?")) return;
     try {
       const { error } = await supabase.from("supplier_rates").delete().eq("id", id);
       if (error) throw error;
-      toast({ title: "Success", description: "Supplier rate deleted successfully" });
+      toast({ title: "Success", description: "Internal rate deleted successfully" });
       loadSupplierRates();
     } catch (error: any) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -305,7 +344,9 @@ const FinancePayRates = () => {
     if (rate) {
       setEditingDriverRate(rate);
       const driver = drivers.find(d => d.id === rate.driver_id);
+      // Always use the current internal rate value so that updates to supplier_rates are reflected
       const supplierRate = supplierRates.find(r => r.rate_id === rate.rate_id);
+      const currentRate = supplierRate ? supplierRate.rate.toString() : rate.rate.toString();
       setDriverRateFormData({
         driver_id: rate.driver_id,
         first_name: driver?.first_name || "",
@@ -313,7 +354,7 @@ const FinancePayRates = () => {
         operator_id: driver?.operator_id || "",
         rate_lookup: rate.rate_id, // Set rate lookup to rate_id for display
         rate_id: rate.rate_id,
-        rate: rate.rate.toString(),
+        rate: currentRate,
       });
     } else {
       setEditingDriverRate(null);
@@ -486,7 +527,7 @@ const FinancePayRates = () => {
               <div>
                 <h1 className="text-3xl font-bold">Rates Management</h1>
                 <p className="text-muted-foreground mt-1">
-                  Manage supplier rates and driver rates
+                  Manage internal rates and driver rates
                 </p>
               </div>
             </div>
@@ -494,30 +535,30 @@ const FinancePayRates = () => {
 
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="supplier-rates">Supplier Rates</TabsTrigger>
+              <TabsTrigger value="supplier-rates">Internal Rates</TabsTrigger>
               <TabsTrigger value="driver-rates">Driver Rates</TabsTrigger>
             </TabsList>
 
-            {/* Supplier Rates Tab */}
+            {/* Internal Rates Tab */}
             <TabsContent value="supplier-rates" className="space-y-4">
               <div className="flex justify-end">
                 <Button onClick={() => handleOpenSupplierRateDialog()}>
                   <Plus className="w-4 h-4 mr-2" />
-                  Add Supplier Rate
+                  Add Internal Rate
                 </Button>
               </div>
               <Card>
                 <CardHeader>
-                  <CardTitle>Supplier Rates</CardTitle>
+                  <CardTitle>Internal Rates</CardTitle>
                   <CardDescription>
-                    Manage supplier rates by provider and supplier ID
+                    Manage internal rates by provider and supplier ID
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
                   {supplierRatesLoading ? (
                     <p className="text-muted-foreground">Loading...</p>
                   ) : supplierRates.length === 0 ? (
-                    <p className="text-muted-foreground">No supplier rates found. Add your first rate above.</p>
+                    <p className="text-muted-foreground">No internal rates found. Add your first rate above.</p>
                   ) : (
                     <Table>
                       <TableHeader>
@@ -592,13 +633,16 @@ const FinancePayRates = () => {
                       <TableBody>
                         {driverRates.map((rate) => {
                           const driver = drivers.find(d => d.id === rate.driver_id);
+                          // Show the current internal rate if available, otherwise fall back to stored rate
+                          const currentSupplierRate = supplierRates.find(r => r.rate_id === rate.rate_id);
+                          const displayRate = currentSupplierRate ? currentSupplierRate.rate : rate.rate;
                           return (
                             <TableRow key={rate.id}>
                               <TableCell className="font-medium">{driver?.first_name || "-"}</TableCell>
                               <TableCell>{driver?.surname || "-"}</TableCell>
                               <TableCell>{driver?.operator_id || "-"}</TableCell>
                               <TableCell>{rate.rate_id}</TableCell>
-                              <TableCell>£{rate.rate.toFixed(2)}</TableCell>
+                              <TableCell>£{displayRate.toFixed(2)}</TableCell>
                               <TableCell className="text-right">
                                 <div className="flex justify-end gap-2">
                                   <Button variant="ghost" size="sm" onClick={() => handleOpenDriverRateDialog(rate)}>
@@ -620,13 +664,13 @@ const FinancePayRates = () => {
             </TabsContent>
           </Tabs>
 
-          {/* Supplier Rate Dialog */}
+          {/* Internal Rate Dialog */}
           <Dialog open={isSupplierRateDialogOpen} onOpenChange={setIsSupplierRateDialogOpen}>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>{editingSupplierRate ? "Edit Supplier Rate" : "Add New Supplier Rate"}</DialogTitle>
+                <DialogTitle>{editingSupplierRate ? "Edit Internal Rate" : "Add New Internal Rate"}</DialogTitle>
                 <DialogDescription>
-                  {editingSupplierRate ? "Update the supplier rate information below." : "Enter the details for the new supplier rate."}
+                  {editingSupplierRate ? "Update the internal rate information below." : "Enter the details for the new internal rate."}
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4 py-4">

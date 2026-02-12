@@ -34,6 +34,7 @@ interface Payslip {
   driver_profiles?: {
     name: string;
     email: string;
+    national_insurance: string | null;
   };
 }
 
@@ -112,7 +113,8 @@ const FinancePayslips = () => {
           *,
           driver_profiles (
             name,
-            email
+            email,
+            national_insurance
           )
         `)
         .order("invoice_date", { ascending: false });
@@ -213,6 +215,7 @@ const FinancePayslips = () => {
       ['Period Start', new Date(payslip.period_start).toLocaleDateString()],
       ['Period End', new Date(payslip.period_end).toLocaleDateString()],
       ['Operator ID', payslip.operator_id],
+      ['NI Number', payslip.driver_profiles?.national_insurance || 'N/A'],
       ['Gross Pay', `£${payslip.gross_pay.toFixed(2)}`],
       ['Adjustments', `£${adjustmentTotal.toFixed(2)}`],
       ['Net Pay', `£${payslip.net_pay.toFixed(2)}`],
@@ -265,6 +268,7 @@ const FinancePayslips = () => {
             <div class="row"><span>Name:</span><span>${payslip.driver_profiles?.name || 'N/A'}</span></div>
             <div class="row"><span>Email:</span><span>${payslip.driver_profiles?.email || 'N/A'}</span></div>
             <div class="row"><span>Operator ID:</span><span>${payslip.operator_id}</span></div>
+            <div class="row"><span>NI Number:</span><span>${payslip.driver_profiles?.national_insurance || 'N/A'}</span></div>
           </div>
           
           <div class="section">
@@ -404,6 +408,7 @@ const FinancePayslips = () => {
                       <TableHead>Invoice Number</TableHead>
                       <TableHead>Period</TableHead>
                       <TableHead>Operator ID</TableHead>
+                      <TableHead>NI Number</TableHead>
                       <TableHead>Gross Pay</TableHead>
                       <TableHead>Adjustments</TableHead>
                       <TableHead>Net Pay</TableHead>
@@ -422,6 +427,7 @@ const FinancePayslips = () => {
                           {new Date(payslip.period_end).toLocaleDateString()}
                         </TableCell>
                         <TableCell>{payslip.operator_id}</TableCell>
+                        <TableCell>{payslip.driver_profiles?.national_insurance || "-"}</TableCell>
                         <TableCell>£{payslip.gross_pay.toFixed(2)}</TableCell>
                         <TableCell>
                           {(() => {

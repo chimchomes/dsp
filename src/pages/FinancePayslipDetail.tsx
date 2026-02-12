@@ -13,6 +13,7 @@ interface Driver {
   name: string;
   email: string;
   address: string | null;
+  national_insurance: string | null;
 }
 
 interface Payslip {
@@ -95,7 +96,7 @@ const FinancePayslipDetail = () => {
       // Load driver from driver_profiles (single source of truth)
       const { data: driverData, error: driverError } = await supabase
         .from("driver_profiles")
-        .select("id, name, email, address")
+        .select("id, name, email, address, national_insurance")
         .eq("id", payslipData.driver_id)
         .single();
 
@@ -376,6 +377,10 @@ const FinancePayslipDetail = () => {
               <span class="row-label">Address:</span>
               <span>${driver.address || "N/A"}</span>
             </div>
+            <div class="row">
+              <span class="row-label">NI Number:</span>
+              <span>${driver.national_insurance || "N/A"}</span>
+            </div>
           </div>
           
           <div class="section">
@@ -620,7 +625,7 @@ const FinancePayslipDetail = () => {
               <CardTitle>Driver Details</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid gap-4 md:grid-cols-3">
+              <div className="grid gap-4 md:grid-cols-4">
                 <div>
                   <p className="text-sm text-muted-foreground">Full Name</p>
                   <p className="font-medium">{driver.name}</p>
@@ -632,6 +637,10 @@ const FinancePayslipDetail = () => {
                 <div>
                   <p className="text-sm text-muted-foreground">Address</p>
                   <p className="font-medium">{driver.address || "N/A"}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">NI Number</p>
+                  <p className="font-medium">{driver.national_insurance || "N/A"}</p>
                 </div>
               </div>
             </CardContent>

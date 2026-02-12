@@ -13,7 +13,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ArrowLeft, Upload, Eye, FileText } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ArrowLeft, Upload, Eye, FileText, Search, X } from "lucide-react";
 
 interface Invoice {
   id: string;
@@ -35,6 +38,10 @@ const FinanceInvoices = () => {
   const { toast } = useToast();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [providerFilter, setProviderFilter] = useState("all");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
 
   useEffect(() => {
     loadInvoices();
@@ -59,6 +66,40 @@ const FinanceInvoices = () => {
       setLoading(false);
     }
   };
+
+  // Derive unique providers from loaded invoices for the filter dropdown
+  const uniqueProviders = Array.from(
+    new Set(invoices.map((inv) => inv.provider).filter(Boolean))
+  ) as string[];
+
+  // Apply client-side filters
+  const filteredInvoices = invoices.filter((invoice) => {
+    // Text search on invoice number
+    if (searchTerm && !invoice.invoice_number.toLowerCase().includes(searchTerm.toLowerCase())) {
+      return false;
+    }
+    // Provider filter
+    if (providerFilter !== "all" && invoice.provider !== providerFilter) {
+      return false;
+    }
+    // Date range filter on invoice_date
+    if (dateFrom && invoice.invoice_date < dateFrom) {
+      return false;
+    }
+    if (dateTo && invoice.invoice_date > dateTo) {
+      return false;
+    }
+    return true;
+  });
+
+  const clearFilters = () => {
+    setSearchTerm("");
+    setProviderFilter("all");
+    setDateFrom("");
+    setDateTo("");
+  };
+
+  const hasActiveFilters = searchTerm || providerFilter !== "all" || dateFrom || dateTo;
 
   const handleViewInvoice = async (pdfUrl: string | null) => {
     if (!pdfUrl) {
@@ -132,15 +173,84 @@ const FinanceInvoices = () => {
               </CardDescription>
             </CardHeader>
             <CardContent>
+              {/* Filters */}
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                <div className="space-y-1">
+                  <Label htmlFor="invoice-search" className="text-xs text-muted-foreground">Search Invoice Number</Label>
+                  <div className="relative">
+                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      id="invoice-search"
+                      placeholder="Search..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="pl-8"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Provider</Label>
+                  <Select value={providerFilter} onValueChange={setProviderFilter}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="All Providers" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Providers</SelectItem>
+                      {uniqueProviders.map((provider) => (
+                        <SelectItem key={provider} value={provider}>{provider}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="date-from" className="text-xs text-muted-foreground">Date From</Label>
+                  <Input
+                    id="date-from"
+                    type="date"
+                    value={dateFrom}
+                    onChange={(e) => setDateFrom(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="date-to" className="text-xs text-muted-foreground">Date To</Label>
+                  <Input
+                    id="date-to"
+                    type="date"
+                    value={dateTo}
+                    onChange={(e) => setDateTo(e.target.value)}
+                  />
+                </div>
+              </div>
+              {hasActiveFilters && (
+                <div className="flex items-center justify-between mb-4">
+                  <p className="text-sm text-muted-foreground">
+                    Showing {filteredInvoices.length} of {invoices.length} invoices
+                  </p>
+                  <Button variant="ghost" size="sm" onClick={clearFilters}>
+                    <X className="w-4 h-4 mr-1" />
+                    Clear Filters
+                  </Button>
+                </div>
+              )}
+
               {loading ? (
                 <p className="text-muted-foreground">Loading...</p>
-              ) : invoices.length === 0 ? (
+              ) : filteredInvoices.length === 0 && !hasActiveFilters ? (
                 <div className="text-center py-8">
                   <FileText className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
                   <p className="text-muted-foreground mb-4">No invoices found</p>
                   <Button onClick={() => navigate("/finance/invoice-upload")}>
                     <Upload className="w-4 h-4 mr-2" />
                     Upload First Invoice
+                  </Button>
+                </div>
+              ) : filteredInvoices.length === 0 && hasActiveFilters ? (
+                <div className="text-center py-8">
+                  <Search className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                  <p className="text-muted-foreground mb-4">No invoices match your filters</p>
+                  <Button variant="outline" onClick={clearFilters}>
+                    <X className="w-4 h-4 mr-2" />
+                    Clear Filters
                   </Button>
                 </div>
               ) : (
@@ -158,7 +268,7 @@ const FinanceInvoices = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {invoices.map((invoice) => (
+                    {filteredInvoices.map((invoice) => (
                       <TableRow key={invoice.id}>
                         <TableCell className="font-medium">
                           {invoice.invoice_number}

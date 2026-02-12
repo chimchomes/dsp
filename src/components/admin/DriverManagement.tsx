@@ -295,6 +295,20 @@ export default function DriverManagement() {
 
       if (driverError) throw driverError;
 
+      // If operator_id has changed, also update it in driver_rates so downstream
+      // payslip generation and lookups use the correct operator_id
+      const newOperatorId = formData.operator_id.trim() || null;
+      if (newOperatorId !== selectedDriver.operator_id) {
+        const { error: ratesUpdateError } = await supabase
+          .from("driver_rates")
+          .update({ operator_id: newOperatorId })
+          .eq("driver_id", selectedDriver.driver_id);
+
+        if (ratesUpdateError) {
+          console.warn("Failed to update operator_id in driver_rates:", ratesUpdateError.message);
+        }
+      }
+
       // Wait a bit for the trigger to process
       await new Promise(resolve => setTimeout(resolve, 500));
 

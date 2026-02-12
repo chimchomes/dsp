@@ -3,13 +3,31 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { AuthGuard } from "@/components/AuthGuard";
-import { ArrowLeft, DollarSign, FileText, TrendingUp, Users, Calculator, Upload, CreditCard, Settings, Receipt } from "lucide-react";
+import { ArrowLeft, DollarSign, FileText, Users, Calculator, Upload, CreditCard, Settings, Receipt } from "lucide-react";
 // DollarSign is used for the header icon
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 
 const FinanceDashboard = () => {
   const navigate = useNavigate();
+  const [activeDriverCount, setActiveDriverCount] = useState(0);
+
+  useEffect(() => {
+    const loadActiveDrivers = async () => {
+      try {
+        const { count, error } = await supabase
+          .from("driver_profiles")
+          .select("*", { count: "exact", head: true })
+          .eq("active", true);
+        if (!error && count !== null) {
+          setActiveDriverCount(count);
+        }
+      } catch (err) {
+        console.error("Error loading active driver count:", err);
+      }
+    };
+    loadActiveDrivers();
+  }, []);
 
   const financeCards = [
     {
@@ -78,9 +96,7 @@ const FinanceDashboard = () => {
   ];
 
   const quickStats = [
-    { label: "Active Drivers", value: "0", icon: Users, color: "text-blue-600" },
-    { label: "This Week Payroll", value: "$0", icon: Calculator, color: "text-green-600" },
-    { label: "Revenue Trend", value: "+0%", icon: TrendingUp, color: "text-purple-600" }
+    { label: "Active Drivers", value: activeDriverCount.toString(), icon: Users, color: "text-blue-600" },
   ];
 
   return (

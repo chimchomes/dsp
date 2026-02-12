@@ -18,6 +18,7 @@ import FinancePayslips from "./pages/FinancePayslips";
 import FinanceGeneratePayslip from "./pages/FinanceGeneratePayslip";
 import FinancePayslipDetail from "./pages/FinancePayslipDetail";
 import FinanceAdjustmentsReview from "./pages/FinanceAdjustmentsReview";
+import FinanceInsights from "./pages/FinanceInsights";
 import DriverPayslips from "./pages/DriverPayslips";
 import HRDashboard from "./pages/HRDashboard";
 import AdminDashboard from "./pages/AdminDashboard";
@@ -70,6 +71,7 @@ const App = () => (
             <Route path="/finance/payslips/:id" element={<FinancePayslipDetail />} />
             <Route path="/finance/generate-payslip" element={<FinanceGeneratePayslip />} />
             <Route path="/finance/adjustments" element={<FinanceAdjustmentsReview />} />
+            <Route path="/finance/insights" element={<FinanceInsights />} />
             <Route path="/hr" element={<HRDashboard />} />
             <Route path="/admin" element={<AdminSelector />} />
             <Route path="/admin/control-panel" element={<AdminDashboard />} />
