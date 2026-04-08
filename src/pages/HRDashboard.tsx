@@ -17,38 +17,38 @@ const HRDashboard = () => {
 
   return (
     <AuthGuard allowedRoles={["admin", "hr"]}>
-      <div className="min-h-screen p-6">
+      <div className="min-h-screen p-4 md:p-6">
         <div className="max-w-7xl mx-auto">
-          <div className="mb-8 flex justify-between items-start animate-fade-in">
-            <div className="flex items-center gap-4">
-              <div className="p-3 rounded-xl bg-primary/10">
-                <Users className="h-8 w-8 text-primary" />
+          <div className="mb-6 md:mb-8 flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4 animate-fade-in">
+            <div className="flex items-center gap-3 md:gap-4 min-w-0">
+              <div className="p-2 md:p-3 rounded-xl bg-primary/10 shrink-0">
+                <Users className="h-6 w-6 md:h-8 md:w-8 text-primary" />
               </div>
-              <div>
-                <h1 className="text-4xl font-bold text-foreground mb-2">HR Management Portal</h1>
-                <p className="text-muted-foreground text-base font-medium">Manage drivers and training</p>
+              <div className="min-w-0">
+                <h1 className="text-2xl md:text-4xl font-bold text-foreground mb-1 md:mb-2">HR Management Portal</h1>
+                <p className="text-muted-foreground text-sm md:text-base font-medium">Manage drivers and training</p>
               </div>
             </div>
-            <div className="flex gap-2">
+            <div className="flex gap-2 shrink-0">
               <CreateDriverAccountDialog onSuccess={() => setRefreshKey(prev => prev + 1)} />
             </div>
           </div>
 
           <Tabs defaultValue="staff" className="space-y-6">
-            <TabsList className="grid w-full grid-cols-4 lg:w-auto bg-card border border-border rounded-lg p-1">
-              <TabsTrigger value="staff" className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-md transition-all font-semibold">
+            <TabsList className="flex w-full overflow-x-auto no-scrollbar lg:w-auto bg-card border border-border rounded-lg p-1 gap-1">
+              <TabsTrigger value="staff" className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-md transition-all font-semibold shrink-0 px-3">
                 <UserCog className="h-4 w-4" />
                 <span className="hidden sm:inline">Staff</span>
               </TabsTrigger>
-              <TabsTrigger value="drivers" className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-md transition-all font-semibold">
+              <TabsTrigger value="drivers" className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-md transition-all font-semibold shrink-0 px-3">
                 <Truck className="h-4 w-4" />
                 <span className="hidden sm:inline">Drivers</span>
               </TabsTrigger>
-              <TabsTrigger value="training" className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-md transition-all font-semibold">
+              <TabsTrigger value="training" className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-md transition-all font-semibold shrink-0 px-3">
                 <GraduationCap className="h-4 w-4" />
-                <span className="hidden sm:inline">Driver Training</span>
+                <span className="hidden sm:inline">Training</span>
               </TabsTrigger>
-              <TabsTrigger value="manage-training" className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-md transition-all font-semibold">
+              <TabsTrigger value="manage-training" className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-md transition-all font-semibold shrink-0 px-3">
                 <Users className="h-4 w-4" />
                 <span className="hidden sm:inline">Training Items</span>
               </TabsTrigger>

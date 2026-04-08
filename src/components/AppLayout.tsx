@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useLocation } from "react-router-dom";
 import Sidebar from "./Sidebar";
 import HeaderBar from "./HeaderBar";
@@ -8,12 +9,11 @@ interface AppLayoutProps {
 
 const AppLayout = ({ children }: AppLayoutProps) => {
   const location = useLocation();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   
-  // Pages that should not show sidebar/header
   const noLayoutPages = [
     "/",
     "/login",
-    "/dispatcher-login",
     "/onboarding",
     "/onboarding-login",
     "/create-test-onboarding-account",
@@ -28,9 +28,9 @@ const AppLayout = ({ children }: AppLayoutProps) => {
 
   return (
     <div className="flex min-h-screen bg-background">
-      <Sidebar />
-      <div className="flex-1 ml-64 flex flex-col">
-        <HeaderBar />
+      <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <div className="flex-1 md:ml-64 flex flex-col">
+        <HeaderBar onToggleSidebar={() => setSidebarOpen((prev) => !prev)} />
         <main className="flex-1 relative">
           <div className="absolute inset-0 hex-pattern pointer-events-none"></div>
           <div className="relative z-10">
@@ -43,5 +43,3 @@ const AppLayout = ({ children }: AppLayoutProps) => {
 };
 
 export default AppLayout;
-
-

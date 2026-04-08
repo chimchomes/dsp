@@ -122,16 +122,16 @@ export default function Login() {
         description: "Successfully logged in.",
       });
 
-      // Redirect based on role priority: Admin > Route Admin > Finance > Driver > Inactive
+      // Redirect based on role priority: Admin > Finance > HR > Driver > Inactive
       // If roles query failed, try to infer from driver record or other data
       
       // If we have roles, use them
       if (!rolesError && roles && roles.length > 0) {
-        if (roleList.includes("admin")) {
-          navigate("/admin");
+        if (roleList.includes("master_admin")) {
+          navigate("/masteradmin");
           return;
-        } else if (roleList.includes("route-admin")) {
-          navigate("/dispatcher");
+        } else if (roleList.includes("admin")) {
+          navigate("/admin");
           return;
         } else if (roleList.includes("finance")) {
           navigate("/finance");
@@ -199,9 +199,6 @@ export default function Login() {
             const inferredRole = roleProfile.role;
             if (inferredRole === "admin") {
               navigate("/admin");
-              return;
-            } else if (inferredRole === "route-admin") {
-              navigate("/dispatcher");
               return;
             } else if (inferredRole === "finance") {
               navigate("/finance");
@@ -277,12 +274,10 @@ export default function Login() {
       .eq("user_id", user.id)
       .maybeSingle();
 
-          // Redirect based on role priority: Admin > Route Admin > Finance > HR > Driver > Inactive
-          // Inactive users can only access inbox to message admin
-          if (roles?.some(r => r.role === "admin")) {
+          if (roles?.some(r => r.role === "master_admin")) {
+            navigate("/masteradmin");
+          } else if (roles?.some(r => r.role === "admin")) {
             navigate("/admin");
-          } else if (roles?.some(r => r.role === "route-admin")) {
-            navigate("/dispatcher");
           } else if (roles?.some(r => r.role === "finance")) {
             navigate("/finance");
           } else if (roles?.some(r => r.role === "hr")) {

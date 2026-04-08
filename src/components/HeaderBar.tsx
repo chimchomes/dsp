@@ -1,12 +1,16 @@
 import { Link, useNavigate } from "react-router-dom";
 import { NotificationBadge } from "@/components/NotificationBadge";
 import { Button } from "@/components/ui/button";
-import { Mail, LogOut } from "lucide-react";
+import { Mail, LogOut, Menu } from "lucide-react";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 
-export default function HeaderBar() {
+interface HeaderBarProps {
+  onToggleSidebar?: () => void;
+}
+
+export default function HeaderBar({ onToggleSidebar }: HeaderBarProps) {
   const navigate = useNavigate();
   const [unreadCount, setUnreadCount] = useState(0);
 
@@ -84,8 +88,19 @@ export default function HeaderBar() {
   }, []);
 
   return (
-    <div className="w-full flex items-center justify-between px-6 py-4 border-b border-border bg-card/50 backdrop-blur-md sticky top-0 z-40 shadow-modern">
+    <div className="w-full flex items-center justify-between px-4 md:px-6 py-3 md:py-4 border-b border-border bg-card/50 backdrop-blur-md sticky top-0 z-40 shadow-modern">
       <div className="flex items-center gap-3">
+        {onToggleSidebar && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="md:hidden h-9 w-9 rounded-lg"
+            onClick={onToggleSidebar}
+            aria-label="Toggle menu"
+          >
+            <Menu className="h-5 w-5" />
+          </Button>
+        )}
         <div className="p-2 rounded-lg bg-primary/10">
           <img 
             src="/logo.png" 
@@ -97,7 +112,7 @@ export default function HeaderBar() {
             }}
           />
         </div>
-        <span className="font-bold text-xl text-foreground">DSP Portal</span>
+        <span className="font-bold text-xl text-foreground hidden sm:inline">DSP Portal</span>
       </div>
       <div className="flex items-center gap-2">
         <Link to="/inbox">

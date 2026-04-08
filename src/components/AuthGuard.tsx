@@ -1,18 +1,22 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { useTenant } from "@/contexts/TenantContext";
 
 interface AuthGuardProps {
   children: React.ReactNode;
   allowedRoles?: string[];
+  requireMasterAdmin?: boolean;
 }
 
-export const AuthGuard = ({ children, allowedRoles }: AuthGuardProps) => {
+export const AuthGuard = ({ children, allowedRoles, requireMasterAdmin }: AuthGuardProps) => {
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(true);
   const [hasAccess, setHasAccess] = useState(false);
+  const { isMasterAdmin, isLoading: tenantLoading } = useTenant();
 
   useEffect(() => {
+    if (tenantLoading) return;
     checkAuth();
 
     const {
@@ -22,7 +26,7 @@ export const AuthGuard = ({ children, allowedRoles }: AuthGuardProps) => {
     });
 
     return () => subscription.unsubscribe();
-  }, [navigate, allowedRoles]);
+  }, [navigate, allowedRoles, requireMasterAdmin, isMasterAdmin, tenantLoading]);
 
   const checkAuth = async () => {
     try {
@@ -33,20 +37,33 @@ export const AuthGuard = ({ children, allowedRoles }: AuthGuardProps) => {
         return;
       }
 
-      // If no specific roles required, allow access
+      if (requireMasterAdmin) {
+        if (isMasterAdmin) {
+          setHasAccess(true);
+          setIsLoading(false);
+          return;
+        }
+        navigate("/login");
+        return;
+      }
+
+      if (isMasterAdmin) {
+        setHasAccess(true);
+        setIsLoading(false);
+        return;
+      }
+
       if (!allowedRoles || allowedRoles.length === 0) {
         setHasAccess(true);
         setIsLoading(false);
         return;
       }
 
-      // Check if user has any of the allowed roles
       const { data: userRoles, error } = await supabase
         .from('user_roles')
         .select('role')
         .eq('user_id', session.user.id);
 
-      // If roles query succeeded, check access
       if (!error && userRoles) {
         const hasAllowedRole = userRoles.some(ur => 
           allowedRoles.includes(ur.role)
@@ -59,7 +76,6 @@ export const AuthGuard = ({ children, allowedRoles }: AuthGuardProps) => {
         }
       }
 
-      // If roles query failed, try alternative method via role_profiles
       if (error) {
         console.error("Error checking roles, trying alternative method:", error);
         try {
@@ -71,7 +87,6 @@ export const AuthGuard = ({ children, allowedRoles }: AuthGuardProps) => {
             .limit(1);
 
           if (roleProfiles && roleProfiles.length > 0) {
-            // User has one of the allowed roles via role_profiles
             setHasAccess(true);
             setIsLoading(false);
             return;
@@ -81,7 +96,6 @@ export const AuthGuard = ({ children, allowedRoles }: AuthGuardProps) => {
         }
       }
 
-      // If we get here, user doesn't have required role
       console.warn("Access denied. User roles:", userRoles?.map(r => r.role) || "unknown", "Required:", allowedRoles);
       navigate("/login");
     } catch (error) {

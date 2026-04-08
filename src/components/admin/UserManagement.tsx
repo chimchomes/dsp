@@ -126,7 +126,7 @@ const UserManagement = () => {
     try {
       const { error } = await supabase.rpc('assign_user_role', {
         p_user_id: selectedUser.id,
-        p_role: selectedRole as 'admin' | 'route-admin' | 'driver' | 'hr' | 'finance' | 'onboarding' | 'inactive',
+        p_role: selectedRole as 'admin' | 'driver' | 'hr' | 'finance' | 'onboarding' | 'inactive',
       });
 
       if (error) throw error;
@@ -151,7 +151,7 @@ const UserManagement = () => {
     try {
       const { error } = await supabase.rpc('remove_user_role', {
         p_user_id: userId,
-        p_role: role as 'admin' | 'route-admin' | 'driver' | 'hr' | 'finance' | 'onboarding' | 'inactive',
+        p_role: role as 'admin' | 'driver' | 'hr' | 'finance' | 'onboarding' | 'inactive',
       });
 
       if (error) throw error;
@@ -238,7 +238,7 @@ const UserManagement = () => {
             ) : (
               filteredUsers.map((user) => (
                 <TableRow key={user.id}>
-                  <TableCell className="font-medium">{user.email}</TableCell>
+                  <TableCell className="font-medium max-w-[200px] truncate">{user.email}</TableCell>
                   <TableCell>
                     <div className="flex gap-2 flex-wrap">
                       {user.roles.length === 0 ? (
@@ -250,8 +250,6 @@ const UserManagement = () => {
                             variant={
                               role === 'admin'
                                 ? 'default'
-                                : role === 'route-admin'
-                                ? 'secondary'
                                 : 'outline'
                             }
                             className="flex items-center gap-1"

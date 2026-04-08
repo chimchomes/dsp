@@ -7,10 +7,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import OnboardingFormOwn from "@/components/onboarding/OnboardingFormOwn";
 
-type VehicleType = "own" | "lease" | null;
-
 const Onboarding = () => {
-  const [selectedType, setSelectedType] = useState<VehicleType>(null);
+  const [showForm, setShowForm] = useState(false);
   const [existingSession, setExistingSession] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
@@ -22,14 +20,8 @@ const Onboarding = () => {
   }, []);
 
   useEffect(() => {
-    // If URL has ?type=own|lease, open the form directly
-    const qpType = (searchParams.get("type") as VehicleType) || null;
-    if (qpType === "own" || qpType === "lease") {
-      setSelectedType(qpType);
-    }
-
     if (searchParams.get("reset") === "true") {
-      setSelectedType(null);
+      setShowForm(false);
       setExistingSession(null);
       navigate("/onboarding", { replace: true });
     }
@@ -53,23 +45,28 @@ const Onboarding = () => {
         if (error) throw error;
         setExistingSession(data);
         
-        // Auto-load form if autoload param is present and session exists
+        // Auto-load form if requested.
         if (searchParams.get("autoload") === "true" && data) {
           if (data.status === 'accepted') {
             toast({
               title: "Application Accepted",
               description: "Your application has been approved!",
             });
+            setShowForm(false);
           } else if (data.status === 'rejected') {
             toast({
               title: "Application Rejected",
-              description: "Please contact HR for more information.",
+              description: "Please review the rejection comments and resubmit your application.",
               variant: "destructive"
             });
+            setShowForm(true);
           } else {
             // Auto-load the form for in_progress or submitted
-            setSelectedType(data.vehicle_ownership_type as VehicleType);
+            setShowForm(true);
           }
+        } else if (searchParams.get("autoload") === "true" && !data) {
+          // Allow starting form even if no persisted session exists yet.
+          setShowForm(true);
         }
       }
     } catch (error) {
@@ -83,9 +80,8 @@ const Onboarding = () => {
     navigate("/onboarding-login");
   };
 
-  const handleStartNew = async (type: VehicleType) => {
-    // Go to account creation with selected type
-    navigate(`/create-account?type=${type}`);
+  const handleStartNew = async () => {
+    navigate("/create-account");
   };
 
   if (loading) {
@@ -96,9 +92,7 @@ const Onboarding = () => {
     );
   }
 
-  // Forms should only be accessible after login
-  // Now we use a single unified form regardless of selectedType
-  if (selectedType) {
+  if (showForm) {
     return <OnboardingFormOwn existingSession={existingSession} />;
   }
 
@@ -131,7 +125,7 @@ const Onboarding = () => {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Button onClick={() => handleStartNew("own")} className="w-full" size="lg">
+              <Button onClick={handleStartNew} className="w-full" size="lg">
                 Get Started
               </Button>
               <ul className="mt-4 space-y-2 text-sm text-muted-foreground">

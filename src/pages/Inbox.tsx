@@ -114,7 +114,7 @@ export default function Inbox() {
     const isDriverOnly = callerRoles.length > 0 && callerRoles.every(role => role === 'driver');
     const isOnboarding = callerRoles.includes('onboarding');
     const isInactive = callerRoles.includes('inactive');
-    const isRouteAdmin = callerRoles.includes('route-admin') || callerRoles.includes('dispatcher');
+    const isRouteAdmin = false;
     const isAdmin = callerRoles.includes('admin');
     const isFinance = callerRoles.includes('finance');
     const isHR = callerRoles.includes('hr');
@@ -132,8 +132,7 @@ export default function Inbox() {
       baseRoles = Array.from(new Set((distinctRoles || []).map(r => r.role as string)));
     }
 
-    // Filter out 'dispatcher' role (replaced by 'route-admin') and ensure 'route-admin' is included
-    baseRoles = baseRoles.filter(role => role !== 'dispatcher' && role !== 'route-admin' && role !== 'inactive');
+    baseRoles = baseRoles.filter(role => role !== 'dispatcher' && role !== 'route-admin' && role !== 'inactive' && role !== 'master_admin');
 
     let filteredRoles = baseRoles;
     
@@ -466,7 +465,11 @@ export default function Inbox() {
         }
       });
 
-      if (error) throw error;
+      if (error) {
+        let detail = error.message;
+        try { const body = await (error as any).context?.json?.(); if (body?.error) detail = body.error; } catch {}
+        throw new Error(detail);
+      }
 
       toast({
         title: 'Success',
@@ -737,7 +740,7 @@ export default function Inbox() {
                       <SelectContent>
                         {allowedRoles.map(role => (
                           <SelectItem key={role} value={role}>
-                            {role === 'route-admin' ? 'Route Admin' : role.charAt(0).toUpperCase() + role.slice(1).replace(/-/g, ' ')}
+                            {role.charAt(0).toUpperCase() + role.slice(1).replace(/-/g, ' ')}
                           </SelectItem>
                         ))}
                       </SelectContent>

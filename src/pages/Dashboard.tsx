@@ -162,17 +162,17 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="min-h-screen p-6">
-        <div className="mb-8 animate-fade-in">
+    <div className="min-h-screen p-4 md:p-6">
+        <div className="mb-6 md:mb-8 animate-fade-in">
           <div>
-            <h1 className="text-4xl font-bold text-foreground mb-2">DSP Portal</h1>
+            <h1 className="text-2xl md:text-4xl font-bold text-foreground mb-2">DSP Portal</h1>
             <p className="text-muted-foreground text-base font-semibold">{driver?.name || "Driver"}</p>
           </div>
         </div>
 
         <div className="space-y-6 animate-fade-in">
           <div className="mb-6">
-            <h2 className="text-3xl font-bold mb-2">Quick Actions</h2>
+            <h2 className="text-2xl md:text-3xl font-bold mb-2">Quick Actions</h2>
             <p className="text-muted-foreground text-base font-medium">Access your most used features</p>
           </div>
           
@@ -204,6 +204,20 @@ export default function Dashboard() {
                 <p className="text-muted-foreground text-base font-medium">View your profile and settings</p>
               </CardContent>
             </Card>
+
+            <Card className="cursor-pointer hover:shadow-modern-lg transition-all duration-300 hover:-translate-y-1 border-2 hover:border-primary/50 group bg-card" onClick={() => navigate("/my-incidents")}>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-3 text-lg font-bold">
+                  <div className="p-2 rounded-lg bg-primary/10 group-hover:bg-primary/20 transition-colors">
+                    <AlertTriangle className="h-5 w-5 text-primary" />
+                  </div>
+                  My Incidents
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-muted-foreground text-base font-medium">Track statuses and admin comments</p>
+              </CardContent>
+            </Card>
           </div>
 
           <Card className="border-2 border-destructive/20 hover:border-destructive/40 transition-all duration-300 bg-card">
@@ -226,6 +240,7 @@ export default function Dashboard() {
               </Button>
             </CardContent>
           </Card>
+
         </div>
 
         {showIncidentForm && driver && (

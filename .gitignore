@@ -27,3 +27,7 @@ dist-ssr
 #env files
 .env.local
 .env
+.Temp
+
+# Database backups (may contain PII)
+supabase/backup/

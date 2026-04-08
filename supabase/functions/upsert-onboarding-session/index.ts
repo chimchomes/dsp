@@ -1,4 +1,4 @@
-﻿import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
 
@@ -51,6 +51,7 @@ const onboardingSchema = z.object({
   email: z.string().email().max(255),
   fullName: z.string().max(200).optional(),
   ownershipType: z.enum(["own", "lease"]),
+  tenant_id: z.string().uuid().nullable().optional(),
   sessionId: z.string().uuid().nullable().optional(),
   current_step: z.number().int().min(1).max(10).optional(),
   complete: z.boolean().optional(),
@@ -147,6 +148,7 @@ serve(async (req) => {
       email,
       fullName,
       ownershipType,
+      tenant_id,
       sessionId,
       current_step,
       data = {},
@@ -154,8 +156,8 @@ serve(async (req) => {
     } = validatedData;
 
     const supabaseAdmin = createClient(
-      Deno.env.get("PROJECT_URL") ?? "",
-      Deno.env.get("SERVICE_ROLE_KEY") ?? "",
+      Deno.env.get("SUPABASE_URL") ?? Deno.env.get("PROJECT_URL") ?? "",
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? Deno.env.get("SERVICE_ROLE_KEY") ?? "",
       {
         auth: { autoRefreshToken: false, persistSession: false },
       }
@@ -193,11 +195,28 @@ serve(async (req) => {
       } else {
         targetUserId = created!.user.id;
         createdUser = true;
-        // assign onboarding role (idempotent via DO NOTHING on conflict in DB)
-        const { error: roleErr } = await supabaseAdmin
+        // assign onboarding role (tenant-aware)
+        const { data: existingRole, error: findRoleErr } = await supabaseAdmin
           .from("user_roles")
-          .insert({ user_id: targetUserId, role: "onboarding" });
-        if (roleErr) console.error("role insert error", roleErr);
+          .select("user_id")
+          .eq("user_id", targetUserId)
+          .eq("role", "onboarding")
+          .maybeSingle();
+        if (findRoleErr) console.error("role lookup error", findRoleErr);
+
+        if (existingRole) {
+          const { error: updateRoleErr } = await supabaseAdmin
+            .from("user_roles")
+            .update({ tenant_id: tenant_id ?? null })
+            .eq("user_id", targetUserId)
+            .eq("role", "onboarding");
+          if (updateRoleErr) console.error("role update error", updateRoleErr);
+        } else {
+          const { error: roleErr } = await supabaseAdmin
+            .from("user_roles")
+            .insert({ user_id: targetUserId, role: "onboarding", tenant_id: tenant_id ?? null });
+          if (roleErr) console.error("role insert error", roleErr);
+        }
       }
     }
 
@@ -205,10 +224,36 @@ serve(async (req) => {
       throw new Error("Unable to resolve user id for email");
     }
 
+    // Ensure onboarding role tenant is aligned even for pre-existing users.
+    if (tenant_id) {
+      const { data: existingRole, error: roleLookupErr } = await supabaseAdmin
+        .from("user_roles")
+        .select("user_id")
+        .eq("user_id", targetUserId)
+        .eq("role", "onboarding")
+        .maybeSingle();
+      if (roleLookupErr) console.error("role tenant lookup error", roleLookupErr);
+
+      if (existingRole) {
+        const { error: roleTenantErr } = await supabaseAdmin
+          .from("user_roles")
+          .update({ tenant_id })
+          .eq("user_id", targetUserId)
+          .eq("role", "onboarding");
+        if (roleTenantErr) console.error("role tenant update error", roleTenantErr);
+      } else {
+        const { error: roleInsertErr } = await supabaseAdmin
+          .from("user_roles")
+          .insert({ user_id: targetUserId, role: "onboarding", tenant_id });
+        if (roleInsertErr) console.error("role tenant insert error", roleInsertErr);
+      }
+    }
+
     // Prepare session payload with validated data
     const payload: Record<string, unknown> = {
       user_id: targetUserId,
       vehicle_ownership_type: ownershipType,
+      tenant_id: tenant_id ?? null,
       current_step: current_step ?? 1,
       email: email,
       full_name: fullName || data.full_name || null,

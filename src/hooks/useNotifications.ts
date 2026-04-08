@@ -117,12 +117,20 @@ export function useNotifications() {
 
   const sendToAdmin = useCallback(async (title: string, body: string) => {
     const { error } = await supabase.functions.invoke('send-notification', { body: { title, body, kind: 'message' } });
-    if (error) throw error;
+    if (error) {
+      let detail = error.message;
+      try { const b = await (error as any).context?.json?.(); if (b?.error) detail = b.error; } catch {}
+      throw new Error(detail);
+    }
   }, []);
 
   const broadcastToDrivers = useCallback(async (title: string, body: string, driverIds?: string[]) => {
     const { error } = await supabase.functions.invoke('send-notification', { body: { title, body, kind: 'message', driverIds } });
-    if (error) throw error;
+    if (error) {
+      let detail = error.message;
+      try { const b = await (error as any).context?.json?.(); if (b?.error) detail = b.error; } catch {}
+      throw new Error(detail);
+    }
   }, []);
 
   return { inbox, loading, refresh, markRead, sendToAdmin, broadcastToDrivers };

@@ -42,6 +42,8 @@ const FinanceInvoices = () => {
   const [providerFilter, setProviderFilter] = useState("all");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const rowsPerPage = 10;
 
   useEffect(() => {
     loadInvoices();
@@ -92,6 +94,9 @@ const FinanceInvoices = () => {
     return true;
   });
 
+  const totalPages = Math.max(1, Math.ceil(filteredInvoices.length / rowsPerPage));
+  const paginatedInvoices = filteredInvoices.slice((currentPage - 1) * rowsPerPage, currentPage * rowsPerPage);
+
   const clearFilters = () => {
     setSearchTerm("");
     setProviderFilter("all");
@@ -100,6 +105,16 @@ const FinanceInvoices = () => {
   };
 
   const hasActiveFilters = searchTerm || providerFilter !== "all" || dateFrom || dateTo;
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, providerFilter, dateFrom, dateTo]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
 
   const handleViewInvoice = async (pdfUrl: string | null) => {
     if (!pdfUrl) {
@@ -159,7 +174,7 @@ const FinanceInvoices = () => {
                 </p>
               </div>
             </div>
-            <Button onClick={() => navigate("/finance/invoice-upload")}>
+            <Button onClick={() => navigate("/finance/invoices/upload")}>
               <Upload className="w-4 h-4 mr-2" />
               Upload Invoice
             </Button>
@@ -239,7 +254,7 @@ const FinanceInvoices = () => {
                 <div className="text-center py-8">
                   <FileText className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
                   <p className="text-muted-foreground mb-4">No invoices found</p>
-                  <Button onClick={() => navigate("/finance/invoice-upload")}>
+                  <Button onClick={() => navigate("/finance/invoices/upload")}>
                     <Upload className="w-4 h-4 mr-2" />
                     Upload First Invoice
                   </Button>
@@ -254,55 +269,85 @@ const FinanceInvoices = () => {
                   </Button>
                 </div>
               ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Invoice Number</TableHead>
-                      <TableHead>Invoice Date</TableHead>
-                      <TableHead>Period</TableHead>
-                      <TableHead>Provider</TableHead>
-                      <TableHead>Net Total</TableHead>
-                      <TableHead>VAT@20%</TableHead>
-                      <TableHead>Gross Total</TableHead>
-                      <TableHead>Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredInvoices.map((invoice) => (
-                      <TableRow key={invoice.id}>
-                        <TableCell className="font-medium">
-                          {invoice.invoice_number}
-                        </TableCell>
-                        <TableCell>
-                          {new Date(invoice.invoice_date).toLocaleDateString()}
-                        </TableCell>
-                        <TableCell>
-                          {new Date(invoice.period_start).toLocaleDateString()} -{" "}
-                          {new Date(invoice.period_end).toLocaleDateString()}
-                        </TableCell>
-                        <TableCell>{invoice.provider || "N/A"}</TableCell>
-                        <TableCell>
-                          {invoice.net_total ? `£${invoice.net_total.toFixed(2)}` : "N/A"}
-                        </TableCell>
-                        <TableCell>
-                          {invoice.vat != null ? `£${invoice.vat.toFixed(2)}` : "£0.00"}
-                        </TableCell>
-                        <TableCell>
-                          {invoice.gross_total ? `£${invoice.gross_total.toFixed(2)}` : "N/A"}
-                        </TableCell>
-                        <TableCell>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleViewInvoice(invoice.pdf_url)}
-                          >
-                            <Eye className="w-4 h-4" />
-                          </Button>
-                        </TableCell>
+                <div className="space-y-4">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Invoice Number</TableHead>
+                        <TableHead>Invoice Date</TableHead>
+                        <TableHead>Period</TableHead>
+                        <TableHead>Provider</TableHead>
+                        <TableHead>Net Total</TableHead>
+                        <TableHead>VAT@20%</TableHead>
+                        <TableHead>Gross Total</TableHead>
+                        <TableHead>Actions</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {paginatedInvoices.map((invoice) => (
+                        <TableRow key={invoice.id}>
+                          <TableCell className="font-medium">
+                            {invoice.invoice_number}
+                          </TableCell>
+                          <TableCell>
+                            {new Date(invoice.invoice_date).toLocaleDateString()}
+                          </TableCell>
+                          <TableCell>
+                            {new Date(invoice.period_start).toLocaleDateString()} -{" "}
+                            {new Date(invoice.period_end).toLocaleDateString()}
+                          </TableCell>
+                          <TableCell>{invoice.provider || "N/A"}</TableCell>
+                          <TableCell>
+                            {invoice.net_total ? `£${invoice.net_total.toFixed(2)}` : "N/A"}
+                          </TableCell>
+                          <TableCell>
+                            {invoice.vat != null ? `£${invoice.vat.toFixed(2)}` : "£0.00"}
+                          </TableCell>
+                          <TableCell>
+                            {invoice.gross_total ? `£${invoice.gross_total.toFixed(2)}` : "N/A"}
+                          </TableCell>
+                          <TableCell>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleViewInvoice(invoice.pdf_url)}
+                            >
+                              <Eye className="w-4 h-4" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm text-muted-foreground">
+                      Showing {Math.min((currentPage - 1) * rowsPerPage + 1, filteredInvoices.length)}-
+                      {Math.min(currentPage * rowsPerPage, filteredInvoices.length)} of {filteredInvoices.length}
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                        disabled={currentPage === 1}
+                      >
+                        Previous
+                      </Button>
+                      <span className="text-sm text-muted-foreground">
+                        Page {currentPage} of {totalPages}
+                      </span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                        disabled={currentPage === totalPages}
+                      >
+                        Next
+                      </Button>
+                    </div>
+                  </div>
+                </div>
               )}
             </CardContent>
           </Card>

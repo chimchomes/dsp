@@ -28,8 +28,7 @@ export default function AdminMessages() {
       // Load roles centrally
       const { data: rolesList } = await supabase.from('roles_list').select('role');
       let allRoles = (rolesList || []).map(r => r.role as string);
-      // Filter out 'dispatcher', 'route-admin', and 'inactive' roles
-      allRoles = allRoles.filter(role => role !== 'dispatcher' && role !== 'route-admin' && role !== 'inactive');
+      allRoles = allRoles.filter(role => role !== 'dispatcher' && role !== 'route-admin' && role !== 'inactive' && role !== 'master_admin');
       // Admin can message any of the remaining roles
       setRoles(allRoles);
 
@@ -102,7 +101,11 @@ export default function AdminMessages() {
       const { error } = await supabase.functions.invoke('send-notification', {
         body: { title, body, recipientIds: ids, recipientRole }
       });
-      if (error) throw error;
+      if (error) {
+        let detail = error.message;
+        try { const body = await (error as any).context?.json?.(); if (body?.error) detail = body.error; } catch {}
+        throw new Error(detail);
+      }
       setTitle(''); setBody(''); setTargets('');
       setSelectedDriver('');
     } finally { setSending(false); }

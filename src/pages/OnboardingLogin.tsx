@@ -10,7 +10,7 @@ import { PasswordChangePrompt } from "@/components/PasswordChangePrompt";
 
 export default function OnboardingLogin() {
   const navigate = useNavigate();
-  const location = useLocation() as { state?: { email?: string; type?: "own" | "lease" } };
+  const location = useLocation() as { state?: { email?: string; first_name?: string; surname?: string } };
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -79,32 +79,32 @@ export default function OnboardingLogin() {
       if (session) {
         navigate("/onboarding?autoload=true");
       } else {
-        // No saved session: if a type and names were passed, create a starter session to prefill
-        const selType = location?.state?.type as ("own" | "lease" | undefined);
+        // No saved session: create a starter session and prefill names when available
         const first_name = (location?.state as any)?.first_name || (data.user.user_metadata as any)?.first_name || null;
         const surname = (location?.state as any)?.surname || (data.user.user_metadata as any)?.surname || null;
 
-        if (selType) {
-          try {
-            await supabase.functions.invoke("upsert-onboarding-session", {
-              body: {
-                email: data.user.email,
-                fullName: [first_name, surname].filter(Boolean).join(" ") || null,
-                ownershipType: selType,
-                current_step: 1,
-                data: {
-                  first_name: first_name || null,
-                  surname: surname || null,
-                },
+        try {
+          const { error: upsertError } = await supabase.functions.invoke("upsert-onboarding-session", {
+            body: {
+              email: data.user.email,
+              fullName: [first_name, surname].filter(Boolean).join(" ") || null,
+              ownershipType: "own",
+              current_step: 1,
+              data: {
+                first_name: first_name || null,
+                surname: surname || null,
               },
-            });
-          } catch (e) {
-            // non-fatal: continue navigation even if prefill fails
+            },
+          });
+          if (upsertError) {
+            let detail = upsertError.message;
+            try { const body = await (upsertError as any).context?.json?.(); if (body?.error) detail = body.error; } catch {}
+            throw new Error(detail);
           }
-          navigate(`/onboarding?autoload=true&type=${selType}`);
-        } else {
-          navigate("/onboarding");
+        } catch (e) {
+          // non-fatal: continue navigation even if prefill fails
         }
+        navigate("/onboarding?autoload=true");
       }
     } catch (error: any) {
       toast({ title: "Login failed", description: error.message, variant: "destructive" });

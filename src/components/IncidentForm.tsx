@@ -26,11 +26,23 @@ export const IncidentForm = ({ driverId, driverName, driverEmail, onClose, onSuc
 
     try {
       let photoUrl = null;
+      let tenantId: string | null = null;
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
+
+      const { data: roleRows } = await supabase
+        .from("user_roles")
+        .select("tenant_id")
+        .eq("user_id", user.id)
+        .not("tenant_id", "is", null)
+        .limit(1);
+      tenantId = roleRows?.[0]?.tenant_id || null;
+
+      if (!tenantId) {
+        throw new Error("Unable to resolve tenant for incident submission.");
+      }
 
       if (file) {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) throw new Error("Not authenticated");
-
         const fileExt = file.name.split('.').pop();
         const fileName = `${user.id}/${Date.now()}.${fileExt}`;
 
@@ -46,8 +58,10 @@ export const IncidentForm = ({ driverId, driverName, driverEmail, onClose, onSuc
 
       const { error } = await supabase.from("incidents").insert({
         driver_id: driverId,
+        tenant_id: tenantId,
         description,
         photo_url: photoUrl,
+        status: "submitted",
       });
 
       if (error) throw error;

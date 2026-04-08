@@ -8,7 +8,7 @@ const FinanceExpenseReview = () => {
   const navigate = useNavigate();
 
   return (
-    <AuthGuard allowedRoles={["route-admin", "admin", "finance"]}>
+    <AuthGuard allowedRoles={["admin", "finance"]}>
       <div className="min-h-screen bg-background p-6">
         <div className="max-w-7xl mx-auto space-y-6">
           <div className="flex items-center gap-4">

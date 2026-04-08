@@ -2,38 +2,30 @@ import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useTenant } from "@/contexts/TenantContext";
 import { AuthGuard } from "@/components/AuthGuard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, Plus, Pencil, Trash2 } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { ArrowLeft, Plus, Pencil, Trash2, AlertTriangle, ChevronsUpDown, Check } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { cn } from "@/lib/utils";
 
-interface SupplierRate {
+interface TourRate {
   id: string;
-  rate_id: string;
-  provider: string;
-  supplier_id: string | null;
-  status: string;
+  tour_id: string;
   rate: number;
+  effective_date: string;
   created_at: string;
   updated_at: string;
 }
@@ -44,6 +36,18 @@ interface DriverRate {
   rate_id: string;
   rate: number;
   effective_date: string;
+  operator_id: string;
+  created_at: string;
+  updated_at: string;
+}
+
+interface SupplierRate {
+  id: string;
+  rate_id: string;
+  provider: string;
+  supplier_id: string | null;
+  status: string;
+  rate: number;
   created_at: string;
   updated_at: string;
 }
@@ -60,63 +64,149 @@ interface Driver {
 const FinancePayRates = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [activeTab, setActiveTab] = useState("supplier-rates");
-  
-  // Internal Rates state
-  const [supplierRates, setSupplierRates] = useState<SupplierRate[]>([]);
-  const [supplierRatesLoading, setSupplierRatesLoading] = useState(true);
-  const [isSupplierRateDialogOpen, setIsSupplierRateDialogOpen] = useState(false);
-  const [editingSupplierRate, setEditingSupplierRate] = useState<SupplierRate | null>(null);
-  const [supplierRateFormData, setSupplierRateFormData] = useState({
-    rate_id: "",
-    provider: "",
-    supplier_id: "",
-    status: "",
-    rate: "",
-  });
-  
-  // Driver Rates state
+  const { tenant } = useTenant();
+  const [activeTab, setActiveTab] = useState("tour-rates");
+
+  // Tour Rates state
+  const [tourRates, setTourRates] = useState<TourRate[]>([]);
+  const [tourRatesLoading, setTourRatesLoading] = useState(true);
+  const [isTourRateDialogOpen, setIsTourRateDialogOpen] = useState(false);
+  const [editingTourRate, setEditingTourRate] = useState<TourRate | null>(null);
+  const [tourRateForm, setTourRateForm] = useState({ tour_id: "", rate: "", effective_date: "" });
+  const [tourComboOpen, setTourComboOpen] = useState(false);
+  const [tourSearchValue, setTourSearchValue] = useState("");
+  const [availableTours, setAvailableTours] = useState<string[]>([]);
+
+  // Driver Overrides state
   const [driverRates, setDriverRates] = useState<DriverRate[]>([]);
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [driverRatesLoading, setDriverRatesLoading] = useState(true);
   const [isDriverRateDialogOpen, setIsDriverRateDialogOpen] = useState(false);
   const [editingDriverRate, setEditingDriverRate] = useState<DriverRate | null>(null);
-  const [driverRateFormData, setDriverRateFormData] = useState({
-    driver_id: "",
-    first_name: "",
-    surname: "",
-    operator_id: "",
-    rate_lookup: "", // For rate lookup selection
-    rate_id: "",
-    rate: "",
+  const [driverRateForm, setDriverRateForm] = useState({
+    driver_id: "", rate: "", effective_date: "",
   });
+  const [driverComboOpen, setDriverComboOpen] = useState(false);
+  const [driverSearchValue, setDriverSearchValue] = useState("");
+
+  // Internal Rates state (deprecated, read-only)
+  const [supplierRates, setSupplierRates] = useState<SupplierRate[]>([]);
+  const [supplierRatesLoading, setSupplierRatesLoading] = useState(true);
 
   useEffect(() => {
-    loadSupplierRates();
+    loadTourRates();
     loadDriverRates();
     loadDrivers();
+    loadSupplierRates();
+    loadAvailableTours();
   }, []);
 
-  const loadSupplierRates = async () => {
+  // ── Tour Rates ────────────────────────────────────────────────────────────
+
+  const loadTourRates = async () => {
     try {
       const { data, error } = await supabase
-        .from("supplier_rates")
+        .from("tour_rates")
         .select("*")
-        .order("provider", { ascending: true })
-        .order("rate_id", { ascending: true });
-
+        .order("tour_id", { ascending: true })
+        .order("effective_date", { ascending: false });
       if (error) throw error;
-      setSupplierRates(data || []);
+      setTourRates(data || []);
     } catch (error: any) {
-      toast({
-        title: "Error loading internal rates",
-        description: error.message,
-        variant: "destructive",
-      });
+      toast({ title: "Error loading tour rates", description: error.message, variant: "destructive" });
     } finally {
-      setSupplierRatesLoading(false);
+      setTourRatesLoading(false);
     }
   };
+
+  const loadAvailableTours = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("WEEKLY_PAY")
+        .select("tour");
+      if (error) throw error;
+      const tours = [...new Set((data || []).map((r: any) => r.tour).filter(Boolean))].sort();
+      setAvailableTours(tours);
+    } catch (error: any) {
+      console.error("Error loading tours:", error);
+    }
+  };
+
+  const handleOpenTourRateDialog = (rate?: TourRate) => {
+    if (rate) {
+      setEditingTourRate(rate);
+      setTourRateForm({
+        tour_id: rate.tour_id,
+        rate: rate.rate.toString(),
+        effective_date: rate.effective_date,
+      });
+      setTourSearchValue(rate.tour_id);
+    } else {
+      setEditingTourRate(null);
+      setTourRateForm({ tour_id: "", rate: "", effective_date: new Date().toISOString().split("T")[0] });
+      setTourSearchValue("");
+    }
+    setTourComboOpen(false);
+    setIsTourRateDialogOpen(true);
+  };
+
+  const handleSubmitTourRate = async () => {
+    try {
+      if (!tourRateForm.tour_id || !tourRateForm.rate || !tourRateForm.effective_date) {
+        toast({ title: "Validation error", description: "Please fill in all required fields", variant: "destructive" });
+        return;
+      }
+      const rateValue = parseFloat(tourRateForm.rate);
+      if (isNaN(rateValue) || rateValue < 0) {
+        toast({ title: "Validation error", description: "Rate must be a valid positive number", variant: "destructive" });
+        return;
+      }
+
+      if (editingTourRate) {
+        const { error } = await supabase
+          .from("tour_rates")
+          .update({
+            tour_id: tourRateForm.tour_id,
+            rate: rateValue,
+            effective_date: tourRateForm.effective_date,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", editingTourRate.id);
+        if (error) throw error;
+        toast({ title: "Success", description: "Tour rate updated" });
+      } else {
+        const { data: authData } = await supabase.auth.getUser();
+        const { error } = await supabase.from("tour_rates").insert({
+          tour_id: tourRateForm.tour_id,
+          rate: rateValue,
+          effective_date: tourRateForm.effective_date,
+          created_by: authData.user?.id,
+        });
+        if (error) throw error;
+        toast({ title: "Success", description: "Tour rate created" });
+      }
+
+      setIsTourRateDialogOpen(false);
+      setEditingTourRate(null);
+      loadTourRates();
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    }
+  };
+
+  const handleDeleteTourRate = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this tour rate?")) return;
+    try {
+      const { error } = await supabase.from("tour_rates").delete().eq("id", id);
+      if (error) throw error;
+      toast({ title: "Success", description: "Tour rate deleted" });
+      loadTourRates();
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    }
+  };
+
+  // ── Driver Overrides ──────────────────────────────────────────────────────
 
   const loadDriverRates = async () => {
     try {
@@ -124,15 +214,10 @@ const FinancePayRates = () => {
         .from("driver_rates")
         .select("*")
         .order("effective_date", { ascending: false });
-
       if (error) throw error;
       setDriverRates(data || []);
     } catch (error: any) {
-      toast({
-        title: "Error loading driver rates",
-        description: error.message,
-        variant: "destructive",
-      });
+      toast({ title: "Error loading driver overrides", description: error.message, variant: "destructive" });
     } finally {
       setDriverRatesLoading(false);
     }
@@ -140,378 +225,129 @@ const FinancePayRates = () => {
 
   const loadDrivers = async () => {
     try {
-      // Load all drivers from driver_profiles (single source of truth)
-      const { data: driversData, error: driversError } = await supabase
+      const { data, error } = await supabase
         .from("driver_profiles")
-        .select("id, name, email, operator_id, user_id, active, first_name, surname")
+        .select("id, name, email, operator_id, first_name, surname")
+        .eq("active", true)
         .order("name", { ascending: true, nullsLast: true });
-
-      if (driversError) {
-        console.error("Error loading drivers:", driversError);
-        toast({
-          title: "Error loading drivers",
-          description: driversError.message,
-          variant: "destructive",
-        });
-        setDrivers([]);
-        return;
-      }
-
-      if (!driversData || driversData.length === 0) {
-        setDrivers([]);
-        return;
-      }
-
-      // Filter for active drivers client-side
-      const activeDrivers = driversData.filter(d => d.active !== false);
-
-      // driver_profiles already contains first_name and surname, no need for separate profile lookup
-      const driversWithProfiles = activeDrivers.map(driver => {
-        // Get first_name and surname from driver_profiles, or try to parse from name
-        let firstName = driver.first_name || null;
-        let surname = driver.surname || null;
-        
-        // Fallback: try to parse from name field
-        if ((!firstName || !surname) && driver.name) {
-          const nameParts = driver.name.trim().split(/\s+/);
-          if (nameParts.length >= 2) {
-            firstName = firstName || nameParts[0];
-            surname = surname || nameParts.slice(1).join(" ");
-          } else if (nameParts.length === 1 && !firstName) {
-            firstName = nameParts[0];
-          }
-        }
-        
-        return {
-          ...driver,
-          first_name: firstName,
-          surname: surname,
-        };
-      });
-
-      setDrivers(driversWithProfiles);
+      if (error) throw error;
+      setDrivers(data || []);
     } catch (error: any) {
-      console.error("Error in loadDrivers:", error);
-      toast({
-        title: "Error loading drivers",
-        description: error.message || "Failed to load drivers",
-        variant: "destructive",
-      });
+      console.error("Error loading drivers:", error);
       setDrivers([]);
     }
   };
 
-  // Internal Rates handlers
-  const handleOpenSupplierRateDialog = (rate?: SupplierRate) => {
-    if (rate) {
-      setEditingSupplierRate(rate);
-      setSupplierRateFormData({
-        rate_id: rate.rate_id,
-        provider: rate.provider,
-        supplier_id: rate.supplier_id || "",
-        status: rate.status,
-        rate: rate.rate.toString(),
-      });
-    } else {
-      setEditingSupplierRate(null);
-      setSupplierRateFormData({
-        rate_id: "",
-        provider: "",
-        supplier_id: "",
-        status: "",
-        rate: "",
-      });
-    }
-    setIsSupplierRateDialogOpen(true);
-  };
-
-  const handleSubmitSupplierRate = async () => {
-    try {
-      if (!supplierRateFormData.rate_id || !supplierRateFormData.provider || !supplierRateFormData.status || !supplierRateFormData.rate) {
-        toast({
-          title: "Validation error",
-          description: "Please fill in all required fields including Status",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      const rateValue = parseFloat(supplierRateFormData.rate);
-      if (isNaN(rateValue) || rateValue < 0) {
-        toast({
-          title: "Validation error",
-          description: "Rate must be a valid positive number",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      // Check for duplicate rate_id (skip if editing and rate_id hasn't changed)
-      if (!editingSupplierRate || editingSupplierRate.rate_id !== supplierRateFormData.rate_id) {
-        const { data: existingRate } = await supabase
-          .from("supplier_rates")
-          .select("id")
-          .eq("rate_id", supplierRateFormData.rate_id)
-          .maybeSingle();
-
-        if (existingRate) {
-          toast({
-            title: "Duplicate Rate ID",
-            description: `A rate with ID "${supplierRateFormData.rate_id}" already exists. Rate IDs must be unique.`,
-            variant: "destructive",
-          });
-          return;
-        }
-      }
-
-      if (editingSupplierRate) {
-        const { error } = await supabase
-          .from("supplier_rates")
-          .update({
-            rate_id: supplierRateFormData.rate_id,
-            provider: supplierRateFormData.provider,
-            supplier_id: supplierRateFormData.supplier_id || null,
-            status: supplierRateFormData.status,
-            rate: rateValue,
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", editingSupplierRate.id);
-
-        if (error) throw error;
-
-        // Cascade update to driver_rates table
-        // This ensures that all drivers linked to this rate_id get the updated rate value
-        // which is critical for correct payslip generation.
-        const { error: cascadeError } = await supabase
-          .from("driver_rates")
-          .update({ 
-            rate: rateValue,
-            updated_at: new Date().toISOString()
-          })
-          .eq("rate_id", editingSupplierRate.rate_id);
-
-        if (cascadeError) {
-          console.error("Error cascading rate update to driver_rates:", cascadeError);
-          toast({
-            title: "Partial Success",
-            description: "Internal rate updated, but failed to sync driver rates. Please check driver rates manually.",
-            variant: "destructive",
-          });
-        } else {
-          toast({ title: "Success", description: "Internal rate and linked driver rates updated successfully" });
-        }
-      } else {
-        const { error } = await supabase
-          .from("supplier_rates")
-          .insert({
-            rate_id: supplierRateFormData.rate_id,
-            provider: supplierRateFormData.provider,
-            supplier_id: supplierRateFormData.supplier_id || null,
-            status: supplierRateFormData.status,
-            rate: rateValue,
-          });
-
-        if (error) throw error;
-        toast({ title: "Success", description: "Internal rate created successfully" });
-      }
-
-      setIsSupplierRateDialogOpen(false);
-      setEditingSupplierRate(null);
-      loadSupplierRates();
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
-    }
-  };
-
-  const handleDeleteSupplierRate = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this internal rate?")) return;
-    try {
-      const { error } = await supabase.from("supplier_rates").delete().eq("id", id);
-      if (error) throw error;
-      toast({ title: "Success", description: "Internal rate deleted successfully" });
-      loadSupplierRates();
-    } catch (error: any) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
-    }
-  };
-
-  // Driver Rates handlers
   const handleOpenDriverRateDialog = (rate?: DriverRate) => {
     if (rate) {
       setEditingDriverRate(rate);
-      const driver = drivers.find(d => d.id === rate.driver_id);
-      // Always use the current internal rate value so that updates to supplier_rates are reflected
-      const supplierRate = supplierRates.find(r => r.rate_id === rate.rate_id);
-      const currentRate = supplierRate ? supplierRate.rate.toString() : rate.rate.toString();
-      setDriverRateFormData({
+      setDriverRateForm({
         driver_id: rate.driver_id,
-        first_name: driver?.first_name || "",
-        surname: driver?.surname || "",
-        operator_id: driver?.operator_id || "",
-        rate_lookup: rate.rate_id, // Set rate lookup to rate_id for display
-        rate_id: rate.rate_id,
-        rate: currentRate,
+        rate: rate.rate.toString(),
+        effective_date: rate.effective_date,
       });
     } else {
       setEditingDriverRate(null);
-      setDriverRateFormData({
+      setDriverRateForm({
         driver_id: "",
-        first_name: "",
-        surname: "",
-        operator_id: "",
-        rate_lookup: "",
-        rate_id: "",
         rate: "",
+        effective_date: new Date().toISOString().split("T")[0],
       });
     }
+    setDriverSearchValue("");
+    setDriverComboOpen(false);
     setIsDriverRateDialogOpen(true);
-  };
-
-  const handleDriverSelect = async (driverId: string) => {
-    const driver = drivers.find(d => d.id === driverId);
-    
-    // If driver found but first_name/surname missing, try to load profile
-    let firstName = driver?.first_name || "";
-    let surname = driver?.surname || "";
-    
-    if ((!firstName || !surname) && driver?.user_id) {
-      // Try to load from driver_profiles if missing
-      const { data: profile } = await supabase
-        .from("driver_profiles")
-        .select("first_name, surname")
-        .eq("user_id", driver.user_id)
-        .single();
-      
-      if (profile) {
-        firstName = profile.first_name || "";
-        surname = profile.surname || "";
-        
-        // Update driver in state for future use
-        const updatedDrivers = drivers.map(d => 
-          d.id === driverId 
-            ? { ...d, first_name: firstName, surname: surname }
-            : d
-        );
-        setDrivers(updatedDrivers);
-      }
-    }
-    
-    // Fallback: try to parse from name field if still empty
-    if ((!firstName || !surname) && driver?.name) {
-      const nameParts = driver.name.trim().split(/\s+/);
-      if (nameParts.length >= 2) {
-        firstName = nameParts[0];
-        surname = nameParts.slice(1).join(" ");
-      } else if (nameParts.length === 1) {
-        firstName = nameParts[0];
-      }
-    }
-    
-    setDriverRateFormData({
-      ...driverRateFormData,
-      driver_id: driverId,
-      first_name: firstName,
-      surname: surname,
-      operator_id: driver?.operator_id || "",
-    });
-  };
-
-  const handleRateLookupSelect = (rateId: string) => {
-    const supplierRate = supplierRates.find(r => r.rate_id === rateId);
-    setDriverRateFormData({
-      ...driverRateFormData,
-      rate_lookup: rateId,
-      rate_id: rateId,
-      rate: supplierRate ? supplierRate.rate.toString() : "",
-    });
   };
 
   const handleSubmitDriverRate = async () => {
     try {
-      if (!driverRateFormData.driver_id || !driverRateFormData.rate_id || !driverRateFormData.rate) {
-        toast({
-          title: "Validation error",
-          description: "Please fill in all required fields",
-          variant: "destructive",
-        });
+      if (!driverRateForm.driver_id || !driverRateForm.rate || !driverRateForm.effective_date) {
+        toast({ title: "Validation error", description: "Please fill in all required fields", variant: "destructive" });
         return;
       }
-
-      const rateValue = parseFloat(driverRateFormData.rate);
+      const rateValue = parseFloat(driverRateForm.rate);
       if (isNaN(rateValue) || rateValue < 0) {
-        toast({
-          title: "Validation error",
-          description: "Rate must be a valid positive number",
-          variant: "destructive",
-        });
+        toast({ title: "Validation error", description: "Rate must be a valid positive number", variant: "destructive" });
         return;
       }
 
-      // Get operator_id from the selected driver
-      const selectedDriver = drivers.find(d => d.id === driverRateFormData.driver_id);
+      const selectedDriver = drivers.find((d) => d.id === driverRateForm.driver_id);
       const operatorId = selectedDriver?.operator_id || "";
 
       if (editingDriverRate) {
         const { error } = await supabase
           .from("driver_rates")
           .update({
-            driver_id: driverRateFormData.driver_id,
-            rate_id: driverRateFormData.rate_id,
+            driver_id: driverRateForm.driver_id,
             rate: rateValue,
             operator_id: operatorId,
-            effective_date: new Date().toISOString().split('T')[0], // Default to today
+            effective_date: driverRateForm.effective_date,
+            rate_id: "OVERRIDE",
             updated_at: new Date().toISOString(),
           })
           .eq("id", editingDriverRate.id);
-
         if (error) throw error;
-        toast({ title: "Success", description: "Driver rate updated successfully" });
+        toast({ title: "Success", description: "Driver override updated" });
       } else {
-        const { error } = await supabase
-          .from("driver_rates")
-          .insert({
-            driver_id: driverRateFormData.driver_id,
-            rate_id: driverRateFormData.rate_id,
-            rate: rateValue,
-            operator_id: operatorId,
-            effective_date: new Date().toISOString().split('T')[0], // Default to today
-          });
-
+        const { error } = await supabase.from("driver_rates").insert({
+          driver_id: driverRateForm.driver_id,
+          rate: rateValue,
+          operator_id: operatorId,
+          effective_date: driverRateForm.effective_date,
+          rate_id: "OVERRIDE",
+        });
         if (error) throw error;
-        toast({ title: "Success", description: "Driver rate created successfully" });
+        toast({ title: "Success", description: "Driver override created" });
       }
 
       setIsDriverRateDialogOpen(false);
       setEditingDriverRate(null);
       loadDriverRates();
     } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
+      toast({ title: "Error", description: error.message, variant: "destructive" });
     }
   };
 
   const handleDeleteDriverRate = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this driver rate?")) return;
+    if (!confirm("Are you sure you want to delete this driver override?")) return;
     try {
       const { error } = await supabase.from("driver_rates").delete().eq("id", id);
       if (error) throw error;
-      toast({ title: "Success", description: "Driver rate deleted successfully" });
+      toast({ title: "Success", description: "Driver override deleted" });
       loadDriverRates();
     } catch (error: any) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
     }
   };
 
-  const getDriverName = (driverId: string) => {
-    const driver = drivers.find(d => d.id === driverId);
-    return driver?.name || driver?.email || driverId;
+  // ── Internal Rates (deprecated) ──────────────────────────────────────────
+
+  const loadSupplierRates = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("supplier_rates")
+        .select("*")
+        .order("provider", { ascending: true });
+      if (error) throw error;
+      setSupplierRates(data || []);
+    } catch (error: any) {
+      console.error("Error loading internal rates:", error);
+    } finally {
+      setSupplierRatesLoading(false);
+    }
+  };
+
+  // ── Helpers ───────────────────────────────────────────────────────────────
+
+  const getDriverDisplayName = (driverId: string) => {
+    const driver = drivers.find((d) => d.id === driverId);
+    if (!driver) return driverId;
+    if (driver.first_name && driver.surname) return `${driver.first_name} ${driver.surname}`;
+    return driver.name || driver.email || driverId;
+  };
+
+  const getDriverOperatorId = (driverId: string) => {
+    return drivers.find((d) => d.id === driverId)?.operator_id || "-";
   };
 
   return (
@@ -527,64 +363,63 @@ const FinancePayRates = () => {
               <div>
                 <h1 className="text-3xl font-bold">Rates Management</h1>
                 <p className="text-muted-foreground mt-1">
-                  Manage internal rates and driver rates
+                  Manage tour rates (default) and driver overrides
                 </p>
               </div>
             </div>
           </div>
 
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="supplier-rates">Internal Rates</TabsTrigger>
-              <TabsTrigger value="driver-rates">Driver Rates</TabsTrigger>
+            <TabsList className="grid w-full grid-cols-3">
+              <TabsTrigger value="tour-rates">Tour Rates</TabsTrigger>
+              <TabsTrigger value="driver-overrides">Driver Overrides</TabsTrigger>
+              <TabsTrigger value="internal-rates">Internal Rates (Legacy)</TabsTrigger>
             </TabsList>
 
-            {/* Internal Rates Tab */}
-            <TabsContent value="supplier-rates" className="space-y-4">
+            {/* ── Tour Rates Tab ─────────────────────────────────────────── */}
+            <TabsContent value="tour-rates" className="space-y-4">
               <div className="flex justify-end">
-                <Button onClick={() => handleOpenSupplierRateDialog()}>
+                <Button onClick={() => handleOpenTourRateDialog()}>
                   <Plus className="w-4 h-4 mr-2" />
-                  Add Internal Rate
+                  Add Tour Rate
                 </Button>
               </div>
               <Card>
                 <CardHeader>
-                  <CardTitle>Internal Rates</CardTitle>
+                  <CardTitle>Tour Rates</CardTitle>
                   <CardDescription>
-                    Manage internal rates by provider and supplier ID
+                    Default pay rate per tour. Each driver on this tour will be paid at this rate unless a driver override exists.
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  {supplierRatesLoading ? (
+                  {tourRatesLoading ? (
                     <p className="text-muted-foreground">Loading...</p>
-                  ) : supplierRates.length === 0 ? (
-                    <p className="text-muted-foreground">No internal rates found. Add your first rate above.</p>
+                  ) : tourRates.length === 0 ? (
+                    <p className="text-muted-foreground">No tour rates found. Add your first tour rate above.</p>
                   ) : (
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead>Rate ID</TableHead>
-                          <TableHead>Provider</TableHead>
-                          <TableHead>Supplier ID</TableHead>
-                          <TableHead>Status</TableHead>
-                          <TableHead>Rate</TableHead>
+                          <TableHead>Tour</TableHead>
+                          <TableHead>Rate (£)</TableHead>
+                          <TableHead>Effective Date</TableHead>
+                          <TableHead>Updated</TableHead>
                           <TableHead className="text-right">Actions</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {supplierRates.map((rate) => (
+                        {tourRates.map((rate) => (
                           <TableRow key={rate.id}>
-                            <TableCell className="font-medium">{rate.rate_id}</TableCell>
-                            <TableCell>{rate.provider}</TableCell>
-                            <TableCell>{rate.supplier_id || "-"}</TableCell>
-                            <TableCell>{rate.status}</TableCell>
+                            <TableCell className="font-medium">{rate.tour_id}</TableCell>
                             <TableCell>£{rate.rate.toFixed(2)}</TableCell>
+                            <TableCell>{new Date(rate.effective_date).toLocaleDateString("en-GB")}</TableCell>
+                            <TableCell>{new Date(rate.updated_at).toLocaleDateString("en-GB")}</TableCell>
                             <TableCell className="text-right">
                               <div className="flex justify-end gap-2">
-                                <Button variant="ghost" size="sm" onClick={() => handleOpenSupplierRateDialog(rate)}>
+                                <Button variant="ghost" size="sm" onClick={() => handleOpenTourRateDialog(rate)}>
                                   <Pencil className="w-4 h-4" />
                                 </Button>
-                                <Button variant="ghost" size="sm" onClick={() => handleDeleteSupplierRate(rate.id)}>
+                                <Button variant="ghost" size="sm" onClick={() => handleDeleteTourRate(rate.id)}>
                                   <Trash2 className="w-4 h-4 text-destructive" />
                                 </Button>
                               </div>
@@ -598,64 +433,112 @@ const FinancePayRates = () => {
               </Card>
             </TabsContent>
 
-            {/* Driver Rates Tab */}
-            <TabsContent value="driver-rates" className="space-y-4">
+            {/* ── Driver Overrides Tab ───────────────────────────────────── */}
+            <TabsContent value="driver-overrides" className="space-y-4">
+              <Alert>
+                <AlertTriangle className="h-4 w-4" />
+                <AlertTitle>Driver Overrides</AlertTitle>
+                <AlertDescription>
+                  Only add an override if a specific driver needs a different rate than their tour's default rate. Most drivers should not need an override.
+                </AlertDescription>
+              </Alert>
               <div className="flex justify-end">
                 <Button onClick={() => handleOpenDriverRateDialog()}>
                   <Plus className="w-4 h-4 mr-2" />
-                  Add Driver Rate
+                  Add Driver Override
                 </Button>
               </div>
               <Card>
                 <CardHeader>
-                  <CardTitle>Driver Rates</CardTitle>
+                  <CardTitle>Driver Rate Overrides</CardTitle>
                   <CardDescription>
-                    Manage driver-specific rates linked to rate IDs
+                    These rates take precedence over tour rates for the specified driver
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
                   {driverRatesLoading ? (
                     <p className="text-muted-foreground">Loading...</p>
                   ) : driverRates.length === 0 ? (
-                    <p className="text-muted-foreground">No driver rates found. Add your first rate above.</p>
+                    <p className="text-muted-foreground">No driver overrides found. Tour rates will be used for all drivers.</p>
                   ) : (
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead>First Name</TableHead>
-                          <TableHead>Surname</TableHead>
+                          <TableHead>Driver</TableHead>
                           <TableHead>Operator ID</TableHead>
-                          <TableHead>Rate ID</TableHead>
-                          <TableHead>Rate</TableHead>
+                          <TableHead>Override Rate (£)</TableHead>
+                          <TableHead>Effective Date</TableHead>
                           <TableHead className="text-right">Actions</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {driverRates.map((rate) => {
-                          const driver = drivers.find(d => d.id === rate.driver_id);
-                          // Show the current internal rate if available, otherwise fall back to stored rate
-                          const currentSupplierRate = supplierRates.find(r => r.rate_id === rate.rate_id);
-                          const displayRate = currentSupplierRate ? currentSupplierRate.rate : rate.rate;
-                          return (
-                            <TableRow key={rate.id}>
-                              <TableCell className="font-medium">{driver?.first_name || "-"}</TableCell>
-                              <TableCell>{driver?.surname || "-"}</TableCell>
-                              <TableCell>{driver?.operator_id || "-"}</TableCell>
-                              <TableCell>{rate.rate_id}</TableCell>
-                              <TableCell>£{displayRate.toFixed(2)}</TableCell>
-                              <TableCell className="text-right">
-                                <div className="flex justify-end gap-2">
-                                  <Button variant="ghost" size="sm" onClick={() => handleOpenDriverRateDialog(rate)}>
-                                    <Pencil className="w-4 h-4" />
-                                  </Button>
-                                  <Button variant="ghost" size="sm" onClick={() => handleDeleteDriverRate(rate.id)}>
-                                    <Trash2 className="w-4 h-4 text-destructive" />
-                                  </Button>
-                                </div>
-                              </TableCell>
-                            </TableRow>
-                          );
-                        })}
+                        {driverRates.map((rate) => (
+                          <TableRow key={rate.id}>
+                            <TableCell className="font-medium">{getDriverDisplayName(rate.driver_id)}</TableCell>
+                            <TableCell>{getDriverOperatorId(rate.driver_id)}</TableCell>
+                            <TableCell>£{rate.rate.toFixed(2)}</TableCell>
+                            <TableCell>{new Date(rate.effective_date).toLocaleDateString("en-GB")}</TableCell>
+                            <TableCell className="text-right">
+                              <div className="flex justify-end gap-2">
+                                <Button variant="ghost" size="sm" onClick={() => handleOpenDriverRateDialog(rate)}>
+                                  <Pencil className="w-4 h-4" />
+                                </Button>
+                                <Button variant="ghost" size="sm" onClick={() => handleDeleteDriverRate(rate.id)}>
+                                  <Trash2 className="w-4 h-4 text-destructive" />
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* ── Internal Rates Tab (deprecated) ───────────────────────── */}
+            <TabsContent value="internal-rates" className="space-y-4">
+              <Alert variant="destructive">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertTitle>Deprecated</AlertTitle>
+                <AlertDescription>
+                  Internal rates are no longer used for payslip generation. Tour Rates are now the default, with Driver Overrides for exceptions. This tab is read-only and will be removed in a future update.
+                </AlertDescription>
+              </Alert>
+              <Card>
+                <CardHeader>
+                  <CardTitle>Internal Rates (Legacy)</CardTitle>
+                  <CardDescription>
+                    These rates are no longer active. Use Tour Rates instead.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {supplierRatesLoading ? (
+                    <p className="text-muted-foreground">Loading...</p>
+                  ) : supplierRates.length === 0 ? (
+                    <p className="text-muted-foreground">No internal rates found.</p>
+                  ) : (
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Rate ID</TableHead>
+                          <TableHead>Provider</TableHead>
+                          <TableHead>Supplier ID</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Rate</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {supplierRates.map((rate) => (
+                          <TableRow key={rate.id} className="opacity-60">
+                            <TableCell className="font-medium">{rate.rate_id}</TableCell>
+                            <TableCell>{rate.provider}</TableCell>
+                            <TableCell>{rate.supplier_id || "-"}</TableCell>
+                            <TableCell>{rate.status}</TableCell>
+                            <TableCell>£{rate.rate.toFixed(2)}</TableCell>
+                          </TableRow>
+                        ))}
                       </TableBody>
                     </Table>
                   )}
@@ -664,180 +547,199 @@ const FinancePayRates = () => {
             </TabsContent>
           </Tabs>
 
-          {/* Internal Rate Dialog */}
-          <Dialog open={isSupplierRateDialogOpen} onOpenChange={setIsSupplierRateDialogOpen}>
+          {/* ── Tour Rate Dialog ──────────────────────────────────────────── */}
+          <Dialog open={isTourRateDialogOpen} onOpenChange={setIsTourRateDialogOpen}>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>{editingSupplierRate ? "Edit Internal Rate" : "Add New Internal Rate"}</DialogTitle>
+                <DialogTitle>{editingTourRate ? "Edit Tour Rate" : "Add New Tour Rate"}</DialogTitle>
                 <DialogDescription>
-                  {editingSupplierRate ? "Update the internal rate information below." : "Enter the details for the new internal rate."}
+                  {editingTourRate ? "Update the tour rate." : "Select an existing tour or type a new one."}
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4 py-4">
                 <div>
-                  <Label htmlFor="sr_rate_id">Rate ID *</Label>
-                  <Input
-                    id="sr_rate_id"
-                    value={supplierRateFormData.rate_id}
-                    onChange={(e) => setSupplierRateFormData({ ...supplierRateFormData, rate_id: e.target.value })}
-                    placeholder="e.g., SUP001"
-                    disabled={!!editingSupplierRate}
-                  />
+                  <Label>Tour *</Label>
+                  {editingTourRate ? (
+                    <Input value={tourRateForm.tour_id} disabled className="bg-muted" />
+                  ) : (
+                    <Popover open={tourComboOpen} onOpenChange={setTourComboOpen}>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          role="combobox"
+                          aria-expanded={tourComboOpen}
+                          className="w-full justify-between font-normal"
+                        >
+                          {tourRateForm.tour_id || "Search or type a tour..."}
+                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                        <Command shouldFilter={false}>
+                          <CommandInput
+                            placeholder="Type to search or add new..."
+                            value={tourSearchValue}
+                            onValueChange={(v) => {
+                              setTourSearchValue(v);
+                              setTourRateForm({ ...tourRateForm, tour_id: v });
+                            }}
+                          />
+                          <CommandList>
+                            <CommandEmpty>
+                              {tourSearchValue ? (
+                                <button
+                                  className="w-full px-2 py-1.5 text-sm text-left hover:bg-accent rounded-sm"
+                                  onClick={() => {
+                                    setTourRateForm({ ...tourRateForm, tour_id: tourSearchValue });
+                                    setTourComboOpen(false);
+                                  }}
+                                >
+                                  Add new tour: <span className="font-semibold">{tourSearchValue}</span>
+                                </button>
+                              ) : (
+                                "No tours found"
+                              )}
+                            </CommandEmpty>
+                            <CommandGroup>
+                              {availableTours
+                                .filter((t) => !tourSearchValue || t.toLowerCase().includes(tourSearchValue.toLowerCase()))
+                                .map((t) => (
+                                  <CommandItem
+                                    key={t}
+                                    value={t}
+                                    onSelect={() => {
+                                      setTourRateForm({ ...tourRateForm, tour_id: t });
+                                      setTourSearchValue(t);
+                                      setTourComboOpen(false);
+                                    }}
+                                  >
+                                    <Check className={cn("mr-2 h-4 w-4", tourRateForm.tour_id === t ? "opacity-100" : "opacity-0")} />
+                                    {t}
+                                  </CommandItem>
+                                ))}
+                            </CommandGroup>
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
+                  )}
                 </div>
                 <div>
-                  <Label htmlFor="sr_provider">Provider *</Label>
+                  <Label>Rate (£) *</Label>
                   <Input
-                    id="sr_provider"
-                    value={supplierRateFormData.provider}
-                    onChange={(e) => setSupplierRateFormData({ ...supplierRateFormData, provider: e.target.value })}
-                    placeholder="e.g., YODEL"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="sr_supplier_id">Supplier ID</Label>
-                  <Input
-                    id="sr_supplier_id"
-                    value={supplierRateFormData.supplier_id}
-                    onChange={(e) => setSupplierRateFormData({ ...supplierRateFormData, supplier_id: e.target.value })}
-                    placeholder="Optional supplier identifier"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="sr_status">Status *</Label>
-                  <Input
-                    id="sr_status"
-                    value={supplierRateFormData.status}
-                    onChange={(e) => setSupplierRateFormData({ ...supplierRateFormData, status: e.target.value })}
-                    placeholder="e.g., Weekday Rate"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="sr_rate">Rate (£) *</Label>
-                  <Input
-                    id="sr_rate"
                     type="number"
                     step="0.01"
                     min="0"
-                    value={supplierRateFormData.rate}
-                    onChange={(e) => setSupplierRateFormData({ ...supplierRateFormData, rate: e.target.value })}
-                    placeholder="e.g., 2.50"
+                    value={tourRateForm.rate}
+                    onChange={(e) => setTourRateForm({ ...tourRateForm, rate: e.target.value })}
+                    placeholder="e.g. 1.25"
+                  />
+                </div>
+                <div>
+                  <Label>Effective Date *</Label>
+                  <Input
+                    type="date"
+                    value={tourRateForm.effective_date}
+                    onChange={(e) => setTourRateForm({ ...tourRateForm, effective_date: e.target.value })}
                   />
                 </div>
               </div>
               <DialogFooter>
-                <Button variant="outline" onClick={() => setIsSupplierRateDialogOpen(false)}>Cancel</Button>
-                <Button onClick={handleSubmitSupplierRate}>{editingSupplierRate ? "Update" : "Create"}</Button>
+                <Button variant="outline" onClick={() => setIsTourRateDialogOpen(false)}>Cancel</Button>
+                <Button onClick={handleSubmitTourRate}>{editingTourRate ? "Update" : "Create"}</Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
 
-          {/* Driver Rate Dialog */}
+          {/* ── Driver Override Dialog ────────────────────────────────────── */}
           <Dialog open={isDriverRateDialogOpen} onOpenChange={setIsDriverRateDialogOpen}>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>{editingDriverRate ? "Edit Driver Rate" : "Add New Driver Rate"}</DialogTitle>
+                <DialogTitle>{editingDriverRate ? "Edit Driver Override" : "Add Driver Override"}</DialogTitle>
                 <DialogDescription>
-                  {editingDriverRate ? "Update the driver rate information below." : "Enter the details for the new driver rate."}
+                  {editingDriverRate ? "Update the override rate." : "This rate will take precedence over the tour rate for this driver."}
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4 py-4">
                 <div>
-                  <Label htmlFor="dr_driver">Driver Lookup</Label>
-                  <Select
-                    value={driverRateFormData.driver_id}
-                    onValueChange={handleDriverSelect}
-                    disabled={!!editingDriverRate}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Search and select a driver" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {drivers.map((driver) => {
-                        const displayName = driver.first_name && driver.surname 
-                          ? `${driver.first_name} ${driver.surname}`
-                          : driver.name || driver.email;
-                        return (
-                          <SelectItem key={driver.id} value={driver.id}>
-                            {displayName} {driver.operator_id ? `(${driver.operator_id})` : ""}
-                          </SelectItem>
-                        );
-                      })}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="dr_first_name">First Name</Label>
-                    <Input
-                      id="dr_first_name"
-                      value={driverRateFormData.first_name}
-                      disabled
-                      className="bg-muted"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="dr_surname">Surname</Label>
-                    <Input
-                      id="dr_surname"
-                      value={driverRateFormData.surname}
-                      disabled
-                      className="bg-muted"
-                    />
-                  </div>
+                  <Label>Driver *</Label>
+                  {editingDriverRate ? (
+                    <Input value={getDriverDisplayName(driverRateForm.driver_id)} disabled className="bg-muted" />
+                  ) : (
+                    <Popover open={driverComboOpen} onOpenChange={setDriverComboOpen}>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          role="combobox"
+                          aria-expanded={driverComboOpen}
+                          className="w-full justify-between font-normal"
+                        >
+                          {driverRateForm.driver_id
+                            ? getDriverDisplayName(driverRateForm.driver_id)
+                            : "Search for a driver..."}
+                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                        <Command shouldFilter={false}>
+                          <CommandInput
+                            placeholder="Type name or operator ID..."
+                            value={driverSearchValue}
+                            onValueChange={setDriverSearchValue}
+                          />
+                          <CommandList>
+                            <CommandEmpty>No driver found</CommandEmpty>
+                            <CommandGroup>
+                              {drivers
+                                .filter((d) => {
+                                  if (!driverSearchValue) return true;
+                                  const term = driverSearchValue.toLowerCase();
+                                  const name = (d.first_name && d.surname ? `${d.first_name} ${d.surname}` : d.name || d.email || "").toLowerCase();
+                                  const opId = (d.operator_id || "").toLowerCase();
+                                  return name.includes(term) || opId.includes(term);
+                                })
+                                .map((driver) => {
+                                  const displayName = driver.first_name && driver.surname
+                                    ? `${driver.first_name} ${driver.surname}`
+                                    : driver.name || driver.email || driver.id;
+                                  return (
+                                    <CommandItem
+                                      key={driver.id}
+                                      value={driver.id}
+                                      onSelect={() => {
+                                        setDriverRateForm({ ...driverRateForm, driver_id: driver.id });
+                                        setDriverComboOpen(false);
+                                      }}
+                                    >
+                                      <Check className={cn("mr-2 h-4 w-4", driverRateForm.driver_id === driver.id ? "opacity-100" : "opacity-0")} />
+                                      {displayName} {driver.operator_id ? `(${driver.operator_id})` : ""}
+                                    </CommandItem>
+                                  );
+                                })}
+                            </CommandGroup>
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
+                  )}
                 </div>
                 <div>
-                  <Label htmlFor="dr_operator_id">Operator ID</Label>
+                  <Label>Override Rate (£) *</Label>
                   <Input
-                    id="dr_operator_id"
-                    value={driverRateFormData.operator_id}
-                    disabled
-                    className="bg-muted"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="dr_rate_lookup">Rate Lookup</Label>
-                  <Select
-                    value={driverRateFormData.rate_lookup}
-                    onValueChange={handleRateLookupSelect}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Search and select a rate" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {supplierRates.map((rate) => (
-                        <SelectItem key={rate.id} value={rate.rate_id}>
-                          <div className="flex flex-col gap-0.5">
-                            <span className="font-semibold">{rate.rate_id}</span>
-                            <span className="text-xs text-muted-foreground">
-                              Provider: {rate.provider} | Supplier: {rate.supplier_id || 'N/A'} | Status: {rate.status} | Rate: £{rate.rate.toFixed(2)}
-                            </span>
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label htmlFor="dr_rate_id">Rate ID</Label>
-                  <Input
-                    id="dr_rate_id"
-                    value={driverRateFormData.rate_id}
-                    disabled
-                    className="bg-muted"
-                    placeholder="Auto-populated from Rate Lookup"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="dr_rate">Rate (£)</Label>
-                  <Input
-                    id="dr_rate"
                     type="number"
                     step="0.01"
                     min="0"
-                    value={driverRateFormData.rate}
-                    disabled
-                    className="bg-muted"
-                    placeholder="Auto-populated from Rate Lookup"
+                    value={driverRateForm.rate}
+                    onChange={(e) => setDriverRateForm({ ...driverRateForm, rate: e.target.value })}
+                    placeholder="e.g. 1.50"
+                  />
+                </div>
+                <div>
+                  <Label>Effective Date *</Label>
+                  <Input
+                    type="date"
+                    value={driverRateForm.effective_date}
+                    onChange={(e) => setDriverRateForm({ ...driverRateForm, effective_date: e.target.value })}
                   />
                 </div>
               </div>

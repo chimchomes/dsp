@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Shield, DollarSign, Users, Truck, LogOut } from "lucide-react";
+import { Shield, DollarSign, Users, LogOut } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { AuthGuard } from "@/components/AuthGuard";
@@ -44,32 +44,26 @@ const AdminSelector = () => {
       route: "/hr",
       color: "text-blue-600",
     },
-    {
-      title: "Route Admin Dashboard",
-      description: "Route management, drivers, and incidents",
-      icon: Truck,
-      route: "/dispatcher",
-      color: "text-orange-600",
-    },
   ];
 
   return (
     <AuthGuard allowedRoles={["admin"]}>
-      <div className="min-h-screen p-6">
+      <div className="min-h-screen p-4 md:p-6">
         <div className="max-w-6xl mx-auto">
-          <div className="mb-12 animate-fade-in">
-            <div className="flex items-center justify-between mb-6">
+          <div className="mb-8 md:mb-12 animate-fade-in">
+            <div className="flex items-center justify-between mb-6 gap-4">
               <div className="text-center flex-1">
-                <h1 className="text-5xl font-bold text-foreground mb-4">Admin Dashboard</h1>
-                <p className="text-xl text-muted-foreground">Select a dashboard to manage</p>
+                <h1 className="text-3xl md:text-5xl font-bold text-foreground mb-2 md:mb-4">Admin Dashboard</h1>
+                <p className="text-base md:text-xl text-muted-foreground">Select a dashboard to manage</p>
               </div>
               <Button
                 variant="outline"
                 onClick={() => setShowExitDialog(true)}
-                className="flex items-center gap-2 rounded-lg border-2 hover:bg-muted/50 transition-all duration-200"
+                className="flex items-center gap-2 rounded-lg border-2 hover:bg-muted/50 transition-all duration-200 shrink-0"
+                size="sm"
               >
                 <LogOut className="w-4 h-4" />
-                Exit
+                <span className="hidden sm:inline">Exit</span>
               </Button>
             </div>
           </div>

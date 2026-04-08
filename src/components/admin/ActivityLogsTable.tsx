@@ -32,25 +32,37 @@ interface ActivityLog {
   created_at: string;
 }
 
-const actionTypeColors: Record<string, string> = {
-  login: "bg-green-500",
-  logout: "bg-gray-500",
-  route_created: "bg-blue-500",
-  route_updated: "bg-yellow-500",
-  route_deleted: "bg-red-500",
-  driver_created: "bg-green-500",
-  driver_updated: "bg-yellow-500",
-  driver_activated: "bg-green-500",
-  driver_deactivated: "bg-orange-500",
-  message_sent: "bg-purple-500",
-  incident_reported: "bg-red-500",
-  deduction_created: "bg-orange-500",
-  payout_calculated: "bg-green-500",
-  payout_processed: "bg-green-600",
-  training_completed: "bg-blue-500",
-  document_uploaded: "bg-indigo-500",
-  user_role_assigned: "bg-purple-500",
-  user_role_removed: "bg-orange-500",
+const EXCLUDED_ACTIONS = [
+  "route_created",
+  "route_updated",
+  "route_deleted",
+  "dispatcher_created",
+  "dispatcher_updated",
+  "dispatcher_deleted",
+];
+
+const actionTypeMeta: Record<string, { label: string; color: string }> = {
+  login: { label: "Login", color: "bg-green-500" },
+  logout: { label: "Logout", color: "bg-gray-500" },
+  driver_created: { label: "Driver Created", color: "bg-emerald-600" },
+  driver_updated: { label: "Driver Updated", color: "bg-amber-500" },
+  driver_activated: { label: "Driver Activated", color: "bg-green-500" },
+  driver_deactivated: { label: "Driver Deactivated", color: "bg-orange-500" },
+  incident_reported: { label: "Incident Reported", color: "bg-red-500" },
+  user_role_assigned: { label: "Role Assigned", color: "bg-purple-500" },
+  user_role_removed: { label: "Role Removed", color: "bg-fuchsia-600" },
+  onboarding_submitted: { label: "Onboarding Submitted", color: "bg-sky-600" },
+  onboarding_approved: { label: "Onboarding Approved", color: "bg-lime-600" },
+  onboarding_rejected: { label: "Onboarding Rejected", color: "bg-rose-600" },
+  staff_created: { label: "Staff Created", color: "bg-cyan-600" },
+  staff_updated: { label: "Staff Updated", color: "bg-cyan-500" },
+  staff_deactivated: { label: "Staff Deactivated", color: "bg-orange-600" },
+  staff_reactivated: { label: "Staff Reactivated", color: "bg-green-600" },
+  payout_calculated: { label: "Payout Calculated", color: "bg-green-500" },
+  payout_processed: { label: "Payout Processed", color: "bg-green-700" },
+  document_uploaded: { label: "Document Uploaded", color: "bg-indigo-500" },
+  message_sent: { label: "Message Sent", color: "bg-violet-500" },
+  deduction_created: { label: "Deduction Created", color: "bg-orange-500" },
 };
 
 const ActivityLogsTable = () => {
@@ -59,12 +71,53 @@ const ActivityLogsTable = () => {
   const [loading, setLoading] = useState(true);
   const [searchEmail, setSearchEmail] = useState("");
   const [filterAction, setFilterAction] = useState<string>("all");
+  const [actionOptions, setActionOptions] = useState<string[]>([]);
+
+  const humanizeAction = (actionType: string) =>
+    actionTypeMeta[actionType]?.label || actionType.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+
+  const resolveActorEmail = (log: ActivityLog) => {
+    if (log.user_email) return log.user_email;
+    const details = (log.action_details || {}) as Record<string, any>;
+    return (
+      details.created_by_email ||
+      details.actor_email ||
+      details.onboarded_by_email ||
+      details.created_by ||
+      "System"
+    );
+  };
+
+  const loadActionOptions = async () => {
+    try {
+      const excluded = `(${EXCLUDED_ACTIONS.join(",")})`;
+      const { data, error } = await supabase
+        .from("activity_logs")
+        .select("action_type")
+        .not("action_type", "in", excluded)
+        .order("created_at", { ascending: false })
+        .limit(300);
+      if (error) throw error;
+
+      const unique = Array.from(new Set((data || []).map((row: any) => row.action_type).filter(Boolean)));
+      const sorted = unique.sort((a, b) => humanizeAction(a).localeCompare(humanizeAction(b)));
+      setActionOptions(sorted);
+    } catch (error: any) {
+      toast({
+        title: "Error loading action filters",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
 
   const fetchLogs = async () => {
     try {
+      const excluded = `(${EXCLUDED_ACTIONS.join(",")})`;
       let query = supabase
         .from('activity_logs')
         .select('*')
+        .not("action_type", "in", excluded)
         .order('created_at', { ascending: false })
         .limit(100);
 
@@ -92,6 +145,7 @@ const ActivityLogsTable = () => {
   };
 
   useEffect(() => {
+    loadActionOptions();
     fetchLogs();
 
     const channel = supabase
@@ -136,13 +190,11 @@ const ActivityLogsTable = () => {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Actions</SelectItem>
-              <SelectItem value="login">Login</SelectItem>
-              <SelectItem value="logout">Logout</SelectItem>
-              <SelectItem value="route_created">Route Created</SelectItem>
-              <SelectItem value="route_updated">Route Updated</SelectItem>
-              <SelectItem value="driver_created">Driver Created</SelectItem>
-              <SelectItem value="incident_reported">Incident Reported</SelectItem>
-              <SelectItem value="payout_processed">Payout Processed</SelectItem>
+              {actionOptions.map((actionType) => (
+                <SelectItem key={actionType} value={actionType}>
+                  {humanizeAction(actionType)}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>
@@ -173,13 +225,13 @@ const ActivityLogsTable = () => {
                     {format(new Date(log.created_at), 'MMM d, yyyy HH:mm:ss')}
                   </TableCell>
                   <TableCell className="font-medium">
-                    {log.user_email || 'System'}
+                    {resolveActorEmail(log)}
                   </TableCell>
                   <TableCell>
                     <Badge 
-                      className={`${actionTypeColors[log.action_type] || 'bg-gray-500'} text-white`}
+                      className={`${actionTypeMeta[log.action_type]?.color || 'bg-gray-500'} text-white`}
                     >
-                      {log.action_type.replace(/_/g, ' ')}
+                      {humanizeAction(log.action_type)}
                     </Badge>
                   </TableCell>
                   <TableCell>

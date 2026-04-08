@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { useTenant } from "@/contexts/TenantContext";
+import { resolveRate, type ResolvedRate } from "@/lib/rateResolver";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -63,13 +65,14 @@ const FinancePayslipDetail = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { tenant } = useTenant();
   const [loading, setLoading] = useState(true);
   const [payslip, setPayslip] = useState<Payslip | null>(null);
   const [driver, setDriver] = useState<Driver | null>(null);
   const [weeklyPay, setWeeklyPay] = useState<WeeklyPay[]>([]);
   const [dailyPaySummary, setDailyPaySummary] = useState<DailyPaySummary[]>([]);
   const [adjustments, setAdjustments] = useState<AdjustmentDetail[]>([]);
-  const [driverRate, setDriverRate] = useState<number>(0);
+  const [tourRates, setTourRates] = useState<Record<string, ResolvedRate>>({});
 
   useEffect(() => {
     if (id) {
@@ -103,32 +106,6 @@ const FinancePayslipDetail = () => {
       if (driverError) throw driverError;
       setDriver(driverData);
 
-      // Load driver rate
-      const { data: rateData, error: rateError } = await supabase
-        .from("driver_rates")
-        .select("rate")
-        .eq("driver_id", payslipData.driver_id)
-        .order("effective_date", { ascending: false })
-        .limit(1)
-        .single();
-
-      if (!rateError && rateData) {
-        setDriverRate(parseFloat(rateData.rate.toString()) || 0);
-      } else {
-        // Try operator_id as fallback
-        const { data: rateData2 } = await supabase
-          .from("driver_rates")
-          .select("rate")
-          .eq("operator_id", payslipData.operator_id)
-          .order("effective_date", { ascending: false })
-          .limit(1)
-          .single();
-
-        if (rateData2) {
-          setDriverRate(parseFloat(rateData2.rate.toString()) || 0);
-        }
-      }
-
       // Load weekly pay
       const { data: weeklyPayData, error: weeklyPayError } = await supabase
         .from("WEEKLY_PAY")
@@ -149,6 +126,21 @@ const FinancePayslipDetail = () => {
       console.log("Filtered Weekly Pay:", filteredWeeklyPay);
       
       setWeeklyPay(filteredWeeklyPay);
+
+      // Resolve per-tour rates using the shared resolver
+      const tenantId = tenant?.id || "";
+      const uniqueTours = [...new Set(filteredWeeklyPay.map((wp) => wp.tour).filter(Boolean))];
+      const resolvedRates: Record<string, ResolvedRate> = {};
+      for (const tour of uniqueTours) {
+        resolvedRates[tour] = await resolveRate(
+          tenantId,
+          payslipData.driver_id,
+          payslipData.operator_id,
+          tour,
+          payslipData.invoice_date
+        );
+      }
+      setTourRates(resolvedRates);
 
       // Load daily pay summary - ensure we're getting the correct operator_id
       const { data: dailyPayData, error: dailyPayError } = await supabase
@@ -195,6 +187,16 @@ const FinancePayslipDetail = () => {
     }
   };
 
+  const getRateForTour = (tour: string): number => {
+    return tourRates[tour]?.applied_rate ?? 0;
+  };
+
+  const getRateLabel = (tour: string): string => {
+    const r = tourRates[tour];
+    if (!r || r.rate_source === "none") return "No rate";
+    return r.rate_source === "driver_override" ? "Driver Override" : "Tour Rate";
+  };
+
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("en-GB", {
       style: "currency",
@@ -236,17 +238,16 @@ const FinancePayslipDetail = () => {
 
     // Generate HTML for daily breakdown
     const dailyBreakdownHTML = Object.values(dailyPayByDay).map((dayGroup, dayIdx) => {
+      const tourRate = getRateForTour(dayGroup.tour);
       const dayRows = dayGroup.items.map((item, itemIdx) => {
-        // Gross pay per day should only be based on PAID quantities
-        // i.e. (QTY Paid) * Driver Rate, NOT including unpaid quantities
-        const grossPayPerDay = item.qty_paid * driverRate;
+        const grossPayPerDay = item.qty_paid * tourRate;
         return `
           <tr>
             <td>${item.service_group}</td>
             <td>${item.qty_paid}</td>
             <td>${item.qty_unpaid}</td>
             <td>${item.qty_total}</td>
-            <td>${formatCurrency(driverRate)}</td>
+            <td>${formatCurrency(tourRate)} <span style="font-size:10px;color:#888">(${getRateLabel(dayGroup.tour)})</span></td>
             <td style="text-align: right">${formatCurrency(grossPayPerDay)}</td>
           </tr>
         `;
@@ -264,7 +265,7 @@ const FinancePayslipDetail = () => {
                 <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">QTY Paid</th>
                 <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">QTY Unpaid</th>
                 <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">QTY Total</th>
-                <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Driver Rate</th>
+                <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Rate</th>
                 <th style="border: 1px solid #ddd; padding: 8px; text-align: right;">Gross Pay Per Day</th>
               </tr>
             </thead>
@@ -436,10 +437,6 @@ const FinancePayslipDetail = () => {
               <div class="row total">
                 <span>TOTAL:</span>
                 <span>${totalQty}</span>
-              </div>
-              <div class="row">
-                <span class="row-label">Driver Rate:</span>
-                <span>${formatCurrency(driverRate)}</span>
               </div>
               <div class="row total">
                 <span>GROSS PAY:</span>
@@ -722,10 +719,17 @@ const FinancePayslipDetail = () => {
                     <span>TOTAL:</span>
                     <span>{totalQty}</span>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="font-medium">Driver Rate:</span>
-                    <span>{formatCurrency(driverRate)}</span>
-                  </div>
+                  {Object.entries(tourRates).map(([tour, resolved]) => (
+                    <div key={tour} className="flex justify-between text-sm">
+                      <span className="font-medium">Rate for {tour}:</span>
+                      <span>
+                        {formatCurrency(resolved.applied_rate)}
+                        <span className="text-xs text-muted-foreground ml-1">
+                          ({resolved.rate_source === "driver_override" ? "Override" : resolved.rate_source === "tour_rate" ? "Tour Rate" : "None"})
+                        </span>
+                      </span>
+                    </div>
+                  ))}
                   <div className="flex justify-between font-bold text-lg border-t pt-2">
                     <span>GROSS PAY:</span>
                     <span>{formatCurrency(payslip.gross_pay)}</span>
@@ -811,22 +815,26 @@ const FinancePayslipDetail = () => {
                           <TableHead>QTY Paid</TableHead>
                           <TableHead>QTY Unpaid</TableHead>
                           <TableHead>QTY Total</TableHead>
-                          <TableHead>Driver Rate</TableHead>
+                          <TableHead>Rate</TableHead>
                           <TableHead className="text-right">Gross Pay Per Day</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {dayGroup.items.map((item, itemIdx) => {
-                          const itemTotal = item.qty_total;
-                          // Gross pay per day should only be based on PAID quantities
-                          const grossPayPerDay = item.qty_paid * driverRate;
+                          const tourRate = getRateForTour(dayGroup.tour);
+                          const grossPayPerDay = item.qty_paid * tourRate;
                           return (
                             <TableRow key={itemIdx}>
                               <TableCell>{item.service_group}</TableCell>
                               <TableCell>{item.qty_paid}</TableCell>
                               <TableCell>{item.qty_unpaid}</TableCell>
                               <TableCell>{item.qty_total}</TableCell>
-                              <TableCell>{formatCurrency(driverRate)}</TableCell>
+                              <TableCell>
+                                {formatCurrency(tourRate)}
+                                <span className="text-xs text-muted-foreground ml-1">
+                                  ({getRateLabel(dayGroup.tour)})
+                                </span>
+                              </TableCell>
                               <TableCell className="text-right font-medium">
                                 {formatCurrency(grossPayPerDay)}
                               </TableCell>

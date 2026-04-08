@@ -12,10 +12,10 @@ serve(async (req) => {
   }
 
   try {
-    const url = Deno.env.get("PROJECT_URL") ?? "";
-    const serviceKey = Deno.env.get("SERVICE_ROLE_KEY") ?? "";
+    const url = Deno.env.get("SUPABASE_URL") ?? Deno.env.get("PROJECT_URL") ?? "";
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? Deno.env.get("SERVICE_ROLE_KEY") ?? "";
     if (!url || !serviceKey) {
-      return new Response(JSON.stringify({ error: "Missing PROJECT_URL/SERVICE_ROLE_KEY" }), { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 });
+      return new Response(JSON.stringify({ error: "Missing SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY" }), { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 });
     }
 
     const supabase = createClient(url, serviceKey, { auth: { autoRefreshToken: false, persistSession: false } });
@@ -45,12 +45,13 @@ serve(async (req) => {
     const { title, body: content, kind = 'message', driverIds, recipientId, recipientIds, recipientRole } = await req.json();
     if (!title || !content) return new Response(JSON.stringify({ error: "title and body are required" }), { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 });
 
-    // Determine caller roles
+    // Determine caller roles and tenant
     const { data: roleRows } = await supabase
       .from('user_roles')
-      .select('role')
+      .select('role, tenant_id')
       .eq('user_id', caller.id);
     const callerRoles = (roleRows || []).map((r) => String(r.role));
+    const callerTenantId = (roleRows || []).find((r) => r.tenant_id)?.tenant_id;
     if (callerRoles.length === 0) {
       return new Response(JSON.stringify({ error: "User has no role assigned" }), { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 403 });
     }
@@ -60,7 +61,7 @@ serve(async (req) => {
     const isDriverOnly = hasDriverRole && callerRoles.every((role) => role === 'driver');
     const isOnboarding = hasRole('onboarding');
     const isInactive = hasRole('inactive');
-    const isRouteAdmin = hasRole('route-admin') || hasRole('dispatcher');
+    const isRouteAdmin = false;
     const isAdmin = hasRole('admin');
     const isFinance = hasRole('finance');
     const isHR = hasRole('hr');
@@ -199,6 +200,7 @@ serve(async (req) => {
     if (sanitizedRecipients.length === 0) {
       // Check why recipients were filtered out
       const recipientsWithNoRoles = recipients.filter(rid => (roleMap.get(rid) || []).length === 0);
+      const recipientsWithOnboarding = recipients.filter(rid => (roleMap.get(rid) || []).includes('onboarding'));
       
       let errorMsg = "No valid recipients. ";
       
@@ -258,7 +260,7 @@ serve(async (req) => {
     }
 
     // Insert notifications
-    const rows = sanitizedRecipients.map(rid => ({ sender_id: caller.id, recipient_id: rid, title, body: content, kind }));
+    const rows = sanitizedRecipients.map(rid => ({ sender_id: caller.id, recipient_id: rid, title, body: content, kind, tenant_id: callerTenantId }));
     console.log(`Inserting ${rows.length} notification(s) for recipients: ${sanitizedRecipients.join(', ')}`);
     const { error: insErr } = await supabase.from('notifications').insert(rows);
     if (insErr) {

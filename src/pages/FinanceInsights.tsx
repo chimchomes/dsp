@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useTenant } from "@/contexts/TenantContext";
 import { AuthGuard } from "@/components/AuthGuard";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -129,6 +130,7 @@ const NumTooltip = ({ active, payload, label }: any) => {
 const FinanceInsights = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { tenant } = useTenant();
 
   // UI state
   const [activeCategory, setActiveCategory] = useState<InsightCategory>("driver-pay");
@@ -684,30 +686,43 @@ const FinanceInsights = () => {
     });
   };
 
-  // 15. Most Profitable Route
+  // 15. Most Profitable Route - uses tour_rates as default, driver_rates as override
   const runMostProfitableRoute = async () => {
     let wpQ = supabase.from("WEEKLY_PAY").select("operator_id, tour, total_qty, yodel_weekly_amount, invoice_date, invoice_number");
     wpQ = applyFilters(wpQ, { dateField: "invoice_date", opField: "operator_id", invField: "invoice_number" });
-    const [wpRes, ratesRes] = await Promise.all([
+
+    const [wpRes, tourRatesRes, driverRatesRes] = await Promise.all([
       wpQ,
-      supabase.from("driver_rates").select("driver_id, rate, operator_id"),
+      supabase.from("tour_rates").select("tour_id, rate, effective_date").order("effective_date", { ascending: false }),
+      supabase.from("driver_rates").select("driver_id, operator_id, rate, effective_date").order("effective_date", { ascending: false }),
     ]);
     if (wpRes.error) throw wpRes.error;
-    // Build operator -> rate map
-    const rateMap: Record<string, number> = {};
-    (ratesRes.data || []).forEach((r: any) => {
-      if (r.operator_id) rateMap[r.operator_id] = Number(r.rate || 0);
-      const d = drivers.find(dr => dr.id === r.driver_id);
-      if (d?.operator_id && !rateMap[d.operator_id]) rateMap[d.operator_id] = Number(r.rate || 0);
+
+    // Build tour -> latest rate map
+    const tourRateMap: Record<string, number> = {};
+    (tourRatesRes.data || []).forEach((r: any) => {
+      if (!tourRateMap[r.tour_id]) tourRateMap[r.tour_id] = Number(r.rate || 0);
     });
+
+    // Build operator -> latest rate map (driver override)
+    const driverRateMap: Record<string, number> = {};
+    (driverRatesRes.data || []).forEach((r: any) => {
+      if (r.operator_id && !driverRateMap[r.operator_id]) driverRateMap[r.operator_id] = Number(r.rate || 0);
+      const d = drivers.find(dr => dr.id === r.driver_id);
+      if (d?.operator_id && !driverRateMap[d.operator_id]) driverRateMap[d.operator_id] = Number(r.rate || 0);
+    });
+
     const tourMap: Record<string, { revenue: number; cost: number; qty: number }> = {};
     (wpRes.data || []).forEach((wp: any) => {
       const t = wp.tour || "Unknown";
       if (!tourMap[t]) tourMap[t] = { revenue: 0, cost: 0, qty: 0 };
       tourMap[t].revenue += Number(wp.yodel_weekly_amount || 0);
       tourMap[t].qty += Number(wp.total_qty || 0);
-      tourMap[t].cost += (rateMap[wp.operator_id] || 0) * Number(wp.total_qty || 0);
+      // Rate resolution: driver override first, then tour rate
+      const rate = driverRateMap[wp.operator_id] ?? tourRateMap[t] ?? 0;
+      tourMap[t].cost += rate * Number(wp.total_qty || 0);
     });
+
     const chartData = Object.entries(tourMap)
       .map(([tour, v]) => ({ name: tour, revenue: v.revenue, cost: v.cost, profit: v.revenue - v.cost, qty: v.qty }))
       .sort((a, b) => b.profit - a.profit);
@@ -927,29 +942,17 @@ const FinanceInsights = () => {
     const insight = INSIGHTS.find(i => i.id === selectedInsight);
     if (!insight || !reportData) return;
 
-    // Fetch company details for header
     let companyHtml = "";
-    try {
-      const { data: companyData } = await supabase
-        .from("company_details")
-        .select("*")
-        .limit(1)
-        .maybeSingle();
-      if (companyData) {
-        const cd = companyData as any;
-        const addressParts = [cd.address_line_1, cd.address_line_2, cd.address_line_3, cd.address_line_4].filter(Boolean).join(", ");
-        companyHtml = `<div style="border-bottom:2px solid #333;padding-bottom:16px;margin-bottom:20px">
-          <div style="font-size:18px;font-weight:700">${cd.company_name || ""}</div>
-          ${addressParts ? `<div style="font-size:12px;color:#555;margin-top:4px">${addressParts}</div>` : ""}
-          ${cd.postcode ? `<div style="font-size:12px;color:#555">${cd.postcode}</div>` : ""}
-          <div style="display:flex;gap:24px;margin-top:8px;font-size:12px;color:#555">
-            ${cd.company_number ? `<span>Company No: <strong>${cd.company_number}</strong></span>` : ""}
-            ${cd.vat_registration_number ? `<span>VAT Reg No: <strong>${cd.vat_registration_number}</strong></span>` : ""}
-          </div>
-        </div>`;
-      }
-    } catch (err) {
-      console.error("Error loading company details for PDF:", err);
+    if (tenant) {
+      const addressParts = [tenant.address_line_1, tenant.address_line_2, tenant.address_line_3, tenant.address_line_4, tenant.city, tenant.postcode].filter(Boolean).join(", ");
+      companyHtml = `<div style="border-bottom:2px solid #333;padding-bottom:16px;margin-bottom:20px">
+        <div style="font-size:18px;font-weight:700">${tenant.company_name || ""}</div>
+        ${addressParts ? `<div style="font-size:12px;color:#555;margin-top:4px">${addressParts}</div>` : ""}
+        <div style="display:flex;gap:24px;margin-top:8px;font-size:12px;color:#555">
+          ${tenant.company_number ? `<span>Company No: <strong>${tenant.company_number}</strong></span>` : ""}
+          ${tenant.vat_registration_number ? `<span>VAT Reg No: <strong>${tenant.vat_registration_number}</strong></span>` : ""}
+        </div>
+      </div>`;
     }
 
     // Grab chart SVG from DOM
@@ -999,14 +1002,8 @@ const FinanceInsights = () => {
         ? `${format(dateRange.from, "dd/MM/yyyy")}${dateRange.to ? ` – ${format(dateRange.to, "dd/MM/yyyy")}` : ""}`
         : "All dates";
 
-      // Fetch company details
-      let cd: any = {};
-      try {
-        const { data: compData } = await supabase.from("company_details").select("*").limit(1).maybeSingle();
-        if (compData) cd = compData;
-      } catch {}
-
-      const addressParts = [cd.address_line_1, cd.address_line_2, cd.address_line_3, cd.address_line_4, cd.postcode].filter(Boolean).join(", ");
+      const cd = tenant || {} as any;
+      const addressParts = [cd.address_line_1, cd.address_line_2, cd.address_line_3, cd.address_line_4, cd.city, cd.postcode].filter(Boolean).join(", ");
 
       const vatHtml = `<!DOCTYPE html><html><head><title>VAT Liability - DSP Portal</title>
 <style>

@@ -1,4 +1,4 @@
-﻿import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 
 const corsHeaders = {
@@ -13,8 +13,8 @@ serve(async (req) => {
 
   try {
     const supabaseAdmin = createClient(
-      Deno.env.get('PROJECT_URL') ?? '',
-      Deno.env.get('SERVICE_ROLE_KEY') ?? '',
+      Deno.env.get('SUPABASE_URL') ?? Deno.env.get('PROJECT_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? Deno.env.get('SERVICE_ROLE_KEY') ?? '',
       {
         auth: {
           autoRefreshToken: false,
@@ -23,8 +23,13 @@ serve(async (req) => {
       }
     );
 
-    // Get the authorization header from the request
-    const authHeader = req.headers.get('Authorization')!;
+    const authHeader = req.headers.get('Authorization') || '';
+    if (!authHeader) {
+      return new Response(
+        JSON.stringify({ error: 'Missing authorization header' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
+      );
+    }
     const token = authHeader.replace('Bearer ', '');
     
     // Verify the user is authenticated
@@ -43,7 +48,6 @@ serve(async (req) => {
       throw new Error('Only admins and HR can create driver accounts');
     }
 
-    // Parse request body with all fields
     const { 
       firstName, 
       surname, 
@@ -58,8 +62,25 @@ serve(async (req) => {
       emergencyContactName, 
       emergencyContactPhone, 
       operatorId,
-      nationalInsurance
+      nationalInsurance,
+      tenant_id: explicitTenantId
     } = await req.json();
+
+    // Resolve tenant_id
+    let tenantId = explicitTenantId;
+    if (!tenantId) {
+      const { data: callerTenant } = await supabaseAdmin
+        .from("user_roles")
+        .select("tenant_id")
+        .eq("user_id", user.id)
+        .not("tenant_id", "is", null)
+        .limit(1)
+        .single();
+      tenantId = callerTenant?.tenant_id;
+    }
+    if (!tenantId) {
+      throw new Error('tenant_id is required');
+    }
 
     // Validate required fields
     if (!firstName || !surname || !email || !password) {
@@ -89,21 +110,20 @@ serve(async (req) => {
       throw new Error(`Failed to create user: ${createError?.message}`);
     }
 
-    // Assign driver role
     const { error: roleError } = await supabaseAdmin
       .from('user_roles')
       .insert({
         user_id: newUser.user.id,
-        role: 'driver'
+        role: 'driver',
+        tenant_id: tenantId
       });
 
     if (roleError) {
       throw new Error(`Failed to assign role: ${roleError.message}`);
     }
 
-    // Create profile record with personal information
     const { error: profileError } = await supabaseAdmin
-      .from('profiles')
+      .from('staff_profiles')
       .upsert({
         user_id: newUser.user.id,
         email,
@@ -117,6 +137,7 @@ serve(async (req) => {
         postcode: postcode || null,
         emergency_contact_name: emergencyContactName || null,
         emergency_contact_phone: emergencyContactPhone || null,
+        tenant_id: tenantId,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       }, { onConflict: 'user_id' });
@@ -126,9 +147,8 @@ serve(async (req) => {
       // Don't fail - profile might be created by trigger
     }
 
-    // Create driver record with all information
     const { error: driverError } = await supabaseAdmin
-      .from('drivers')
+      .from('driver_profiles')
       .insert({
         user_id: newUser.user.id,
         email,
@@ -147,7 +167,8 @@ serve(async (req) => {
         national_insurance: nationalInsurance || null,
         onboarded_by: user.id,
         onboarded_at: new Date().toISOString(),
-        active: true
+        active: true,
+        tenant_id: tenantId
       });
 
     if (driverError) {
@@ -160,7 +181,14 @@ serve(async (req) => {
         p_action_type: 'driver_created',
         p_resource_type: 'driver',
         p_resource_id: newUser.user.id,
-        p_action_details: { name: fullName, email }
+        p_action_details: {
+          name: fullName,
+          email,
+          created_by_user_id: user.id,
+          created_by_email: user.email,
+          tenant_id: tenantId,
+          source: "admin_or_hr_create_driver_account"
+        }
       });
     } catch (logError) {
       console.error('Activity log error:', logError);

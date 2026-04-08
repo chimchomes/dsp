@@ -31,7 +31,11 @@ export default function CreateTestOnboardingAccount() {
         body: { email, fullName, firstName, surname, password }
       });
 
-      if (error) throw error;
+      if (error) {
+        let detail = error.message;
+        try { const body = await (error as any).context?.json?.(); if (body?.error) detail = body.error; } catch {}
+        throw new Error(detail);
+      }
 
       if (data?.exists) {
         toast({ 

@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { AuthGuard } from "@/components/AuthGuard";
-import { ArrowLeft, DollarSign, FileText, Users, Calculator, Upload, CreditCard, Settings, Receipt, Building2 } from "lucide-react";
+import { ArrowLeft, DollarSign, FileText, Users, Calculator, CreditCard, Settings, Building2 } from "lucide-react";
 // DollarSign is used for the header icon
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
@@ -49,15 +49,6 @@ const FinanceDashboard = () => {
       stats: "Configure rates"
     },
     {
-      title: "Upload Invoice",
-      description: "Upload and process YODEL invoice PDFs",
-      icon: Upload,
-      color: "text-indigo-600",
-      bgColor: "bg-indigo-50 dark:bg-indigo-950/30",
-      route: "/finance/invoices/upload",
-      stats: "Process invoices"
-    },
-    {
       title: "Invoices",
       description: "View and manage uploaded invoices",
       icon: FileText,
@@ -85,15 +76,6 @@ const FinanceDashboard = () => {
       stats: "View adjustments"
     },
     {
-      title: "Generate Payslip",
-      description: "Generate payslips per invoice for drivers",
-      icon: Receipt,
-      color: "text-teal-600",
-      bgColor: "bg-teal-50 dark:bg-teal-950/30",
-      route: "/finance/generate-payslip",
-      stats: "Create payslips"
-    },
-    {
       title: "Company Settings",
       description: "Manage company details for reports and VAT documents",
       icon: Building2,
@@ -111,15 +93,15 @@ const FinanceDashboard = () => {
   return (
     <AuthGuard allowedRoles={["admin", "finance"]}>
       <div className="min-h-screen">
-        <div className="p-6">
-          <div className="mb-8 animate-fade-in">
-            <div className="flex items-center gap-4">
-              <div className="p-3 rounded-xl bg-primary/10">
-                <DollarSign className="h-8 w-8 text-primary" />
+        <div className="p-4 md:p-6">
+          <div className="mb-6 md:mb-8 animate-fade-in">
+            <div className="flex items-center gap-3 md:gap-4">
+              <div className="p-2 md:p-3 rounded-xl bg-primary/10 shrink-0">
+                <DollarSign className="h-6 w-6 md:h-8 md:w-8 text-primary" />
               </div>
-              <div>
-                <h1 className="text-4xl font-bold text-foreground">Finance Dashboard</h1>
-                <p className="text-muted-foreground mt-1 text-base font-medium">Manage payroll and financial reports</p>
+              <div className="min-w-0">
+                <h1 className="text-2xl md:text-4xl font-bold text-foreground">Finance Dashboard</h1>
+                <p className="text-muted-foreground mt-1 text-sm md:text-base font-medium">Manage payroll and financial reports</p>
               </div>
             </div>
           </div>

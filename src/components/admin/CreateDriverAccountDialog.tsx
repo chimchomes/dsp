@@ -61,28 +61,16 @@ export const CreateDriverAccountDialog = ({ onSuccess }: { onSuccess: () => void
       // Validate input
       const validated = driverSchema.parse(formData);
 
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        throw new Error("Not authenticated");
+      const { data: fnData, error: fnError } = await supabase.functions.invoke("create-driver-account", {
+        body: validated,
+      });
+
+      if (fnError) {
+        let detail = fnError.message;
+        try { const b = await (fnError as any).context?.json?.(); if (b?.error) detail = b.error; } catch {}
+        throw new Error(detail);
       }
-
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-driver-account`,
-        {
-          method: "POST",
-          headers: {
-            "Authorization": `Bearer ${session.access_token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(validated),
-        }
-      );
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.error || "Failed to create driver account");
-      }
+      if (fnData?.error) throw new Error(fnData.error);
 
       toast({
         title: "Driver account created",

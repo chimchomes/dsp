@@ -263,7 +263,14 @@ export default function StaffManagement() {
         },
       });
 
-      if (error) throw error;
+      if (error) {
+        let detail = error.message;
+        try {
+          const body = await (error as any).context?.json?.();
+          if (body?.error) detail = body.error;
+        } catch {}
+        throw new Error(detail);
+      }
       if (data?.error) throw new Error(data.error);
 
       toast({
@@ -470,7 +477,7 @@ export default function StaffManagement() {
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
         <div>
           <h3 className="text-lg font-semibold">Staff Management</h3>
           <p className="text-sm text-muted-foreground">
@@ -492,7 +499,7 @@ export default function StaffManagement() {
               </DialogDescription>
             </DialogHeader>
             <form onSubmit={handleCreateStaff} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="first_name">First Name *</Label>
                   <Input
@@ -533,7 +540,7 @@ export default function StaffManagement() {
                 )}
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="role">Role *</Label>
                   <Select
@@ -707,8 +714,8 @@ export default function StaffManagement() {
                           variant="outline"
                           onClick={() => handleEditProfile(user)}
                         >
-                          <Edit className="h-4 w-4 mr-1" />
-                          Edit
+                          <Edit className="h-4 w-4 sm:mr-1" />
+                          <span className="hidden sm:inline">Edit</span>
                         </Button>
                         {user.isInactive ? (
                           <Button
@@ -716,8 +723,8 @@ export default function StaffManagement() {
                             variant="outline"
                             onClick={() => handleReactivateStaff(user)}
                           >
-                            <UserCheck className="h-4 w-4 mr-1" />
-                            Reactivate
+                            <UserCheck className="h-4 w-4 sm:mr-1" />
+                            <span className="hidden sm:inline">Reactivate</span>
                           </Button>
                         ) : (
                           <Button
@@ -725,8 +732,8 @@ export default function StaffManagement() {
                             variant="outline"
                             onClick={() => handleDeactivateStaff(user)}
                           >
-                            <UserX className="h-4 w-4 mr-1" />
-                            Deactivate
+                            <UserX className="h-4 w-4 sm:mr-1" />
+                            <span className="hidden sm:inline">Deactivate</span>
                           </Button>
                         )}
                       </div>
@@ -747,7 +754,7 @@ export default function StaffManagement() {
             <DialogDescription>Update user profile information</DialogDescription>
           </DialogHeader>
           <form onSubmit={handleUpdateProfile} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="edit_first_name">First Name</Label>
                 <Input
@@ -834,7 +841,7 @@ export default function StaffManagement() {
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="edit_emergency_contact_name">Emergency Contact Name</Label>
                 <Input

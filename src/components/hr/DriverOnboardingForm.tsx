@@ -83,46 +83,31 @@ const DriverOnboardingForm = () => {
   const onSubmit = async (data: OnboardingFormData) => {
     setIsSubmitting(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        throw new Error("Not authenticated");
-      }
-
-      // Full name is first_name + surname
       const fullName = `${data.first_name} ${data.surname}`.trim();
 
-      // Use the create-driver-account edge function to properly create user account,
-      // assign driver role, and create driver record with user_id linked
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-driver-account`,
-        {
-          method: "POST",
-          headers: {
-            "Authorization": `Bearer ${session.access_token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            firstName: data.first_name,
-            surname: data.surname,
-            email: data.email,
-            contactPhone: data.contact_phone,
-            licenseNumber: data.license_number,
-            addressLine1: data.address_line_1,
-            addressLine2: data.address_line_2 || null,
-            addressLine3: data.address_line_3 || null,
-            postcode: data.postcode,
-            emergencyContactName: data.emergency_contact_name,
-            emergencyContactPhone: data.emergency_contact_phone,
-            nationalInsurance: data.national_insurance || null,
-          }),
-        }
-      );
+      const { data: fnData, error: fnError } = await supabase.functions.invoke("create-driver-account", {
+        body: {
+          firstName: data.first_name,
+          surname: data.surname,
+          email: data.email,
+          contactPhone: data.contact_phone,
+          licenseNumber: data.license_number,
+          addressLine1: data.address_line_1,
+          addressLine2: data.address_line_2 || null,
+          addressLine3: data.address_line_3 || null,
+          postcode: data.postcode,
+          emergencyContactName: data.emergency_contact_name,
+          emergencyContactPhone: data.emergency_contact_phone,
+          nationalInsurance: data.national_insurance || null,
+        },
+      });
 
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.error || "Failed to create driver account");
+      if (fnError) {
+        let detail = fnError.message;
+        try { const b = await (fnError as any).context?.json?.(); if (b?.error) detail = b.error; } catch {}
+        throw new Error(detail);
       }
+      if (fnData?.error) throw new Error(fnData.error);
 
       // Get the created driver record to upload documents
       const { data: driver, error: driverError } = await supabase

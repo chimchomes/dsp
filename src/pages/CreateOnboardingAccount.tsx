@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,8 +25,6 @@ type AccountFormData = z.infer<typeof accountSchema>;
 
 export default function CreateOnboardingAccount() {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  const vehicleType = (searchParams.get("type") || "own") as "own" | "lease";
   const [isLoading, setIsLoading] = useState(false);
   
   const { register, handleSubmit, formState: { errors } } = useForm<AccountFormData>({
@@ -42,7 +40,11 @@ export default function CreateOnboardingAccount() {
       const { data: fnData, error: fnError } = await supabase.functions.invoke("create-onboarding-account", {
         body: { email: data.email, fullName, firstName: data.first_name, surname: data.surname, password: data.password },
       });
-      if (fnError) throw fnError;
+      if (fnError) {
+        let detail = fnError.message;
+        try { const body = await (fnError as any).context?.json?.(); if (body?.error) detail = body.error; } catch {}
+        throw new Error(detail);
+      }
 
       if (fnData?.exists) {
         toast({ title: "Account already exists", description: "You can log in now." });
@@ -50,7 +52,7 @@ export default function CreateOnboardingAccount() {
         toast({ title: "Account created", description: "You can log in with your password." });
       }
 
-      navigate("/onboarding-login", { state: { email: data.email, type: vehicleType, first_name: data.first_name, surname: data.surname } });
+      navigate("/onboarding-login", { state: { email: data.email, first_name: data.first_name, surname: data.surname } });
     } catch (error: any) {
       console.error("Account creation error:", error);
       toast({ title: "Account creation failed", description: error?.message || "An error occurred. Please try again.", variant: "destructive" });
@@ -72,7 +74,6 @@ export default function CreateOnboardingAccount() {
           <h1 className="text-2xl font-bold text-center mb-2">Create Your Account</h1>
           <p className="text-muted-foreground text-center mb-6">
             Start your driver onboarding application by creating an account.
-            {vehicleType === "own" ? " (Own Vehicle)" : " (Leased Vehicle)"}
           </p>
 
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">

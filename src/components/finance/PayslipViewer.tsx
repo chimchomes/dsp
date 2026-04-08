@@ -112,7 +112,11 @@ export const PayslipViewer = ({ driverId, driverName }: PayslipViewerProps) => {
         },
       });
 
-      if (error) throw error;
+      if (error) {
+        let detail = error.message;
+        try { const body = await (error as any).context?.json?.(); if (body?.error) detail = body.error; } catch {}
+        throw new Error(detail);
+      }
 
       if (data.error) {
         throw new Error(data.error);
@@ -181,7 +185,7 @@ export const PayslipViewer = ({ driverId, driverName }: PayslipViewerProps) => {
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <Label htmlFor="period_start">Period Start</Label>
               <Input
@@ -240,14 +244,14 @@ export const PayslipViewer = ({ driverId, driverName }: PayslipViewerProps) => {
             {/* Driver Details */}
             <div>
               <h3 className="font-semibold text-lg mb-2">Driver Details</h3>
-              <div className="grid grid-cols-2 gap-4 text-sm">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
                 <div>
                   <span className="text-muted-foreground">Name:</span>
                   <p className="font-medium">{payslip.driver_details.name}</p>
                 </div>
                 <div>
                   <span className="text-muted-foreground">Email:</span>
-                  <p className="font-medium">{payslip.driver_details.email}</p>
+                  <p className="font-medium break-all">{payslip.driver_details.email}</p>
                 </div>
               </div>
             </div>
@@ -255,7 +259,7 @@ export const PayslipViewer = ({ driverId, driverName }: PayslipViewerProps) => {
             {/* Performance Summary */}
             <div>
               <h3 className="font-semibold text-lg mb-2">Performance Summary</h3>
-              <div className="grid grid-cols-2 gap-4 text-sm">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
                 <div>
                   <span className="text-muted-foreground">Total Packages Completed:</span>
                   <p className="font-medium text-lg">{payslip.performance.total_packages_completed}</p>

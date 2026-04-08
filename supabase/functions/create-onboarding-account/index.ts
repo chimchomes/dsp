@@ -4,6 +4,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
 serve(async (req) => {
@@ -24,11 +25,11 @@ serve(async (req) => {
     // Backward-compat fallback (older callers provided role/password)
     const role: string | undefined = body?.role?.toString().trim();
 
-    const url = Deno.env.get("PROJECT_URL") ?? "";
-    const serviceKey = Deno.env.get("SERVICE_ROLE_KEY") ?? "";
+    const url = Deno.env.get("SUPABASE_URL") ?? Deno.env.get("PROJECT_URL") ?? "";
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? Deno.env.get("SERVICE_ROLE_KEY") ?? "";
     if (!url || !serviceKey) {
       return new Response(
-        JSON.stringify({ error: "Service configuration missing (PROJECT_URL/SERVICE_ROLE_KEY)." }),
+        JSON.stringify({ error: "Missing SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY" }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
       );
     }
