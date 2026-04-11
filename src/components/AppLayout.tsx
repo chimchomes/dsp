@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useLocation } from "react-router-dom";
 import Sidebar from "./Sidebar";
 import HeaderBar from "./HeaderBar";
+import { cn } from "@/lib/utils";
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -27,9 +28,9 @@ const AppLayout = ({ children }: AppLayoutProps) => {
   }
 
   return (
-    <div className="flex min-h-screen bg-background">
+    <div className={cn("flex min-h-screen bg-background", sidebarOpen && "overflow-hidden max-h-screen md:overflow-auto md:max-h-none")}>
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-      <div className="flex-1 md:ml-64 flex flex-col">
+      <div className="flex-1 w-full md:ml-64 flex flex-col min-w-0">
         <HeaderBar onToggleSidebar={() => setSidebarOpen((prev) => !prev)} />
         <main className="flex-1 relative">
           <div className="absolute inset-0 hex-pattern pointer-events-none"></div>

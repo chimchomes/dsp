@@ -156,9 +156,9 @@ const Sidebar = ({ open, onClose }: SidebarProps) => {
 
       <aside
         className={cn(
-          "fixed left-0 top-0 h-screen w-64 bg-sidebar-background border-r border-sidebar-border z-50 flex flex-col transition-transform duration-300 ease-in-out",
+          "fixed left-0 top-0 h-screen w-64 bg-sidebar-background border-r border-sidebar-border flex flex-col transition-transform duration-300 ease-in-out",
           "md:translate-x-0 md:z-30",
-          open ? "translate-x-0" : "-translate-x-full"
+          open ? "translate-x-0 z-50 shadow-2xl" : "-translate-x-full pointer-events-none md:pointer-events-auto"
         )}
       >
         <div className="p-4 border-b border-sidebar-border">
