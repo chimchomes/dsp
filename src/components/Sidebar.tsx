@@ -140,9 +140,7 @@ const Sidebar = ({ open, onClose }: SidebarProps) => {
 
   const portalName = isMasterAdmin && isMasterAdminRoute
     ? "Master Admin"
-    : tenant?.company_name || "DSP Portal";
-
-  const logoSrc = tenant?.logo_url || "/logo.png";
+    : tenant?.company_name?.trim() || "DSP Portal";
 
   return (
     <>
@@ -166,23 +164,11 @@ const Sidebar = ({ open, onClose }: SidebarProps) => {
         style={{ backgroundColor: 'hsl(222, 47%, 5%)' }}
       >
         <div className="p-4 border-b border-sidebar-border">
-          <Link to={isMasterAdmin && isMasterAdminRoute ? "/masteradmin" : "/"} className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-primary/10">
-              {isMasterAdmin && isMasterAdminRoute ? (
-                <Shield className="h-10 w-10 text-primary" />
-              ) : (
-                <img 
-                  src={logoSrc}
-                  alt="Logo" 
-                  className="h-10 w-auto"
-                  onError={(e) => {
-                    const target = e.target as HTMLImageElement;
-                    target.style.display = 'none';
-                  }}
-                />
-              )}
-            </div>
-            <span className="font-bold text-lg text-sidebar-foreground truncate">{portalName}</span>
+          <Link
+            to={isMasterAdmin && isMasterAdminRoute ? "/masteradmin" : "/"}
+            className="block font-bold text-lg text-sidebar-foreground leading-snug break-words"
+          >
+            {portalName}
           </Link>
         </div>
         
