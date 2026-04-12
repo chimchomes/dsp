@@ -146,10 +146,10 @@ const Sidebar = ({ open, onClose }: SidebarProps) => {
 
   return (
     <>
-      {/* Backdrop for mobile */}
+      {/* Backdrop for mobile - covers everything */}
       {open && (
         <div
-          className="fixed inset-0 bg-black/70 z-40 md:hidden backdrop-blur-sm"
+          className="fixed inset-0 bg-black/80 z-[60] md:hidden"
           onClick={onClose}
         />
       )}
@@ -157,13 +157,12 @@ const Sidebar = ({ open, onClose }: SidebarProps) => {
       <aside
         className={cn(
           "fixed left-0 top-0 h-screen w-64 border-r border-sidebar-border flex flex-col transition-transform duration-300 ease-in-out",
-          "bg-[hsl(222,47%,9%)]",
           "md:translate-x-0 md:z-30",
-          open === false || open === undefined
-            ? "-translate-x-full pointer-events-none md:pointer-events-auto md:translate-x-0"
-            : "translate-x-0 z-50 shadow-[4px_0_24px_rgba(0,0,0,0.5)]"
+          open
+            ? "translate-x-0 z-[70] shadow-[4px_0_24px_rgba(0,0,0,0.7)]"
+            : "-translate-x-full pointer-events-none md:pointer-events-auto md:translate-x-0"
         )}
-        style={{ backgroundColor: 'hsl(222, 47%, 9%)' }}
+        style={{ backgroundColor: 'hsl(222, 47%, 5%)' }}
       >
         <div className="p-4 border-b border-sidebar-border">
           <Link to={isMasterAdmin && isMasterAdminRoute ? "/masteradmin" : "/"} className="flex items-center gap-3">
