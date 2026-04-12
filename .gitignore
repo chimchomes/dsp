@@ -31,3 +31,4 @@ dist-ssr
 
 # Database backups (may contain PII)
 supabase/backup/
+.vercel

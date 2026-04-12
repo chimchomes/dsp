@@ -2,7 +2,6 @@ import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { useTenant } from "@/contexts/TenantContext";
 import { AuthGuard } from "@/components/AuthGuard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -43,17 +42,6 @@ interface DriverRate {
   updated_at: string;
 }
 
-interface SupplierRate {
-  id: string;
-  rate_id: string;
-  provider: string;
-  supplier_id: string | null;
-  status: string;
-  rate: number;
-  created_at: string;
-  updated_at: string;
-}
-
 interface Driver {
   id: string;
   name: string | null;
@@ -66,7 +54,6 @@ interface Driver {
 const FinancePayRates = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { tenant } = useTenant();
   const [activeTab, setActiveTab] = useState("tour-rates");
 
   // Tour Rates state
@@ -91,19 +78,13 @@ const FinancePayRates = () => {
   const [driverComboOpen, setDriverComboOpen] = useState(false);
   const [driverSearchValue, setDriverSearchValue] = useState("");
 
-  // Internal Rates state (deprecated, read-only)
-  const [supplierRates, setSupplierRates] = useState<SupplierRate[]>([]);
-  const [supplierRatesLoading, setSupplierRatesLoading] = useState(true);
-
   const tourRatesPagination = useListPagination(tourRates, String(tourRates.length));
   const driverRatesPagination = useListPagination(driverRates, String(driverRates.length));
-  const supplierRatesPagination = useListPagination(supplierRates, String(supplierRates.length));
 
   useEffect(() => {
     loadTourRates();
     loadDriverRates();
     loadDrivers();
-    loadSupplierRates();
     loadAvailableTours();
   }, []);
 
@@ -326,23 +307,6 @@ const FinancePayRates = () => {
     }
   };
 
-  // ── Internal Rates (deprecated) ──────────────────────────────────────────
-
-  const loadSupplierRates = async () => {
-    try {
-      const { data, error } = await supabase
-        .from("supplier_rates")
-        .select("*")
-        .order("provider", { ascending: true });
-      if (error) throw error;
-      setSupplierRates(data || []);
-    } catch (error: any) {
-      console.error("Error loading internal rates:", error);
-    } finally {
-      setSupplierRatesLoading(false);
-    }
-  };
-
   // ── Helpers ───────────────────────────────────────────────────────────────
 
   const getDriverDisplayName = (driverId: string) => {
@@ -376,10 +340,9 @@ const FinancePayRates = () => {
           </div>
 
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-3">
+            <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="tour-rates">Tour Rates</TabsTrigger>
               <TabsTrigger value="driver-overrides">Driver Overrides</TabsTrigger>
-              <TabsTrigger value="internal-rates">Internal Rates (Legacy)</TabsTrigger>
             </TabsList>
 
             {/* ── Tour Rates Tab ─────────────────────────────────────────── */}
@@ -518,66 +481,6 @@ const FinancePayRates = () => {
                       pageSize={driverRatesPagination.pageSize}
                       onPrev={driverRatesPagination.goPrev}
                       onNext={driverRatesPagination.goNext}
-                    />
-                    </>
-                  )}
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            {/* ── Internal Rates Tab (deprecated) ───────────────────────── */}
-            <TabsContent value="internal-rates" className="space-y-4">
-              <Alert variant="destructive">
-                <AlertTriangle className="h-4 w-4" />
-                <AlertTitle>Deprecated</AlertTitle>
-                <AlertDescription>
-                  Internal rates are no longer used for payslip generation. Tour Rates are now the default, with Driver Overrides for exceptions. This tab is read-only and will be removed in a future update.
-                </AlertDescription>
-              </Alert>
-              <Card>
-                <CardHeader>
-                  <CardTitle>Internal Rates (Legacy)</CardTitle>
-                  <CardDescription>
-                    These rates are no longer active. Use Tour Rates instead.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  {supplierRatesLoading ? (
-                    <p className="text-muted-foreground">Loading...</p>
-                  ) : supplierRates.length === 0 ? (
-                    <p className="text-muted-foreground">No internal rates found.</p>
-                  ) : (
-                    <>
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Rate ID</TableHead>
-                          <TableHead>Provider</TableHead>
-                          <TableHead>Supplier ID</TableHead>
-                          <TableHead>Status</TableHead>
-                          <TableHead>Rate</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {supplierRatesPagination.pageItems.map((rate) => (
-                          <TableRow key={rate.id} className="opacity-60">
-                            <TableCell className="font-medium">{rate.rate_id}</TableCell>
-                            <TableCell>{rate.provider}</TableCell>
-                            <TableCell>{rate.supplier_id || "-"}</TableCell>
-                            <TableCell>{rate.status}</TableCell>
-                            <TableCell>£{rate.rate.toFixed(2)}</TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                    <ListPaginationBar
-                      className="mt-4"
-                      page={supplierRatesPagination.page}
-                      totalPages={supplierRatesPagination.totalPages}
-                      totalItems={supplierRatesPagination.totalItems}
-                      pageSize={supplierRatesPagination.pageSize}
-                      onPrev={supplierRatesPagination.goPrev}
-                      onNext={supplierRatesPagination.goNext}
                     />
                     </>
                   )}
