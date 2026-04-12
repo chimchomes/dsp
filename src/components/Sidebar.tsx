@@ -146,11 +146,12 @@ const Sidebar = ({ open, onClose }: SidebarProps) => {
 
   return (
     <>
-      {/* Backdrop for mobile - covers everything */}
+      {/* Backdrop for mobile - fully covers everything */}
       {open && (
         <div
-          className="fixed inset-0 bg-black/80 z-[60] md:hidden"
+          className="fixed inset-0 bg-black/90 z-[60] md:hidden"
           onClick={onClose}
+          aria-hidden="true"
         />
       )}
 
