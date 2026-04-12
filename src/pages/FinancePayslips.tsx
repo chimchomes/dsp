@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -20,6 +20,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { MultiSelect } from "@/components/ui/multi-select";
+import { useListPagination } from "@/hooks/useListPagination";
+import { ListPaginationBar } from "@/components/ListPaginationBar";
 
 interface Payslip {
   id: string;
@@ -86,8 +88,6 @@ const FinancePayslips = () => {
   const [payslipYearFilters, setPayslipYearFilters] = useState<string[]>([]);
   const [payslipMonthFilters, setPayslipMonthFilters] = useState<string[]>([]);
   const [payslipSearch, setPayslipSearch] = useState("");
-  const [currentPage, setCurrentPage] = useState(1);
-  const rowsPerPage = 10;
 
   useEffect(() => {
     loadPayslips();
@@ -99,10 +99,6 @@ const FinancePayslips = () => {
   useEffect(() => {
     filterPayslips();
   }, [invoiceFilter, driverFilter, payslipYearFilters, payslipMonthFilters, payslipSearch, allPayslips]);
-
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [invoiceFilter, driverFilter, payslipYearFilters, payslipMonthFilters, payslipSearch]);
 
   const availableGenerationYears = Array.from(
     new Set(
@@ -264,14 +260,27 @@ const FinancePayslips = () => {
     setPayslips(filtered);
   };
 
-  const totalPages = Math.max(1, Math.ceil(payslips.length / rowsPerPage));
-  const paginatedPayslips = payslips.slice((currentPage - 1) * rowsPerPage, currentPage * rowsPerPage);
+  const payslipsPaginationKey = useMemo(
+    () =>
+      JSON.stringify({
+        invoiceFilter,
+        driverFilter,
+        payslipYearFilters,
+        payslipMonthFilters,
+        payslipSearch,
+      }),
+    [invoiceFilter, driverFilter, payslipYearFilters, payslipMonthFilters, payslipSearch]
+  );
 
-  useEffect(() => {
-    if (currentPage > totalPages) {
-      setCurrentPage(totalPages);
-    }
-  }, [currentPage, totalPages]);
+  const {
+    pageItems: paginatedPayslips,
+    page: currentPage,
+    totalPages,
+    totalItems: payslipsTotal,
+    goPrev,
+    goNext,
+    pageSize,
+  } = useListPagination(payslips, payslipsPaginationKey);
 
   const loadPayslips = async () => {
     try {
@@ -916,33 +925,15 @@ const FinancePayslips = () => {
                     </TableBody>
                   </Table>
 
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm text-muted-foreground">
-                      Showing {Math.min((currentPage - 1) * rowsPerPage + 1, payslips.length)}-
-                      {Math.min(currentPage * rowsPerPage, payslips.length)} of {payslips.length}
-                    </p>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                        disabled={currentPage === 1}
-                      >
-                        Previous
-                      </Button>
-                      <span className="text-sm text-muted-foreground">
-                        Page {currentPage} of {totalPages}
-                      </span>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                        disabled={currentPage === totalPages}
-                      >
-                        Next
-                      </Button>
-                    </div>
-                  </div>
+                  <ListPaginationBar
+                    className="mt-4"
+                    page={currentPage}
+                    totalPages={totalPages}
+                    totalItems={payslipsTotal}
+                    pageSize={pageSize}
+                    onPrev={goPrev}
+                    onNext={goNext}
+                  />
                 </div>
               )}
             </CardContent>

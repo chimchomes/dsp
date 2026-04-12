@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import { useListPagination } from "@/hooks/useListPagination";
+import { ListPaginationBar } from "@/components/ListPaginationBar";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -77,6 +79,16 @@ export function OnboardingApplications() {
   const [isSubmittingReject, setIsSubmittingReject] = useState(false);
   const { toast } = useToast();
   const { tenant, isLoading: tenantLoading, isMasterAdmin } = useTenant();
+
+  const {
+    pageItems: pagedApplications,
+    page: appsPage,
+    totalPages: appsTotalPages,
+    totalItems: appsTotal,
+    goPrev: appsGoPrev,
+    goNext: appsGoNext,
+    pageSize: appsPageSize,
+  } = useListPagination(applications, String(applications.length));
 
   useEffect(() => {
     if (tenantLoading) return;
@@ -433,7 +445,7 @@ export function OnboardingApplications() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {applications.map((app) => (
+              {pagedApplications.map((app) => (
                 <TableRow key={app.id}>
                   <TableCell>{app.full_name || "N/A"}</TableCell>
                   <TableCell>{app.email}</TableCell>
@@ -481,6 +493,17 @@ export function OnboardingApplications() {
               ))}
             </TableBody>
           </Table>
+          {applications.length > 0 && (
+            <ListPaginationBar
+              className="mt-4"
+              page={appsPage}
+              totalPages={appsTotalPages}
+              totalItems={appsTotal}
+              pageSize={appsPageSize}
+              onPrev={appsGoPrev}
+              onNext={appsGoNext}
+            />
+          )}
         </CardContent>
       </Card>
 

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { AuthGuard } from "@/components/AuthGuard";
 import { supabase } from "@/integrations/supabase/client";
@@ -8,6 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Plus, Search, Building2, Eye, Pause, Play } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
+import { useListPagination } from "@/hooks/useListPagination";
+import { ListPaginationBar } from "@/components/ListPaginationBar";
 import type { Tenant } from "@/contexts/TenantContext";
 
 interface TenantWithCount extends Tenant {
@@ -74,10 +76,25 @@ export default function TenantList() {
     }
   };
 
-  const filtered = tenants.filter(t =>
-    t.company_name.toLowerCase().includes(search.toLowerCase()) ||
-    t.primary_email.toLowerCase().includes(search.toLowerCase())
+  const filtered = useMemo(
+    () =>
+      tenants.filter(
+        (t) =>
+          t.company_name.toLowerCase().includes(search.toLowerCase()) ||
+          t.primary_email.toLowerCase().includes(search.toLowerCase())
+      ),
+    [tenants, search]
   );
+
+  const {
+    pageItems: pagedTenants,
+    page: tenantsPage,
+    totalPages: tenantsTotalPages,
+    totalItems: tenantsListTotal,
+    goPrev: tenantsGoPrev,
+    goNext: tenantsGoNext,
+    pageSize: tenantsPageSize,
+  } = useListPagination(filtered, search);
 
   return (
     <AuthGuard requireMasterAdmin>
@@ -115,8 +132,9 @@ export default function TenantList() {
             </CardContent>
           </Card>
         ) : (
+          <div className="space-y-4">
           <div className="grid gap-4">
-            {filtered.map((tenant) => (
+            {pagedTenants.map((tenant) => (
               <Card key={tenant.id} className="hover:shadow-md transition-shadow">
                 <CardContent className="flex items-center justify-between p-5">
                   <div className="flex items-center gap-4 flex-1 min-w-0">
@@ -169,6 +187,15 @@ export default function TenantList() {
                 </CardContent>
               </Card>
             ))}
+          </div>
+          <ListPaginationBar
+            page={tenantsPage}
+            totalPages={tenantsTotalPages}
+            totalItems={tenantsListTotal}
+            pageSize={tenantsPageSize}
+            onPrev={tenantsGoPrev}
+            onNext={tenantsGoNext}
+          />
           </div>
         )}
       </div>

@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import { useListPagination } from "@/hooks/useListPagination";
+import { ListPaginationBar } from "@/components/ListPaginationBar";
 import { useNavigate } from "react-router-dom";
 import { AuthGuard } from "@/components/AuthGuard";
 import { supabase } from "@/integrations/supabase/client";
@@ -38,6 +40,16 @@ export default function MasterAdminDashboard() {
 
   const active = tenants.filter(t => t.status === "active").length;
   const suspended = tenants.filter(t => t.status === "suspended").length;
+
+  const {
+    pageItems: pagedTenants,
+    page: dashTenantsPage,
+    totalPages: dashTenantsTotalPages,
+    totalItems: dashTenantsTotal,
+    goPrev: dashTenantsGoPrev,
+    goNext: dashTenantsGoNext,
+    pageSize: dashTenantsPageSize,
+  } = useListPagination(tenants, String(tenants.length));
 
   return (
     <AuthGuard requireMasterAdmin>
@@ -89,7 +101,7 @@ export default function MasterAdminDashboard() {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-2">
-                    {tenants.map((t) => (
+                    {pagedTenants.map((t) => (
                       <div
                         key={t.id}
                         className="flex items-center justify-between p-3 rounded-lg border hover:bg-muted/50 cursor-pointer transition-colors"
@@ -107,6 +119,15 @@ export default function MasterAdminDashboard() {
                       </div>
                     ))}
                   </div>
+                  <ListPaginationBar
+                    className="mt-4"
+                    page={dashTenantsPage}
+                    totalPages={dashTenantsTotalPages}
+                    totalItems={dashTenantsTotal}
+                    pageSize={dashTenantsPageSize}
+                    onPrev={dashTenantsGoPrev}
+                    onNext={dashTenantsGoNext}
+                  />
                 </CardContent>
               </Card>
             )}

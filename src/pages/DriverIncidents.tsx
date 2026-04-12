@@ -1,4 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useListPagination } from "@/hooks/useListPagination";
+import { ListPaginationBar } from "@/components/ListPaginationBar";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
@@ -174,21 +176,36 @@ export default function DriverIncidents() {
     void loadData();
   }, []);
 
-  const filteredIncidents = incidents.filter((incident) => {
-    if (statusFilter !== "all" && incident.status !== statusFilter) return false;
+  const filteredIncidents = useMemo(
+    () =>
+      incidents.filter((incident) => {
+        if (statusFilter !== "all" && incident.status !== statusFilter) return false;
 
-    const incidentDate = new Date(incident.created_at);
-    if (dateFrom) {
-      const fromDate = new Date(`${dateFrom}T00:00:00`);
-      if (incidentDate < fromDate) return false;
-    }
-    if (dateTo) {
-      const toDate = new Date(`${dateTo}T23:59:59`);
-      if (incidentDate > toDate) return false;
-    }
+        const incidentDate = new Date(incident.created_at);
+        if (dateFrom) {
+          const fromDate = new Date(`${dateFrom}T00:00:00`);
+          if (incidentDate < fromDate) return false;
+        }
+        if (dateTo) {
+          const toDate = new Date(`${dateTo}T23:59:59`);
+          if (incidentDate > toDate) return false;
+        }
 
-    return true;
-  });
+        return true;
+      }),
+    [incidents, statusFilter, dateFrom, dateTo]
+  );
+
+  const incidentsPaginationKey = `${statusFilter}|${dateFrom}|${dateTo}`;
+  const {
+    pageItems: pagedIncidents,
+    page: incidentsPage,
+    totalPages: incidentsTotalPages,
+    totalItems: incidentsListTotal,
+    goPrev: incidentsGoPrev,
+    goNext: incidentsGoNext,
+    pageSize: incidentsPageSize,
+  } = useListPagination(filteredIncidents, incidentsPaginationKey);
 
   const selectedIncident = selectedIncidentId
     ? incidents.find((incident) => incident.id === selectedIncidentId) || null
@@ -273,7 +290,7 @@ export default function DriverIncidents() {
             <p className="text-sm text-muted-foreground">No incidents match the selected filters.</p>
           ) : (
             <div className="space-y-4">
-              {filteredIncidents.map((incident) => (
+              {pagedIncidents.map((incident) => (
                 <div key={incident.id} className="rounded border p-3 space-y-3">
                   <div className="flex items-center justify-between gap-3">
                     <Badge variant={incidentStatusVariant[incident.status]}>
@@ -299,6 +316,14 @@ export default function DriverIncidents() {
                   </div>
                 </div>
               ))}
+              <ListPaginationBar
+                page={incidentsPage}
+                totalPages={incidentsTotalPages}
+                totalItems={incidentsListTotal}
+                pageSize={incidentsPageSize}
+                onPrev={incidentsGoPrev}
+                onNext={incidentsGoNext}
+              />
             </div>
           )}
         </CardContent>

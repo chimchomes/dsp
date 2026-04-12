@@ -1,4 +1,6 @@
 import { useState, useEffect } from "react";
+import { useListPagination } from "@/hooks/useListPagination";
+import { ListPaginationBar } from "@/components/ListPaginationBar";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -467,6 +469,17 @@ export default function StaffManagement() {
     }
   };
 
+  const staffPaginationKey = `${searchQuery}|${roleFilter}|${statusFilter}`;
+  const {
+    pageItems: pagedStaff,
+    page: staffPage,
+    totalPages: staffTotalPages,
+    totalItems: staffListTotal,
+    goPrev: staffGoPrev,
+    goNext: staffGoNext,
+    pageSize: staffPageSize,
+  } = useListPagination(filteredStaff, staffPaginationKey);
+
   if (loading) {
     return (
       <div className="flex justify-center items-center py-8">
@@ -681,7 +694,7 @@ export default function StaffManagement() {
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredStaff.map((user) => (
+                pagedStaff.map((user) => (
                   <TableRow key={user.user_id} className={user.isInactive ? "opacity-60" : ""}>
                     <TableCell className="font-medium">{formatUserName(user)}</TableCell>
                     <TableCell>{user.email}</TableCell>
@@ -743,6 +756,15 @@ export default function StaffManagement() {
               )}
             </TableBody>
           </Table>
+          <ListPaginationBar
+            className="mt-4"
+            page={staffPage}
+            totalPages={staffTotalPages}
+            totalItems={staffListTotal}
+            pageSize={staffPageSize}
+            onPrev={staffGoPrev}
+            onNext={staffGoNext}
+          />
         </CardContent>
       </Card>
 

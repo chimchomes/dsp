@@ -1,4 +1,6 @@
 import React, { useEffect, useState } from "react";
+import { useListPagination } from "@/hooks/useListPagination";
+import { ListPaginationBar } from "@/components/ListPaginationBar";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
@@ -162,6 +164,17 @@ const ActivityLogsTable = () => {
     };
   }, [searchEmail, filterAction]);
 
+  const logsPaginationKey = `${searchEmail}|${filterAction}`;
+  const {
+    pageItems: pagedLogs,
+    page: logsPage,
+    totalPages: logsTotalPages,
+    totalItems: logsTotal,
+    goPrev: logsGoPrev,
+    goNext: logsGoNext,
+    pageSize: logsPageSize,
+  } = useListPagination(logs, logsPaginationKey);
+
   if (loading) {
     return (
       <div className="flex justify-center items-center py-8">
@@ -219,7 +232,7 @@ const ActivityLogsTable = () => {
                 </TableCell>
               </TableRow>
             ) : (
-              logs.map((log) => (
+              pagedLogs.map((log) => (
                 <TableRow key={log.id}>
                   <TableCell className="text-xs whitespace-nowrap">
                     {format(new Date(log.created_at), 'MMM d, yyyy HH:mm:ss')}
@@ -262,10 +275,19 @@ const ActivityLogsTable = () => {
             )}
           </TableBody>
         </Table>
+        <ListPaginationBar
+          className="p-4 border-t"
+          page={logsPage}
+          totalPages={logsTotalPages}
+          totalItems={logsTotal}
+          pageSize={logsPageSize}
+          onPrev={logsGoPrev}
+          onNext={logsGoNext}
+        />
       </div>
 
       <p className="text-sm text-muted-foreground">
-        Showing {logs.length} most recent logs (max 100)
+        Loaded {logs.length} most recent matching logs (max 100 per query). Use Previous / Next below the table.
       </p>
     </div>
   );

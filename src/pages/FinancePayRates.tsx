@@ -20,6 +20,8 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { ArrowLeft, Plus, Pencil, Trash2, AlertTriangle, ChevronsUpDown, Check } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { cn } from "@/lib/utils";
+import { useListPagination } from "@/hooks/useListPagination";
+import { ListPaginationBar } from "@/components/ListPaginationBar";
 
 interface TourRate {
   id: string;
@@ -92,6 +94,10 @@ const FinancePayRates = () => {
   // Internal Rates state (deprecated, read-only)
   const [supplierRates, setSupplierRates] = useState<SupplierRate[]>([]);
   const [supplierRatesLoading, setSupplierRatesLoading] = useState(true);
+
+  const tourRatesPagination = useListPagination(tourRates, String(tourRates.length));
+  const driverRatesPagination = useListPagination(driverRates, String(driverRates.length));
+  const supplierRatesPagination = useListPagination(supplierRates, String(supplierRates.length));
 
   useEffect(() => {
     loadTourRates();
@@ -397,6 +403,7 @@ const FinancePayRates = () => {
                   ) : tourRates.length === 0 ? (
                     <p className="text-muted-foreground">No tour rates found. Add your first tour rate above.</p>
                   ) : (
+                    <>
                     <Table>
                       <TableHeader>
                         <TableRow>
@@ -408,7 +415,7 @@ const FinancePayRates = () => {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {tourRates.map((rate) => (
+                        {tourRatesPagination.pageItems.map((rate) => (
                           <TableRow key={rate.id}>
                             <TableCell className="font-medium">{rate.tour_id}</TableCell>
                             <TableCell>£{rate.rate.toFixed(2)}</TableCell>
@@ -428,6 +435,16 @@ const FinancePayRates = () => {
                         ))}
                       </TableBody>
                     </Table>
+                    <ListPaginationBar
+                      className="mt-4"
+                      page={tourRatesPagination.page}
+                      totalPages={tourRatesPagination.totalPages}
+                      totalItems={tourRatesPagination.totalItems}
+                      pageSize={tourRatesPagination.pageSize}
+                      onPrev={tourRatesPagination.goPrev}
+                      onNext={tourRatesPagination.goNext}
+                    />
+                    </>
                   )}
                 </CardContent>
               </Card>
@@ -461,6 +478,7 @@ const FinancePayRates = () => {
                   ) : driverRates.length === 0 ? (
                     <p className="text-muted-foreground">No driver overrides found. Tour rates will be used for all drivers.</p>
                   ) : (
+                    <>
                     <Table>
                       <TableHeader>
                         <TableRow>
@@ -472,7 +490,7 @@ const FinancePayRates = () => {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {driverRates.map((rate) => (
+                        {driverRatesPagination.pageItems.map((rate) => (
                           <TableRow key={rate.id}>
                             <TableCell className="font-medium">{getDriverDisplayName(rate.driver_id)}</TableCell>
                             <TableCell>{getDriverOperatorId(rate.driver_id)}</TableCell>
@@ -492,6 +510,16 @@ const FinancePayRates = () => {
                         ))}
                       </TableBody>
                     </Table>
+                    <ListPaginationBar
+                      className="mt-4"
+                      page={driverRatesPagination.page}
+                      totalPages={driverRatesPagination.totalPages}
+                      totalItems={driverRatesPagination.totalItems}
+                      pageSize={driverRatesPagination.pageSize}
+                      onPrev={driverRatesPagination.goPrev}
+                      onNext={driverRatesPagination.goNext}
+                    />
+                    </>
                   )}
                 </CardContent>
               </Card>
@@ -519,6 +547,7 @@ const FinancePayRates = () => {
                   ) : supplierRates.length === 0 ? (
                     <p className="text-muted-foreground">No internal rates found.</p>
                   ) : (
+                    <>
                     <Table>
                       <TableHeader>
                         <TableRow>
@@ -530,7 +559,7 @@ const FinancePayRates = () => {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {supplierRates.map((rate) => (
+                        {supplierRatesPagination.pageItems.map((rate) => (
                           <TableRow key={rate.id} className="opacity-60">
                             <TableCell className="font-medium">{rate.rate_id}</TableCell>
                             <TableCell>{rate.provider}</TableCell>
@@ -541,6 +570,16 @@ const FinancePayRates = () => {
                         ))}
                       </TableBody>
                     </Table>
+                    <ListPaginationBar
+                      className="mt-4"
+                      page={supplierRatesPagination.page}
+                      totalPages={supplierRatesPagination.totalPages}
+                      totalItems={supplierRatesPagination.totalItems}
+                      pageSize={supplierRatesPagination.pageSize}
+                      onPrev={supplierRatesPagination.goPrev}
+                      onNext={supplierRatesPagination.goNext}
+                    />
+                    </>
                   )}
                 </CardContent>
               </Card>

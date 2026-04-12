@@ -1,4 +1,6 @@
 import React, { useEffect, useState } from "react";
+import { useListPagination } from "@/hooks/useListPagination";
+import { ListPaginationBar } from "@/components/ListPaginationBar";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { AuthGuard } from "@/components/AuthGuard";
@@ -35,6 +37,16 @@ const DriverPayslips = () => {
   const [loading, setLoading] = useState(true);
   const [driverId, setDriverId] = useState<string | null>(null);
   const [adjustmentTotals, setAdjustmentTotals] = useState<Record<string, number>>({});
+
+  const {
+    pageItems: pagedPayslips,
+    page: payslipsPage,
+    totalPages: payslipsTotalPages,
+    totalItems: payslipsListTotal,
+    goPrev: payslipsGoPrev,
+    goNext: payslipsGoNext,
+    pageSize: payslipsPageSize,
+  } = useListPagination(payslips, String(payslips.length));
 
   useEffect(() => {
     loadDriverId();
@@ -174,6 +186,7 @@ const DriverPayslips = () => {
                 </p>
               </div>
             ) : (
+              <>
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -187,7 +200,7 @@ const DriverPayslips = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {payslips.map((payslip) => (
+                  {pagedPayslips.map((payslip) => (
                     <TableRow key={payslip.id}>
                       <TableCell className="font-medium">
                         {payslip.invoice_number}
@@ -227,6 +240,16 @@ const DriverPayslips = () => {
                   ))}
                 </TableBody>
               </Table>
+              <ListPaginationBar
+                className="mt-4"
+                page={payslipsPage}
+                totalPages={payslipsTotalPages}
+                totalItems={payslipsListTotal}
+                pageSize={payslipsPageSize}
+                onPrev={payslipsGoPrev}
+                onNext={payslipsGoNext}
+              />
+              </>
             )}
           </CardContent>
         </Card>

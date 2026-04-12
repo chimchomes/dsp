@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import { useListPagination } from "@/hooks/useListPagination";
+import { ListPaginationBar } from "@/components/ListPaginationBar";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useTenant } from "@/contexts/TenantContext";
@@ -65,6 +67,16 @@ export default function IncidentsManagement() {
   const [comments, setComments] = useState<IncidentComment[]>([]);
   const [saving, setSaving] = useState(false);
   const [photoLinks, setPhotoLinks] = useState<Record<string, string>>({});
+
+  const {
+    pageItems: pagedIncidents,
+    page: incidentsPage,
+    totalPages: incidentsTotalPages,
+    totalItems: incidentsTotal,
+    goPrev: incidentsGoPrev,
+    goNext: incidentsGoNext,
+    pageSize: incidentsPageSize,
+  } = useListPagination(incidents, String(incidents.length));
 
   const loadIncidents = async () => {
     if (tenantLoading) return;
@@ -214,7 +226,7 @@ export default function IncidentsManagement() {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  incidents.map((incident) => (
+                  pagedIncidents.map((incident) => (
                     <TableRow key={incident.id}>
                       <TableCell>
                         {incident.driver_profiles?.name || incident.driver_profiles?.email || "Unknown"}
@@ -236,6 +248,17 @@ export default function IncidentsManagement() {
                 )}
               </TableBody>
             </Table>
+          )}
+          {!loading && incidents.length > 0 && (
+            <ListPaginationBar
+              className="mt-4"
+              page={incidentsPage}
+              totalPages={incidentsTotalPages}
+              totalItems={incidentsTotal}
+              pageSize={incidentsPageSize}
+              onPrev={incidentsGoPrev}
+              onNext={incidentsGoNext}
+            />
           )}
         </CardContent>
       </Card>

@@ -9,6 +9,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useListPagination } from "@/hooks/useListPagination";
+import { ListPaginationBar } from "@/components/ListPaginationBar";
 
 interface Earning {
   id: string;
@@ -128,6 +130,10 @@ export default function EarningsScreen() {
     }
   };
 
+  const earningsRangeKey = `${startDate}|${endDate}`;
+  const earningsPag = useListPagination(earnings, earningsRangeKey);
+  const deductionsPag = useListPagination(deductions, earningsRangeKey);
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -221,6 +227,7 @@ export default function EarningsScreen() {
             {earnings.length === 0 ? (
               <p className="text-muted-foreground text-center py-4">No earnings recorded yet</p>
             ) : (
+              <>
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -231,7 +238,7 @@ export default function EarningsScreen() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {earnings.map((earning) => (
+                  {earningsPag.pageItems.map((earning) => (
                     <TableRow key={earning.id}>
                       <TableCell>{new Date(earning.week_start_date).toLocaleDateString()}</TableCell>
                       <TableCell>{new Date(earning.week_end_date).toLocaleDateString()}</TableCell>
@@ -241,6 +248,16 @@ export default function EarningsScreen() {
                   ))}
                 </TableBody>
               </Table>
+              <ListPaginationBar
+                className="mt-4"
+                page={earningsPag.page}
+                totalPages={earningsPag.totalPages}
+                totalItems={earningsPag.totalItems}
+                pageSize={earningsPag.pageSize}
+                onPrev={earningsPag.goPrev}
+                onNext={earningsPag.goNext}
+              />
+              </>
             )}
           </CardContent>
         </Card>
@@ -253,6 +270,7 @@ export default function EarningsScreen() {
             {deductions.length === 0 ? (
               <p className="text-muted-foreground text-center py-4">No deductions recorded</p>
             ) : (
+              <>
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -263,7 +281,7 @@ export default function EarningsScreen() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {deductions.map((deduction) => (
+                  {deductionsPag.pageItems.map((deduction) => (
                     <TableRow key={deduction.id}>
                       <TableCell>{new Date(deduction.created_at).toLocaleDateString()}</TableCell>
                       <TableCell className="capitalize">{deduction.deduction_type}</TableCell>
@@ -273,6 +291,16 @@ export default function EarningsScreen() {
                   ))}
                 </TableBody>
               </Table>
+              <ListPaginationBar
+                className="mt-4"
+                page={deductionsPag.page}
+                totalPages={deductionsPag.totalPages}
+                totalItems={deductionsPag.totalItems}
+                pageSize={deductionsPag.pageSize}
+                onPrev={deductionsPag.goPrev}
+                onNext={deductionsPag.goNext}
+              />
+              </>
             )}
           </CardContent>
         </Card>

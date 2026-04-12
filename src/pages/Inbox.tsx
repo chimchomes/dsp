@@ -10,6 +10,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Trash2, Reply, Mail, Send } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { useListPagination } from '@/hooks/useListPagination';
+import { ListPaginationBar } from '@/components/ListPaginationBar';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 
 interface MessageWithSender {
@@ -623,6 +625,16 @@ export default function Inbox() {
 
   const unreadCount = messages.filter(m => !m.read_at).length;
 
+  const {
+    pageItems: pagedMessages,
+    page: inboxPage,
+    totalPages: inboxTotalPages,
+    totalItems: inboxListTotal,
+    goPrev: inboxGoPrev,
+    goNext: inboxGoNext,
+    pageSize: inboxPageSize,
+  } = useListPagination(messages, String(messages.length));
+
   return (
     <div className="min-h-screen p-4 max-w-4xl mx-auto space-y-6">
       <div>
@@ -661,7 +673,7 @@ export default function Inbox() {
                 <div className="text-center text-muted-foreground py-8">No messages</div>
               ) : (
                 <div className="space-y-3">
-                  {messages.map(message => (
+                  {pagedMessages.map(message => (
                     <Card key={message.id} className={message.read_at ? 'border-muted' : 'border-primary'}>
                       <CardContent className="pt-6">
                         <div className="space-y-3">
@@ -718,6 +730,14 @@ export default function Inbox() {
                       </CardContent>
                     </Card>
                   ))}
+                  <ListPaginationBar
+                    page={inboxPage}
+                    totalPages={inboxTotalPages}
+                    totalItems={inboxListTotal}
+                    pageSize={inboxPageSize}
+                    onPrev={inboxGoPrev}
+                    onNext={inboxGoNext}
+                  />
                 </div>
               )}
             </TabsContent>

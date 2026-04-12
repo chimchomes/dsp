@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -23,6 +23,8 @@ import {
   ArrowLeft, Plus, Loader2, Receipt, Upload, ExternalLink, PoundSterling,
 } from "lucide-react";
 import { format } from "date-fns";
+import { useListPagination } from "@/hooks/useListPagination";
+import { ListPaginationBar } from "@/components/ListPaginationBar";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -225,10 +227,23 @@ const FinanceExpenses = () => {
   };
 
   // Filter expenses
-  const filteredExpenses =
-    filterStatus === "all"
-      ? expenses
-      : expenses.filter((e) => e.status === filterStatus);
+  const filteredExpenses = useMemo(
+    () =>
+      filterStatus === "all"
+        ? expenses
+        : expenses.filter((e) => e.status === filterStatus),
+    [expenses, filterStatus]
+  );
+
+  const {
+    pageItems: pagedExpenses,
+    page: expensesPage,
+    totalPages: expensesTotalPages,
+    totalItems: expensesListTotal,
+    goPrev: expensesGoPrev,
+    goNext: expensesGoNext,
+    pageSize: expensesPageSize,
+  } = useListPagination(filteredExpenses, filterStatus);
 
   // Summary calculations
   const totalExpenses = expenses.reduce((s, e) => s + Number(e.amount), 0);
@@ -352,7 +367,7 @@ const FinanceExpenses = () => {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {filteredExpenses.map((expense) => (
+                      {pagedExpenses.map((expense) => (
                         <TableRow key={expense.id}>
                           <TableCell className="font-medium">
                             {new Date(expense.date).toLocaleDateString("en-GB")}
@@ -413,6 +428,15 @@ const FinanceExpenses = () => {
                       ))}
                     </TableBody>
                   </Table>
+                  <ListPaginationBar
+                    className="mt-4"
+                    page={expensesPage}
+                    totalPages={expensesTotalPages}
+                    totalItems={expensesListTotal}
+                    pageSize={expensesPageSize}
+                    onPrev={expensesGoPrev}
+                    onNext={expensesGoNext}
+                  />
                 </div>
               )}
             </CardContent>

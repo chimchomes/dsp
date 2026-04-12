@@ -1,4 +1,6 @@
 import React, { useEffect, useState } from "react";
+import { useListPagination } from "@/hooks/useListPagination";
+import { ListPaginationBar } from "@/components/ListPaginationBar";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -221,7 +223,16 @@ const FinanceAdjustmentsReview = () => {
     return new Date(dateString).toLocaleDateString("en-GB");
   };
 
-  const filteredAdjustments = adjustments;
+  const adjustmentsPaginationKey = `${invoiceNumberFilter}|${dateFilter}|${driverFilter}`;
+  const {
+    pageItems: pagedAdjustments,
+    page: adjPage,
+    totalPages: adjTotalPages,
+    totalItems: adjListTotal,
+    goPrev: adjGoPrev,
+    goNext: adjGoNext,
+    pageSize: adjPageSize,
+  } = useListPagination(adjustments, adjustmentsPaginationKey);
 
   return (
     <AuthGuard allowedRoles={["admin", "finance"]}>
@@ -328,7 +339,7 @@ const FinanceAdjustmentsReview = () => {
                 <CardHeader>
                   <CardTitle>Adjustment Details</CardTitle>
                   <CardDescription>
-                    {filteredAdjustments.length} adjustment{filteredAdjustments.length !== 1 ? "s" : ""} found
+                    {adjustments.length} adjustment{adjustments.length !== 1 ? "s" : ""} found
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -336,7 +347,7 @@ const FinanceAdjustmentsReview = () => {
                     <div className="text-center py-8">
                       <p className="text-muted-foreground">Loading adjustments...</p>
                     </div>
-                  ) : filteredAdjustments.length === 0 ? (
+                  ) : adjustments.length === 0 ? (
                     <div className="text-center py-8">
                       <p className="text-muted-foreground">No adjustments found</p>
                     </div>
@@ -359,7 +370,7 @@ const FinanceAdjustmentsReview = () => {
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {filteredAdjustments.map((adjustment) => {
+                          {pagedAdjustments.map((adjustment) => {
                             const isEditing = editingId === adjustment.id;
                             const currentDriverName = isEditing 
                               ? getDriverNameForOperatorId(editValues.operator_id || null)
@@ -478,6 +489,15 @@ const FinanceAdjustmentsReview = () => {
                           })}
                         </TableBody>
                       </Table>
+                      <ListPaginationBar
+                        className="mt-4"
+                        page={adjPage}
+                        totalPages={adjTotalPages}
+                        totalItems={adjListTotal}
+                        pageSize={adjPageSize}
+                        onPrev={adjGoPrev}
+                        onNext={adjGoNext}
+                      />
                     </div>
                   )}
                 </CardContent>

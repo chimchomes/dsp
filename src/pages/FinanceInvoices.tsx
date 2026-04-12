@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -17,6 +17,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArrowLeft, Upload, Eye, FileText, Search, X } from "lucide-react";
+import { useListPagination } from "@/hooks/useListPagination";
+import { ListPaginationBar } from "@/components/ListPaginationBar";
 
 interface Invoice {
   id: string;
@@ -42,8 +44,6 @@ const FinanceInvoices = () => {
   const [providerFilter, setProviderFilter] = useState("all");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
-  const [currentPage, setCurrentPage] = useState(1);
-  const rowsPerPage = 10;
 
   useEffect(() => {
     loadInvoices();
@@ -75,7 +75,7 @@ const FinanceInvoices = () => {
   ) as string[];
 
   // Apply client-side filters
-  const filteredInvoices = invoices.filter((invoice) => {
+  const filteredInvoices = useMemo(() => invoices.filter((invoice) => {
     // Text search on invoice number
     if (searchTerm && !invoice.invoice_number.toLowerCase().includes(searchTerm.toLowerCase())) {
       return false;
@@ -92,10 +92,18 @@ const FinanceInvoices = () => {
       return false;
     }
     return true;
-  });
+  }), [invoices, searchTerm, providerFilter, dateFrom, dateTo]);
 
-  const totalPages = Math.max(1, Math.ceil(filteredInvoices.length / rowsPerPage));
-  const paginatedInvoices = filteredInvoices.slice((currentPage - 1) * rowsPerPage, currentPage * rowsPerPage);
+  const invoicesPaginationKey = `${searchTerm}|${providerFilter}|${dateFrom}|${dateTo}`;
+  const {
+    pageItems: paginatedInvoices,
+    page: currentPage,
+    totalPages,
+    totalItems: filteredCount,
+    goPrev,
+    goNext,
+    pageSize,
+  } = useListPagination(filteredInvoices, invoicesPaginationKey);
 
   const clearFilters = () => {
     setSearchTerm("");
@@ -105,16 +113,6 @@ const FinanceInvoices = () => {
   };
 
   const hasActiveFilters = searchTerm || providerFilter !== "all" || dateFrom || dateTo;
-
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [searchTerm, providerFilter, dateFrom, dateTo]);
-
-  useEffect(() => {
-    if (currentPage > totalPages) {
-      setCurrentPage(totalPages);
-    }
-  }, [currentPage, totalPages]);
 
   const handleViewInvoice = async (pdfUrl: string | null) => {
     if (!pdfUrl) {
@@ -320,33 +318,15 @@ const FinanceInvoices = () => {
                     </TableBody>
                   </Table>
 
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm text-muted-foreground">
-                      Showing {Math.min((currentPage - 1) * rowsPerPage + 1, filteredInvoices.length)}-
-                      {Math.min(currentPage * rowsPerPage, filteredInvoices.length)} of {filteredInvoices.length}
-                    </p>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                        disabled={currentPage === 1}
-                      >
-                        Previous
-                      </Button>
-                      <span className="text-sm text-muted-foreground">
-                        Page {currentPage} of {totalPages}
-                      </span>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                        disabled={currentPage === totalPages}
-                      >
-                        Next
-                      </Button>
-                    </div>
-                  </div>
+                  <ListPaginationBar
+                    className="mt-4"
+                    page={currentPage}
+                    totalPages={totalPages}
+                    totalItems={filteredCount}
+                    pageSize={pageSize}
+                    onPrev={goPrev}
+                    onNext={goNext}
+                  />
                 </div>
               )}
             </CardContent>

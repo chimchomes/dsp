@@ -30,6 +30,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
+import { useListPagination } from "@/hooks/useListPagination";
+import { ListPaginationBar } from "@/components/ListPaginationBar";
 
 interface UserWithRoles {
   id: string;
@@ -119,6 +121,17 @@ const UserManagement = () => {
 
     return filtered;
   }, [users, searchQuery, roleFilter]);
+
+  const usersPaginationKey = `${searchQuery}|${roleFilter}`;
+  const {
+    pageItems: pagedUsers,
+    page: usersPage,
+    totalPages: usersTotalPages,
+    totalItems: usersListTotal,
+    goPrev: usersGoPrev,
+    goNext: usersGoNext,
+    pageSize: usersPageSize,
+  } = useListPagination(filteredUsers, usersPaginationKey);
 
   const assignRole = async () => {
     if (!selectedUser) return;
@@ -236,7 +249,7 @@ const UserManagement = () => {
                 </TableCell>
               </TableRow>
             ) : (
-              filteredUsers.map((user) => (
+              pagedUsers.map((user) => (
                 <TableRow key={user.id}>
                   <TableCell className="font-medium max-w-[200px] truncate">{user.email}</TableCell>
                   <TableCell>
@@ -317,6 +330,15 @@ const UserManagement = () => {
             )}
           </TableBody>
         </Table>
+        <ListPaginationBar
+          className="p-4 border-t"
+          page={usersPage}
+          totalPages={usersTotalPages}
+          totalItems={usersListTotal}
+          pageSize={usersPageSize}
+          onPrev={usersGoPrev}
+          onNext={usersGoNext}
+        />
       </div>
     </div>
   );
