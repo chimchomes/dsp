@@ -294,6 +294,11 @@ export function OnboardingApplications() {
           const { data: { user: approver } } = await supabase.auth.getUser();
 
           // Prepare driver data - driver_profiles is now the single source of truth
+          const passportExpiry =
+            session.passport_expiry_date != null && session.passport_expiry_date !== ""
+              ? new Date(session.passport_expiry_date as string).toISOString().split("T")[0]
+              : null;
+
           const driverData: Record<string, any> = {
             user_id: session.user_id,
             email: session.email,
@@ -310,6 +315,14 @@ export function OnboardingApplications() {
             license_number: licenseNumber,
             license_expiry: licenseExpiry ? new Date(licenseExpiry).toISOString().split('T')[0] : null,
             national_insurance: session.national_insurance_number || null,
+            passport_number: session.passport_number || null,
+            passport_expiry: passportExpiry,
+            dvla_code: session.dvla_code || null,
+            dbs_check: session.dbs_check ?? false,
+            driver_availability: session.driver_availability || null,
+            license_picture: session.license_picture || null,
+            passport_upload: session.passport_upload || null,
+            photo_upload: session.photo_upload || null,
             onboarded_at: new Date().toISOString(),
             onboarded_by: approver?.id || null,
             active: true,

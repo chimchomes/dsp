@@ -48,23 +48,30 @@ serve(async (req) => {
       throw new Error('Only admins and HR can create driver accounts');
     }
 
-    const { 
-      firstName, 
-      surname, 
-      email, 
+    const body = await req.json();
+    const {
+      firstName,
+      surname,
+      email,
       password,
-      contactPhone, 
-      licenseNumber, 
+      contactPhone,
+      licenseNumber,
+      licenseExpiry,
       addressLine1,
       addressLine2,
       addressLine3,
       postcode,
-      emergencyContactName, 
-      emergencyContactPhone, 
+      emergencyContactName,
+      emergencyContactPhone,
       operatorId,
       nationalInsurance,
-      tenant_id: explicitTenantId
-    } = await req.json();
+      passportNumber,
+      passportExpiry,
+      dvlaCode,
+      dbsCheck,
+      driverAvailability,
+      tenant_id: explicitTenantId,
+    } = body;
 
     // Resolve tenant_id
     let tenantId = explicitTenantId;
@@ -92,6 +99,15 @@ serve(async (req) => {
     }
 
     const fullName = `${firstName} ${surname}`.trim();
+
+    const normDate = (v: unknown): string | null => {
+      if (v === null || v === undefined || v === "") return null;
+      const s = String(v).trim();
+      if (!s) return null;
+      const d = new Date(s);
+      if (Number.isNaN(d.getTime())) return null;
+      return d.toISOString().split("T")[0];
+    };
 
     // Create the user account with the provided password
     const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
@@ -161,10 +177,16 @@ serve(async (req) => {
         address_line_3: addressLine3 || null,
         postcode: postcode || null,
         license_number: licenseNumber || null,
+        license_expiry: normDate(licenseExpiry),
         emergency_contact_name: emergencyContactName || null,
         emergency_contact_phone: emergencyContactPhone || null,
         operator_id: operatorId || null,
         national_insurance: nationalInsurance || null,
+        passport_number: passportNumber || null,
+        passport_expiry: normDate(passportExpiry),
+        dvla_code: dvlaCode || null,
+        dbs_check: typeof dbsCheck === "boolean" ? dbsCheck : false,
+        driver_availability: driverAvailability || null,
         onboarded_by: user.id,
         onboarded_at: new Date().toISOString(),
         active: true,
