@@ -6,6 +6,14 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Upload } from "lucide-react";
 
@@ -22,9 +30,25 @@ const onboardingSchema = z.object({
   national_insurance: z.string().optional(),
   emergency_contact_name: z.string().min(2, "Emergency contact name is required"),
   emergency_contact_phone: z.string().min(10, "Emergency contact phone is required"),
+  license_expiry: z.string().optional(),
+  operator_id: z.string().optional(),
+  passport_number: z.string().optional(),
+  passport_expiry: z.string().optional(),
+  dvla_code: z.string().optional(),
+  dbs_check: z.boolean().optional(),
+  driver_availability: z.string().optional(),
 });
 
 type OnboardingFormData = z.infer<typeof onboardingSchema>;
+
+function generateTempPassword(): string {
+  const chars = "abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let s = "";
+  const buf = new Uint8Array(14);
+  crypto.getRandomValues(buf);
+  for (let i = 0; i < 14; i++) s += chars[buf[i]! % chars.length];
+  return `${s}Aa1!`;
+}
 
 interface DocumentUpload {
   type: 'license' | 'proof_of_address' | 'right_to_work';
@@ -40,10 +64,35 @@ const DriverOnboardingForm = () => {
     { type: 'proof_of_address', file: null, label: 'Proof of Address' },
     { type: 'right_to_work', file: null, label: 'Right to Work Document' },
   ]);
+  const [passportFile, setPassportFile] = useState<File | null>(null);
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
 
-  const { register, handleSubmit, formState: { errors }, reset } = useForm<OnboardingFormData>({
+  const { register, handleSubmit, formState: { errors }, reset, watch, setValue } = useForm<OnboardingFormData>({
     resolver: zodResolver(onboardingSchema),
+    defaultValues: {
+      first_name: "",
+      surname: "",
+      email: "",
+      license_number: "",
+      contact_phone: "",
+      address_line_1: "",
+      address_line_2: "",
+      address_line_3: "",
+      postcode: "",
+      national_insurance: "",
+      emergency_contact_name: "",
+      emergency_contact_phone: "",
+      license_expiry: "",
+      operator_id: "",
+      passport_number: "",
+      passport_expiry: "",
+      dvla_code: "",
+      dbs_check: false,
+      driver_availability: "",
+    },
   });
+  const dbsCheck = watch("dbs_check");
+  const driverAvailability = watch("driver_availability");
 
   const handleFileChange = (type: DocumentUpload['type'], file: File | null) => {
     setDocuments(prev => prev.map(doc => 
@@ -51,7 +100,7 @@ const DriverOnboardingForm = () => {
     ));
   };
 
-  const uploadDocument = async (driverId: string, doc: DocumentUpload) => {
+  const uploadDocument = async (driverId: string, doc: DocumentUpload): Promise<string | null> => {
     if (!doc.file) return null;
 
     const fileExt = doc.file.name.split('.').pop();
@@ -78,20 +127,24 @@ const DriverOnboardingForm = () => {
       });
 
     if (dbError) throw dbError;
+    return fileName;
   };
 
   const onSubmit = async (data: OnboardingFormData) => {
     setIsSubmitting(true);
     try {
       const fullName = `${data.first_name} ${data.surname}`.trim();
+      const tempPassword = generateTempPassword();
 
       const { data: fnData, error: fnError } = await supabase.functions.invoke("create-driver-account", {
         body: {
           firstName: data.first_name,
           surname: data.surname,
           email: data.email,
+          password: tempPassword,
           contactPhone: data.contact_phone,
           licenseNumber: data.license_number,
+          licenseExpiry: data.license_expiry || undefined,
           addressLine1: data.address_line_1,
           addressLine2: data.address_line_2 || null,
           addressLine3: data.address_line_3 || null,
@@ -99,6 +152,15 @@ const DriverOnboardingForm = () => {
           emergencyContactName: data.emergency_contact_name,
           emergencyContactPhone: data.emergency_contact_phone,
           nationalInsurance: data.national_insurance || null,
+          operatorId: data.operator_id || undefined,
+          passportNumber: data.passport_number || undefined,
+          passportExpiry: data.passport_expiry || undefined,
+          dvlaCode: data.dvla_code || undefined,
+          dbsCheck: data.dbs_check ?? false,
+          driverAvailability:
+            data.driver_availability && data.driver_availability !== "_unset_"
+              ? data.driver_availability
+              : undefined,
         },
       });
 
@@ -120,12 +182,34 @@ const DriverOnboardingForm = () => {
         console.error("Error fetching driver record:", driverError);
         // Continue even if we can't fetch the driver record - documents can be uploaded later
       } else if (driver) {
-        // Upload documents
-        await Promise.all(
-          documents
-            .filter(doc => doc.file)
-            .map(doc => uploadDocument(driver.id, doc))
-        );
+        let licensePath: string | null = null;
+        for (const doc of documents) {
+          if (!doc.file) continue;
+          const path = await uploadDocument(driver.id, doc);
+          if (doc.type === "license" && path) licensePath = path;
+        }
+
+        const profileDocUpdates: Record<string, string> = {};
+        if (licensePath) profileDocUpdates.license_picture = licensePath;
+
+        const uploadProfileDoc = async (file: File | null, column: "passport_upload" | "photo_upload", base: string) => {
+          if (!file) return;
+          const ext = file.name.split(".").pop() || "bin";
+          const path = `${driver.id}/${base}.${ext}`;
+          const { error: upErr } = await supabase.storage.from("driver-documents").upload(path, file, { upsert: true });
+          if (upErr) throw upErr;
+          profileDocUpdates[column] = path;
+        };
+        await uploadProfileDoc(passportFile, "passport_upload", "passport_upload");
+        await uploadProfileDoc(photoFile, "photo_upload", "photo");
+
+        if (Object.keys(profileDocUpdates).length > 0) {
+          const { error: profErr } = await supabase
+            .from("driver_profiles")
+            .update({ ...profileDocUpdates, updated_at: new Date().toISOString() })
+            .eq("id", driver.id);
+          if (profErr) console.error("driver_profiles document paths:", profErr);
+        }
 
         // Initialize training progress
         const { data: trainingItems } = await supabase
@@ -152,6 +236,8 @@ const DriverOnboardingForm = () => {
 
       reset();
       setDocuments(prev => prev.map(doc => ({ ...doc, file: null })));
+      setPassportFile(null);
+      setPhotoFile(null);
     } catch (error: any) {
       toast({
         title: "Error onboarding driver",
@@ -237,6 +323,65 @@ const DriverOnboardingForm = () => {
           <Input id="emergency_contact_phone" {...register("emergency_contact_phone")} />
           {errors.emergency_contact_phone && <p className="text-sm text-destructive mt-1">{errors.emergency_contact_phone.message}</p>}
         </div>
+
+        <div>
+          <Label htmlFor="license_expiry">License expiry</Label>
+          <Input id="license_expiry" type="date" {...register("license_expiry")} />
+          {errors.license_expiry && <p className="text-sm text-destructive mt-1">{errors.license_expiry.message}</p>}
+        </div>
+
+        <div>
+          <Label htmlFor="operator_id">Operator ID</Label>
+          <Input id="operator_id" {...register("operator_id")} placeholder="e.g., DB6249" />
+          {errors.operator_id && <p className="text-sm text-destructive mt-1">{errors.operator_id.message}</p>}
+        </div>
+
+        <div>
+          <Label htmlFor="passport_number">Passport number</Label>
+          <Input id="passport_number" {...register("passport_number")} />
+          {errors.passport_number && <p className="text-sm text-destructive mt-1">{errors.passport_number.message}</p>}
+        </div>
+
+        <div>
+          <Label htmlFor="passport_expiry">Passport expiry</Label>
+          <Input id="passport_expiry" type="date" {...register("passport_expiry")} />
+          {errors.passport_expiry && <p className="text-sm text-destructive mt-1">{errors.passport_expiry.message}</p>}
+        </div>
+
+        <div className="md:col-span-2">
+          <Label htmlFor="dvla_code">DVLA check code</Label>
+          <Input id="dvla_code" {...register("dvla_code")} />
+          {errors.dvla_code && <p className="text-sm text-destructive mt-1">{errors.dvla_code.message}</p>}
+        </div>
+
+        <div className="flex items-center space-x-2 md:col-span-2">
+          <Checkbox
+            id="dbs_check"
+            checked={dbsCheck ?? false}
+            onCheckedChange={(c) => setValue("dbs_check", c === true)}
+          />
+          <Label htmlFor="dbs_check" className="font-normal cursor-pointer">
+            DBS check completed
+          </Label>
+        </div>
+
+        <div className="md:col-span-2">
+          <Label>Availability</Label>
+          <Select
+            value={driverAvailability === "" ? "_unset_" : driverAvailability}
+            onValueChange={(v) => setValue("driver_availability", v === "_unset_" ? "" : v)}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Not specified" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="_unset_">Not specified</SelectItem>
+              <SelectItem value="Full Time">Full Time</SelectItem>
+              <SelectItem value="Part Time">Part Time</SelectItem>
+              <SelectItem value="Flexi (Same Day)">Flexi (Same Day)</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       <div className="space-y-4 border-t pt-6">
@@ -261,6 +406,35 @@ const DriverOnboardingForm = () => {
               </div>
             </div>
           ))}
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+          <div className="space-y-2">
+            <Label htmlFor="passport_upload_hr">Passport image (profile)</Label>
+            <Input
+              id="passport_upload_hr"
+              type="file"
+              accept=".pdf,.jpg,.jpeg,.png"
+              onChange={(e) => setPassportFile(e.target.files?.[0] ?? null)}
+              className="text-sm"
+            />
+            {passportFile && (
+              <span className="text-xs text-muted-foreground">{passportFile.name}</span>
+            )}
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="photo_upload_hr">Photo (profile)</Label>
+            <Input
+              id="photo_upload_hr"
+              type="file"
+              accept=".pdf,.jpg,.jpeg,.png"
+              onChange={(e) => setPhotoFile(e.target.files?.[0] ?? null)}
+              className="text-sm"
+            />
+            {photoFile && (
+              <span className="text-xs text-muted-foreground">{photoFile.name}</span>
+            )}
+          </div>
         </div>
       </div>
 

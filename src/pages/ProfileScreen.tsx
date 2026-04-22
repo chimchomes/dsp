@@ -27,12 +27,22 @@ interface DriverData {
   license_expiry: string | null;
   operator_id: string | null;
   national_insurance: string | null;
+  passport_number: string | null;
+  passport_expiry: string | null;
+  dvla_code: string | null;
+  dbs_check: boolean | null;
+  driver_availability: string | null;
 }
 
 export default function ProfileScreen() {
   const navigate = useNavigate();
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [driverData, setDriverData] = useState<DriverData | null>(null);
+  const [driverDocUrls, setDriverDocUrls] = useState<{
+    license?: string;
+    passport?: string;
+    photo?: string;
+  }>({});
   const [isLoading, setIsLoading] = useState(true);
   const [isDriver, setIsDriver] = useState(false);
 
@@ -64,7 +74,9 @@ export default function ProfileScreen() {
         // For drivers: driver_profiles is the single source of truth for all data
         const { data: driverProfile, error: driverError } = await supabase
           .from("driver_profiles")
-          .select("user_id, first_name, surname, name, email, contact_phone, address_line_1, address_line_2, address_line_3, postcode, emergency_contact_name, emergency_contact_phone, license_number, license_expiry, operator_id, national_insurance")
+          .select(
+            "user_id, first_name, surname, name, email, contact_phone, address_line_1, address_line_2, address_line_3, postcode, emergency_contact_name, emergency_contact_phone, license_number, license_expiry, operator_id, national_insurance, passport_number, passport_expiry, dvla_code, dbs_check, driver_availability, license_picture, passport_upload, photo_upload"
+          )
           .eq("user_id", user.id)
           .single();
 
@@ -92,7 +104,25 @@ export default function ProfileScreen() {
           license_expiry: driverProfile.license_expiry,
           operator_id: driverProfile.operator_id,
           national_insurance: driverProfile.national_insurance,
+          passport_number: driverProfile.passport_number,
+          passport_expiry: driverProfile.passport_expiry,
+          dvla_code: driverProfile.dvla_code,
+          dbs_check: driverProfile.dbs_check,
+          driver_availability: driverProfile.driver_availability,
         });
+
+        const next: { license?: string; passport?: string; photo?: string } = {};
+        const pairs: [keyof typeof next, string | null][] = [
+          ["license", driverProfile.license_picture],
+          ["passport", driverProfile.passport_upload],
+          ["photo", driverProfile.photo_upload],
+        ];
+        for (const [key, path] of pairs) {
+          if (!path) continue;
+          const { data } = await supabase.storage.from("driver-documents").createSignedUrl(path, 3600);
+          if (data?.signedUrl) next[key] = data.signedUrl;
+        }
+        setDriverDocUrls(next);
       } else {
         // For staff (admin, hr, finance): use staff_profiles
         const { data: profileData, error: profileError } = await supabase
@@ -103,7 +133,8 @@ export default function ProfileScreen() {
 
         if (profileError) throw profileError;
         setProfile(profileData);
-        setDriverData(null); // Staff don't have driver data
+        setDriverData(null);
+        setDriverDocUrls({});
       }
     } catch (error: any) {
       toast({
@@ -256,43 +287,129 @@ export default function ProfileScreen() {
               <CardTitle>Driver Information</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              {driverData.license_number && (
-                <div className="flex items-start gap-3">
-                  <User className="h-5 w-5 text-primary mt-0.5" />
-                  <div>
-                    <p className="font-medium">License Number</p>
-                    <p className="text-muted-foreground">{driverData.license_number}</p>
-                  </div>
+              <div className="flex items-start gap-3">
+                <User className="h-5 w-5 text-primary mt-0.5 shrink-0" />
+                <div>
+                  <p className="font-medium">License number</p>
+                  <p className="text-muted-foreground">{driverData.license_number || "—"}</p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3">
+                <User className="h-5 w-5 text-primary mt-0.5 shrink-0" />
+                <div>
+                  <p className="font-medium">License expiry</p>
+                  <p className="text-muted-foreground">
+                    {driverData.license_expiry
+                      ? new Date(driverData.license_expiry).toLocaleDateString()
+                      : "—"}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3">
+                <User className="h-5 w-5 text-primary mt-0.5 shrink-0" />
+                <div>
+                  <p className="font-medium">National Insurance</p>
+                  <p className="text-muted-foreground">{driverData.national_insurance || "—"}</p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3">
+                <User className="h-5 w-5 text-primary mt-0.5 shrink-0" />
+                <div>
+                  <p className="font-medium">Operator ID</p>
+                  <p className="text-muted-foreground">{driverData.operator_id || "—"}</p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3">
+                <User className="h-5 w-5 text-primary mt-0.5 shrink-0" />
+                <div>
+                  <p className="font-medium">Passport number</p>
+                  <p className="text-muted-foreground">{driverData.passport_number || "—"}</p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3">
+                <User className="h-5 w-5 text-primary mt-0.5 shrink-0" />
+                <div>
+                  <p className="font-medium">Passport expiry</p>
+                  <p className="text-muted-foreground">
+                    {driverData.passport_expiry
+                      ? new Date(driverData.passport_expiry).toLocaleDateString()
+                      : "—"}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3">
+                <User className="h-5 w-5 text-primary mt-0.5 shrink-0" />
+                <div>
+                  <p className="font-medium">DVLA check code</p>
+                  <p className="text-muted-foreground">{driverData.dvla_code || "—"}</p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3">
+                <User className="h-5 w-5 text-primary mt-0.5 shrink-0" />
+                <div>
+                  <p className="font-medium">DBS check</p>
+                  <p className="text-muted-foreground">
+                    {driverData.dbs_check === true
+                      ? "Recorded as completed"
+                      : driverData.dbs_check === false
+                        ? "Not recorded"
+                        : "—"}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3">
+                <User className="h-5 w-5 text-primary mt-0.5 shrink-0" />
+                <div>
+                  <p className="font-medium">Availability</p>
+                  <p className="text-muted-foreground">{driverData.driver_availability || "—"}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {driverData && (driverDocUrls.license || driverDocUrls.passport || driverDocUrls.photo) && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Your documents</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {driverDocUrls.license && (
+                <div className="space-y-2">
+                  <p className="font-medium text-sm">Driving licence</p>
+                  <img
+                    src={driverDocUrls.license}
+                    alt="Driving licence"
+                    className="max-w-full max-h-64 rounded-md border object-contain bg-muted/30"
+                  />
                 </div>
               )}
-
-              {driverData.license_expiry && (
-                <div className="flex items-start gap-3">
-                  <User className="h-5 w-5 text-primary mt-0.5" />
-                  <div>
-                    <p className="font-medium">License Expiry</p>
-                    <p className="text-muted-foreground">{new Date(driverData.license_expiry).toLocaleDateString()}</p>
-                  </div>
+              {driverDocUrls.passport && (
+                <div className="space-y-2">
+                  <p className="font-medium text-sm">Passport</p>
+                  <img
+                    src={driverDocUrls.passport}
+                    alt="Passport"
+                    className="max-w-full max-h-64 rounded-md border object-contain bg-muted/30"
+                  />
                 </div>
               )}
-
-              {driverData.national_insurance && (
-                <div className="flex items-start gap-3">
-                  <User className="h-5 w-5 text-primary mt-0.5" />
-                  <div>
-                    <p className="font-medium">National Insurance</p>
-                    <p className="text-muted-foreground">{driverData.national_insurance}</p>
-                  </div>
-                </div>
-              )}
-
-              {driverData.operator_id && (
-                <div className="flex items-start gap-3">
-                  <User className="h-5 w-5 text-primary mt-0.5" />
-                  <div>
-                    <p className="font-medium">Operator ID</p>
-                    <p className="text-muted-foreground">{driverData.operator_id}</p>
-                  </div>
+              {driverDocUrls.photo && (
+                <div className="space-y-2">
+                  <p className="font-medium text-sm">Photo</p>
+                  <img
+                    src={driverDocUrls.photo}
+                    alt="Your photo"
+                    className="max-w-full max-h-64 rounded-md border object-contain bg-muted/30"
+                  />
                 </div>
               )}
             </CardContent>

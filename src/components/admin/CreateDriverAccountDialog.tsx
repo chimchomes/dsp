@@ -13,6 +13,14 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { UserPlus } from "lucide-react";
 
 const driverSchema = z.object({
@@ -20,79 +28,141 @@ const driverSchema = z.object({
   surname: z.string().trim().min(1, "Surname is required").max(100),
   email: z.string().trim().email("Invalid email").max(255),
   password: z.string().min(8, "Password must be at least 8 characters").max(100),
-  contactPhone: z.string().trim().max(20).optional(),
-  licenseNumber: z.string().trim().max(50).optional(),
-  addressLine1: z.string().trim().max(200).optional(),
-  addressLine2: z.string().trim().max(200).optional(),
-  addressLine3: z.string().trim().max(200).optional(),
-  postcode: z.string().trim().max(20).optional(),
-  emergencyContactName: z.string().trim().max(100).optional(),
-  emergencyContactPhone: z.string().trim().max(20).optional(),
-  operatorId: z.string().trim().max(50).optional(),
-  nationalInsurance: z.string().trim().max(20).optional(),
+  contactPhone: z.string().trim().max(30).optional().or(z.literal("")),
+  licenseNumber: z.string().trim().max(50).optional().or(z.literal("")),
+  licenseExpiry: z.string().optional().or(z.literal("")),
+  addressLine1: z.string().trim().max(200).optional().or(z.literal("")),
+  addressLine2: z.string().trim().max(200).optional().or(z.literal("")),
+  addressLine3: z.string().trim().max(200).optional().or(z.literal("")),
+  postcode: z.string().trim().max(20).optional().or(z.literal("")),
+  emergencyContactName: z.string().trim().max(100).optional().or(z.literal("")),
+  emergencyContactPhone: z.string().trim().max(30).optional().or(z.literal("")),
+  operatorId: z.string().trim().max(50).optional().or(z.literal("")),
+  nationalInsurance: z.string().trim().max(20).optional().or(z.literal("")),
+  passportNumber: z.string().trim().max(30).optional().or(z.literal("")),
+  passportExpiry: z.string().optional().or(z.literal("")),
+  dvlaCode: z.string().trim().max(20).optional().or(z.literal("")),
+  dbsCheck: z.boolean().optional(),
+  driverAvailability: z.string().max(80).optional().or(z.literal("")),
 });
+
+const emptyForm = {
+  firstName: "",
+  surname: "",
+  email: "",
+  password: "",
+  contactPhone: "",
+  licenseNumber: "",
+  licenseExpiry: "",
+  addressLine1: "",
+  addressLine2: "",
+  addressLine3: "",
+  postcode: "",
+  emergencyContactName: "",
+  emergencyContactPhone: "",
+  operatorId: "",
+  nationalInsurance: "",
+  passportNumber: "",
+  passportExpiry: "",
+  dvlaCode: "",
+  dbsCheck: false,
+  driverAvailability: "",
+};
 
 export const CreateDriverAccountDialog = ({ onSuccess }: { onSuccess: () => void }) => {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [formData, setFormData] = useState({
-    firstName: "",
-    surname: "",
-    email: "",
-    password: "",
-    contactPhone: "",
-    licenseNumber: "",
-    addressLine1: "",
-    addressLine2: "",
-    addressLine3: "",
-    postcode: "",
-    emergencyContactName: "",
-    emergencyContactPhone: "",
-    operatorId: "",
-    nationalInsurance: "",
-  });
+  const [formData, setFormData] = useState(emptyForm);
+  const [licenseFile, setLicenseFile] = useState<File | null>(null);
+  const [passportFile, setPassportFile] = useState<File | null>(null);
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
   const { toast } = useToast();
+
+  const uploadDocPaths = async (driverProfileId: string) => {
+    const updates: Record<string, string> = {};
+    const run = async (file: File | null, column: "license_picture" | "passport_upload" | "photo_upload", base: string) => {
+      if (!file) return;
+      const ext = file.name.split(".").pop() || "bin";
+      const path = `${driverProfileId}/${base}.${ext}`;
+      const { error } = await supabase.storage.from("driver-documents").upload(path, file, { upsert: true });
+      if (error) throw error;
+      updates[column] = path;
+    };
+    await run(licenseFile, "license_picture", "license_picture");
+    await run(passportFile, "passport_upload", "passport_upload");
+    await run(photoFile, "photo_upload", "photo");
+    if (Object.keys(updates).length === 0) return;
+    const { error } = await supabase
+      .from("driver_profiles")
+      .update({ ...updates, updated_at: new Date().toISOString() })
+      .eq("id", driverProfileId);
+    if (error) throw error;
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
     try {
-      // Validate input
       const validated = driverSchema.parse(formData);
 
       const { data: fnData, error: fnError } = await supabase.functions.invoke("create-driver-account", {
-        body: validated,
+        body: {
+          firstName: validated.firstName,
+          surname: validated.surname,
+          email: validated.email,
+          password: validated.password,
+          contactPhone: validated.contactPhone || undefined,
+          licenseNumber: validated.licenseNumber || undefined,
+          licenseExpiry: validated.licenseExpiry || undefined,
+          addressLine1: validated.addressLine1 || undefined,
+          addressLine2: validated.addressLine2 || undefined,
+          addressLine3: validated.addressLine3 || undefined,
+          postcode: validated.postcode || undefined,
+          emergencyContactName: validated.emergencyContactName || undefined,
+          emergencyContactPhone: validated.emergencyContactPhone || undefined,
+          operatorId: validated.operatorId || undefined,
+          nationalInsurance: validated.nationalInsurance || undefined,
+          passportNumber: validated.passportNumber || undefined,
+          passportExpiry: validated.passportExpiry || undefined,
+          dvlaCode: validated.dvlaCode || undefined,
+          dbsCheck: validated.dbsCheck ?? false,
+          driverAvailability:
+            validated.driverAvailability && validated.driverAvailability !== "_unset_"
+              ? validated.driverAvailability
+              : undefined,
+        },
       });
 
       if (fnError) {
         let detail = fnError.message;
-        try { const b = await (fnError as any).context?.json?.(); if (b?.error) detail = b.error; } catch {}
+        try {
+          const b = await (fnError as { context?: { json?: () => Promise<{ error?: string }> } }).context?.json?.();
+          if (b?.error) detail = b.error;
+        } catch {
+          /* ignore */
+        }
         throw new Error(detail);
       }
       if (fnData?.error) throw new Error(fnData.error);
+
+      const userId = (fnData as { userId?: string })?.userId;
+      if (userId && (licenseFile || passportFile || photoFile)) {
+        const { data: row } = await supabase.from("driver_profiles").select("id").eq("user_id", userId).maybeSingle();
+        if (row?.id) {
+          await uploadDocPaths(row.id);
+        }
+      }
 
       toast({
         title: "Driver account created",
         description: `Account created for ${validated.firstName} ${validated.surname}. They must change their password on first login.`,
       });
 
-      setFormData({
-        firstName: "",
-        surname: "",
-        email: "",
-        password: "",
-        contactPhone: "",
-        licenseNumber: "",
-        addressLine1: "",
-        addressLine2: "",
-        addressLine3: "",
-        postcode: "",
-        emergencyContactName: "",
-        emergencyContactPhone: "",
-        operatorId: "",
-        nationalInsurance: "",
-      });
+      setFormData({ ...emptyForm });
+      setLicenseFile(null);
+      setPassportFile(null);
+      setPhotoFile(null);
       setOpen(false);
       onSuccess();
     } catch (error) {
@@ -116,24 +186,11 @@ export const CreateDriverAccountDialog = ({ onSuccess }: { onSuccess: () => void
 
   const handleOpenChange = (newOpen: boolean) => {
     setOpen(newOpen);
-    // Reset form when dialog closes
     if (!newOpen) {
-      setFormData({
-        firstName: "",
-        surname: "",
-        email: "",
-        password: "",
-        contactPhone: "",
-        licenseNumber: "",
-        addressLine1: "",
-        addressLine2: "",
-        addressLine3: "",
-        postcode: "",
-        emergencyContactName: "",
-        emergencyContactPhone: "",
-        operatorId: "",
-        nationalInsurance: "",
-      });
+      setFormData({ ...emptyForm });
+      setLicenseFile(null);
+      setPassportFile(null);
+      setPhotoFile(null);
     }
   };
 
@@ -149,7 +206,8 @@ export const CreateDriverAccountDialog = ({ onSuccess }: { onSuccess: () => void
         <DialogHeader>
           <DialogTitle>Create Driver Account</DialogTitle>
           <DialogDescription>
-            Create a new driver account with login credentials and driver role
+            Create a driver login and profile with the same fields as driver onboarding. Upload document images after account
+            creation (stored securely).
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -200,23 +258,41 @@ export const CreateDriverAccountDialog = ({ onSuccess }: { onSuccess: () => void
               maxLength={100}
               placeholder="Min 8 characters"
             />
-            <p className="text-xs text-muted-foreground">
-              The driver must change this password on their first login
-            </p>
+            <p className="text-xs text-muted-foreground">The driver must change this password on their first login</p>
           </div>
-          
-          <div className="grid grid-cols-2 gap-4">
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="contactPhone">Contact Phone</Label>
               <Input
                 id="contactPhone"
                 value={formData.contactPhone}
                 onChange={(e) => setFormData({ ...formData, contactPhone: e.target.value })}
-                maxLength={20}
+                maxLength={30}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="licenseNumber">License Number</Label>
+              <Label htmlFor="driverAvailability">Work availability</Label>
+              <Select
+                value={formData.driverAvailability || "_unset_"}
+                onValueChange={(v) => setFormData({ ...formData, driverAvailability: v === "_unset_" ? "" : v })}
+              >
+                <SelectTrigger id="driverAvailability">
+                  <SelectValue placeholder="Select availability" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="_unset_">Not specified</SelectItem>
+                  <SelectItem value="Full Time">Full Time</SelectItem>
+                  <SelectItem value="Part Time">Part Time</SelectItem>
+                  <SelectItem value="Flexi (Same Day)">Flexi (Same Day)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="licenseNumber">Licence number</Label>
               <Input
                 id="licenseNumber"
                 value={formData.licenseNumber}
@@ -224,21 +300,74 @@ export const CreateDriverAccountDialog = ({ onSuccess }: { onSuccess: () => void
                 maxLength={50}
               />
             </div>
+            <div className="space-y-2">
+              <Label htmlFor="licenseExpiry">Licence expiry</Label>
+              <Input
+                id="licenseExpiry"
+                type="date"
+                value={formData.licenseExpiry}
+                onChange={(e) => setFormData({ ...formData, licenseExpiry: e.target.value })}
+              />
+            </div>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="nationalInsurance">National Insurance Number</Label>
-            <Input
-              id="nationalInsurance"
-              value={formData.nationalInsurance}
-              onChange={(e) => setFormData({ ...formData, nationalInsurance: e.target.value })}
-              placeholder="e.g., AB123456C"
-              maxLength={20}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="passportNumber">Passport number</Label>
+              <Input
+                id="passportNumber"
+                value={formData.passportNumber}
+                onChange={(e) => setFormData({ ...formData, passportNumber: e.target.value })}
+                maxLength={30}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="passportExpiry">Passport expiry</Label>
+              <Input
+                id="passportExpiry"
+                type="date"
+                value={formData.passportExpiry}
+                onChange={(e) => setFormData({ ...formData, passportExpiry: e.target.value })}
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="dvlaCode">DVLA check code</Label>
+              <Input
+                id="dvlaCode"
+                value={formData.dvlaCode}
+                onChange={(e) => setFormData({ ...formData, dvlaCode: e.target.value })}
+                maxLength={20}
+                placeholder="8 characters from DVLA"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="nationalInsurance">National Insurance</Label>
+              <Input
+                id="nationalInsurance"
+                value={formData.nationalInsurance}
+                onChange={(e) => setFormData({ ...formData, nationalInsurance: e.target.value })}
+                placeholder="e.g., AB123456C"
+                maxLength={20}
+              />
+            </div>
+          </div>
+
+          <div className="flex items-center space-x-2">
+            <Checkbox
+              id="dbsCheck"
+              checked={formData.dbsCheck}
+              onCheckedChange={(c) => setFormData({ ...formData, dbsCheck: c === true })}
             />
+            <Label htmlFor="dbsCheck" className="font-normal cursor-pointer">
+              DBS check completed / required (record only)
+            </Label>
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="addressLine1">Address Line 1</Label>
+            <Label htmlFor="addressLine1">Address line 1</Label>
             <Input
               id="addressLine1"
               value={formData.addressLine1}
@@ -248,7 +377,7 @@ export const CreateDriverAccountDialog = ({ onSuccess }: { onSuccess: () => void
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="addressLine2">Address Line 2</Label>
+            <Label htmlFor="addressLine2">Address line 2</Label>
             <Input
               id="addressLine2"
               value={formData.addressLine2}
@@ -257,9 +386,9 @@ export const CreateDriverAccountDialog = ({ onSuccess }: { onSuccess: () => void
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="addressLine3">Address Line 3</Label>
+              <Label htmlFor="addressLine3">Address line 3</Label>
               <Input
                 id="addressLine3"
                 value={formData.addressLine3}
@@ -278,9 +407,9 @@ export const CreateDriverAccountDialog = ({ onSuccess }: { onSuccess: () => void
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="emergencyContactName">Emergency Contact Name</Label>
+              <Label htmlFor="emergencyContactName">Emergency contact name</Label>
               <Input
                 id="emergencyContactName"
                 value={formData.emergencyContactName}
@@ -289,12 +418,12 @@ export const CreateDriverAccountDialog = ({ onSuccess }: { onSuccess: () => void
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="emergencyContactPhone">Emergency Contact Phone</Label>
+              <Label htmlFor="emergencyContactPhone">Emergency contact phone</Label>
               <Input
                 id="emergencyContactPhone"
                 value={formData.emergencyContactPhone}
                 onChange={(e) => setFormData({ ...formData, emergencyContactPhone: e.target.value })}
-                maxLength={20}
+                maxLength={30}
               />
             </div>
           </div>
@@ -308,7 +437,43 @@ export const CreateDriverAccountDialog = ({ onSuccess }: { onSuccess: () => void
               placeholder="e.g., 0074666"
               maxLength={50}
             />
-            <p className="text-xs text-muted-foreground">Only HR and Admin can add operator ID</p>
+          </div>
+
+          <div className="space-y-2 border-t pt-4">
+            <p className="text-sm font-medium">Document images (optional)</p>
+            <p className="text-xs text-muted-foreground">Uploaded after the account is created to your driver-documents storage.</p>
+            <div className="grid grid-cols-1 gap-3">
+              <div>
+                <Label htmlFor="fLicense">Licence image</Label>
+                <Input
+                  id="fLicense"
+                  type="file"
+                  accept="image/*,.pdf"
+                  className="mt-1"
+                  onChange={(e) => setLicenseFile(e.target.files?.[0] ?? null)}
+                />
+              </div>
+              <div>
+                <Label htmlFor="fPassport">Passport image</Label>
+                <Input
+                  id="fPassport"
+                  type="file"
+                  accept="image/*,.pdf"
+                  className="mt-1"
+                  onChange={(e) => setPassportFile(e.target.files?.[0] ?? null)}
+                />
+              </div>
+              <div>
+                <Label htmlFor="fPhoto">Photo ID / headshot</Label>
+                <Input
+                  id="fPhoto"
+                  type="file"
+                  accept="image/*,.pdf"
+                  className="mt-1"
+                  onChange={(e) => setPhotoFile(e.target.files?.[0] ?? null)}
+                />
+              </div>
+            </div>
           </div>
 
           <div className="flex justify-end gap-2">

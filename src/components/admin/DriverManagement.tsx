@@ -21,6 +21,14 @@ import {
 } from "@/components/ui/dialog";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Loader2, Edit, Truck } from "lucide-react";
 import { format } from "date-fns";
 
@@ -42,6 +50,14 @@ type DriverProfile = {
   license_expiry: string | null;
   operator_id: string | null;
   national_insurance: string | null;
+  passport_number: string | null;
+  passport_expiry: string | null;
+  dvla_code: string | null;
+  dbs_check: boolean | null;
+  driver_availability: string | null;
+  license_picture: string | null;
+  passport_upload: string | null;
+  photo_upload: string | null;
   active: boolean;
   onboarded_at: string | null;
 };
@@ -68,8 +84,21 @@ export default function DriverManagement() {
     license_expiry: "",
     operator_id: "",
     national_insurance: "",
+    passport_number: "",
+    passport_expiry: "",
+    dvla_code: "",
+    dbs_check: false,
+    driver_availability: "",
     active: true,
   });
+  const [docPreviewUrls, setDocPreviewUrls] = useState<{
+    license?: string;
+    passport?: string;
+    photo?: string;
+  }>({});
+  const [licenseReplace, setLicenseReplace] = useState<File | null>(null);
+  const [passportReplace, setPassportReplace] = useState<File | null>(null);
+  const [photoReplace, setPhotoReplace] = useState<File | null>(null);
 
   useEffect(() => {
     loadDrivers();
@@ -141,7 +170,9 @@ export default function DriverManagement() {
       // Get all drivers from driver_profiles (single source of truth)
       const { data: driversData, error: driversError } = await supabase
         .from("driver_profiles")
-        .select("id, user_id, email, name, first_name, surname, contact_phone, address_line_1, address_line_2, address_line_3, postcode, emergency_contact_name, emergency_contact_phone, license_number, license_expiry, operator_id, national_insurance, active, onboarded_at")
+        .select(
+          "id, user_id, email, name, first_name, surname, contact_phone, address_line_1, address_line_2, address_line_3, postcode, emergency_contact_name, emergency_contact_phone, license_number, license_expiry, operator_id, national_insurance, passport_number, passport_expiry, dvla_code, dbs_check, driver_availability, license_picture, passport_upload, photo_upload, active, onboarded_at"
+        )
         .order("onboarded_at", { ascending: false, nullsLast: true });
       
       if (driversError) {
@@ -198,6 +229,14 @@ export default function DriverManagement() {
           license_expiry: driver.license_expiry || null,
           operator_id: driver.operator_id || null,
           national_insurance: driver.national_insurance || null,
+          passport_number: driver.passport_number || null,
+          passport_expiry: driver.passport_expiry || null,
+          dvla_code: driver.dvla_code || null,
+          dbs_check: driver.dbs_check ?? false,
+          driver_availability: driver.driver_availability || null,
+          license_picture: driver.license_picture || null,
+          passport_upload: driver.passport_upload || null,
+          photo_upload: driver.photo_upload || null,
           active: driver.active ?? true,
           onboarded_at: driver.onboarded_at || null,
         };
@@ -223,8 +262,11 @@ export default function DriverManagement() {
     }
   };
 
-  const handleEditDriver = (driver: DriverProfile) => {
+  const handleEditDriver = async (driver: DriverProfile) => {
     setSelectedDriver(driver);
+    setLicenseReplace(null);
+    setPassportReplace(null);
+    setPhotoReplace(null);
     setFormData({
       first_name: driver.first_name || "",
       surname: driver.surname || "",
@@ -239,9 +281,26 @@ export default function DriverManagement() {
       license_expiry: driver.license_expiry ? format(new Date(driver.license_expiry), "yyyy-MM-dd") : "",
       operator_id: driver.operator_id || "",
       national_insurance: driver.national_insurance || "",
+      passport_number: driver.passport_number || "",
+      passport_expiry: driver.passport_expiry ? format(new Date(driver.passport_expiry), "yyyy-MM-dd") : "",
+      dvla_code: driver.dvla_code || "",
+      dbs_check: driver.dbs_check ?? false,
+      driver_availability: driver.driver_availability || "",
       active: driver.active,
     });
     setEditDialogOpen(true);
+    const next: { license?: string; passport?: string; photo?: string } = {};
+    const pairs: [keyof typeof next, string | null][] = [
+      ["license", driver.license_picture],
+      ["passport", driver.passport_upload],
+      ["photo", driver.photo_upload],
+    ];
+    for (const [key, path] of pairs) {
+      if (!path) continue;
+      const { data } = await supabase.storage.from("driver-documents").createSignedUrl(path, 3600);
+      if (data?.signedUrl) next[key] = data.signedUrl;
+    }
+    setDocPreviewUrls(next);
   };
 
   const handleUpdateDriver = async (e: React.FormEvent) => {
@@ -270,6 +329,25 @@ export default function DriverManagement() {
         }
       }
 
+      let license_picture = selectedDriver.license_picture;
+      let passport_upload = selectedDriver.passport_upload;
+      let photo_upload = selectedDriver.photo_upload;
+      const did = selectedDriver.driver_id;
+
+      const uploadReplace = async (file: File | null, column: "license_picture" | "passport_upload" | "photo_upload", base: string) => {
+        if (!file) return;
+        const ext = file.name.split(".").pop() || "bin";
+        const path = `${did}/${base}.${ext}`;
+        const { error: upErr } = await supabase.storage.from("driver-documents").upload(path, file, { upsert: true });
+        if (upErr) throw upErr;
+        if (column === "license_picture") license_picture = path;
+        if (column === "passport_upload") passport_upload = path;
+        if (column === "photo_upload") photo_upload = path;
+      };
+      await uploadReplace(licenseReplace, "license_picture", "license_picture");
+      await uploadReplace(passportReplace, "passport_upload", "passport_upload");
+      await uploadReplace(photoReplace, "photo_upload", "photo");
+
       // Update driver_profiles record (single source of truth for all driver data)
       const { error: driverError } = await supabase
         .from("driver_profiles")
@@ -288,6 +366,14 @@ export default function DriverManagement() {
           license_expiry: formData.license_expiry || null,
           operator_id: formData.operator_id.trim() || null,
           national_insurance: formData.national_insurance.trim() || null,
+          passport_number: formData.passport_number.trim() || null,
+          passport_expiry: formData.passport_expiry || null,
+          dvla_code: formData.dvla_code.trim() || null,
+          dbs_check: formData.dbs_check,
+          driver_availability: formData.driver_availability.trim() || null,
+          license_picture,
+          passport_upload,
+          photo_upload,
           active: formData.active,
           updated_at: new Date().toISOString(),
         })
@@ -352,7 +438,7 @@ export default function DriverManagement() {
                 Driver Management
               </CardTitle>
               <CardDescription>
-                Edit existing driver profiles. Drivers can only be created through the onboarding process.
+                View and edit driver profiles. Drivers may be added via onboarding or the admin Create Driver flow.
               </CardDescription>
             </div>
           </div>
@@ -417,7 +503,19 @@ export default function DriverManagement() {
       </Card>
 
       {/* Edit Driver Dialog */}
-      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+      <Dialog
+        open={editDialogOpen}
+        onOpenChange={(open) => {
+          setEditDialogOpen(open);
+          if (!open) {
+            setSelectedDriver(null);
+            setDocPreviewUrls({});
+            setLicenseReplace(null);
+            setPassportReplace(null);
+            setPhotoReplace(null);
+          }
+        }}
+      >
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit Driver Profile</DialogTitle>
@@ -570,6 +668,125 @@ export default function DriverManagement() {
                     placeholder="e.g., AB123456C"
                     maxLength={20}
                   />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="edit_passport_number">Passport number</Label>
+                  <Input
+                    id="edit_passport_number"
+                    value={formData.passport_number}
+                    onChange={(e) => setFormData({ ...formData, passport_number: e.target.value })}
+                    maxLength={80}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit_passport_expiry">Passport expiry</Label>
+                  <Input
+                    id="edit_passport_expiry"
+                    type="date"
+                    value={formData.passport_expiry}
+                    onChange={(e) => setFormData({ ...formData, passport_expiry: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="edit_dvla_code">DVLA check code</Label>
+                <Input
+                  id="edit_dvla_code"
+                  value={formData.dvla_code}
+                  onChange={(e) => setFormData({ ...formData, dvla_code: e.target.value })}
+                  maxLength={80}
+                />
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="edit_dbs_check"
+                  checked={formData.dbs_check}
+                  onCheckedChange={(c) => setFormData({ ...formData, dbs_check: c === true })}
+                />
+                <Label htmlFor="edit_dbs_check" className="font-normal cursor-pointer">
+                  DBS check completed
+                </Label>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Availability</Label>
+                <Select
+                  value={formData.driver_availability === "" ? "_unset_" : formData.driver_availability}
+                  onValueChange={(v) =>
+                    setFormData({ ...formData, driver_availability: v === "_unset_" ? "" : v })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Not specified" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="_unset_">Not specified</SelectItem>
+                    <SelectItem value="Full Time">Full Time</SelectItem>
+                    <SelectItem value="Part Time">Part Time</SelectItem>
+                    <SelectItem value="Flexi (Same Day)">Flexi (Same Day)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-3 pt-2 border-t">
+                <h4 className="text-sm font-medium">Documents (replace to upload a new file)</h4>
+                <div className="grid gap-4 sm:grid-cols-3">
+                  <div className="space-y-2">
+                    <Label>Driving licence image</Label>
+                    {docPreviewUrls.license ? (
+                      <img
+                        src={docPreviewUrls.license}
+                        alt="Licence"
+                        className="max-h-32 rounded border object-contain"
+                      />
+                    ) : (
+                      <p className="text-xs text-muted-foreground">No file on record</p>
+                    )}
+                    <Input
+                      type="file"
+                      accept="image/*,.pdf"
+                      onChange={(e) => setLicenseReplace(e.target.files?.[0] ?? null)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Passport image</Label>
+                    {docPreviewUrls.passport ? (
+                      <img
+                        src={docPreviewUrls.passport}
+                        alt="Passport"
+                        className="max-h-32 rounded border object-contain"
+                      />
+                    ) : (
+                      <p className="text-xs text-muted-foreground">No file on record</p>
+                    )}
+                    <Input
+                      type="file"
+                      accept="image/*,.pdf"
+                      onChange={(e) => setPassportReplace(e.target.files?.[0] ?? null)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Photo</Label>
+                    {docPreviewUrls.photo ? (
+                      <img
+                        src={docPreviewUrls.photo}
+                        alt="Photo"
+                        className="max-h-32 rounded border object-contain"
+                      />
+                    ) : (
+                      <p className="text-xs text-muted-foreground">No file on record</p>
+                    )}
+                    <Input
+                      type="file"
+                      accept="image/*,.pdf"
+                      onChange={(e) => setPhotoReplace(e.target.files?.[0] ?? null)}
+                    />
+                  </div>
                 </div>
               </div>
 
