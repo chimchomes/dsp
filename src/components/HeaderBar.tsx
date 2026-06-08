@@ -1,5 +1,4 @@
 import { Link, useNavigate, useLocation } from "react-router-dom";
-import { NotificationBadge } from "@/components/NotificationBadge";
 import { Button } from "@/components/ui/button";
 import { Mail, LogOut, Menu } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -123,7 +122,6 @@ export default function HeaderBar({ onToggleSidebar }: HeaderBarProps) {
           )}
         </Button>
         </Link>
-        <NotificationBadge />
         <Button 
           variant="ghost" 
           size="icon" 

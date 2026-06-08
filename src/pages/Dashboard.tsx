@@ -5,7 +5,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "@/hooks/use-toast";
 import { AlertTriangle, User, FileText } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { NotificationBadge } from "@/components/NotificationBadge";
 import { IncidentForm } from "@/components/IncidentForm";
 
 interface Driver {

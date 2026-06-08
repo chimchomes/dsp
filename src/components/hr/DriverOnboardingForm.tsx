@@ -50,20 +50,10 @@ function generateTempPassword(): string {
   return `${s}Aa1!`;
 }
 
-interface DocumentUpload {
-  type: 'license' | 'proof_of_address' | 'right_to_work';
-  file: File | null;
-  label: string;
-}
-
 const DriverOnboardingForm = () => {
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [documents, setDocuments] = useState<DocumentUpload[]>([
-    { type: 'license', file: null, label: 'Driver License' },
-    { type: 'proof_of_address', file: null, label: 'Proof of Address' },
-    { type: 'right_to_work', file: null, label: 'Right to Work Document' },
-  ]);
+  const [licenseFile, setLicenseFile] = useState<File | null>(null);
   const [passportFile, setPassportFile] = useState<File | null>(null);
   const [photoFile, setPhotoFile] = useState<File | null>(null);
 
@@ -94,40 +84,17 @@ const DriverOnboardingForm = () => {
   const dbsCheck = watch("dbs_check");
   const driverAvailability = watch("driver_availability");
 
-  const handleFileChange = (type: DocumentUpload['type'], file: File | null) => {
-    setDocuments(prev => prev.map(doc => 
-      doc.type === type ? { ...doc, file } : doc
-    ));
-  };
-
-  const uploadDocument = async (driverId: string, doc: DocumentUpload): Promise<string | null> => {
-    if (!doc.file) return null;
-
-    const fileExt = doc.file.name.split('.').pop();
-    const fileName = `${driverId}/${doc.type}.${fileExt}`;
-    
-    const { error: uploadError } = await supabase.storage
-      .from('driver-documents')
-      .upload(fileName, doc.file, { upsert: true });
-
-    if (uploadError) throw uploadError;
-
-    // Store file path instead of public URL - signed URLs generated on access
-    // This ensures documents are only accessible via RLS policies
-    const { data: { user } } = await supabase.auth.getUser();
-
-    const { error: dbError } = await supabase
-      .from('driver_documents')
-      .insert({
-        driver_id: driverId,
-        document_type: doc.type,
-        file_name: doc.file.name,
-        file_url: fileName, // Store file path, not public URL
-        uploaded_by: user?.id,
-      });
-
-    if (dbError) throw dbError;
-    return fileName;
+  const uploadProfileDoc = async (
+    driverId: string,
+    file: File | null,
+    column: "license_picture" | "passport_upload" | "photo_upload"
+  ): Promise<string | null> => {
+    if (!file) return null;
+    const ext = file.name.split(".").pop() || "bin";
+    const path = `${driverId}/${column}.${ext}`;
+    const { error } = await supabase.storage.from("driver-documents").upload(path, file, { upsert: true });
+    if (error) throw error;
+    return path;
   };
 
   const onSubmit = async (data: OnboardingFormData) => {
@@ -182,26 +149,13 @@ const DriverOnboardingForm = () => {
         console.error("Error fetching driver record:", driverError);
         // Continue even if we can't fetch the driver record - documents can be uploaded later
       } else if (driver) {
-        let licensePath: string | null = null;
-        for (const doc of documents) {
-          if (!doc.file) continue;
-          const path = await uploadDocument(driver.id, doc);
-          if (doc.type === "license" && path) licensePath = path;
-        }
-
         const profileDocUpdates: Record<string, string> = {};
+        const licensePath = await uploadProfileDoc(driver.id, licenseFile, "license_picture");
+        const passportPath = await uploadProfileDoc(driver.id, passportFile, "passport_upload");
+        const photoPath = await uploadProfileDoc(driver.id, photoFile, "photo_upload");
         if (licensePath) profileDocUpdates.license_picture = licensePath;
-
-        const uploadProfileDoc = async (file: File | null, column: "passport_upload" | "photo_upload", base: string) => {
-          if (!file) return;
-          const ext = file.name.split(".").pop() || "bin";
-          const path = `${driver.id}/${base}.${ext}`;
-          const { error: upErr } = await supabase.storage.from("driver-documents").upload(path, file, { upsert: true });
-          if (upErr) throw upErr;
-          profileDocUpdates[column] = path;
-        };
-        await uploadProfileDoc(passportFile, "passport_upload", "passport_upload");
-        await uploadProfileDoc(photoFile, "photo_upload", "photo");
+        if (passportPath) profileDocUpdates.passport_upload = passportPath;
+        if (photoPath) profileDocUpdates.photo_upload = photoPath;
 
         if (Object.keys(profileDocUpdates).length > 0) {
           const { error: profErr } = await supabase
@@ -387,30 +341,21 @@ const DriverOnboardingForm = () => {
       <div className="space-y-4 border-t pt-6">
         <h3 className="font-semibold text-lg">Upload Documents</h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {documents.map((doc) => (
-            <div key={doc.type} className="space-y-2">
-              <Label htmlFor={doc.type}>{doc.label}</Label>
-              <div className="flex items-center gap-2">
-                <Input
-                  id={doc.type}
-                  type="file"
-                  accept=".pdf,.jpg,.jpeg,.png"
-                  onChange={(e) => handleFileChange(doc.type, e.target.files?.[0] || null)}
-                  className="text-sm"
-                />
-                {doc.file && (
-                  <span className="text-xs text-muted-foreground">
-                    {doc.file.name}
-                  </span>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
           <div className="space-y-2">
-            <Label htmlFor="passport_upload_hr">Passport image (profile)</Label>
+            <Label htmlFor="license_upload_hr">Licence image</Label>
+            <Input
+              id="license_upload_hr"
+              type="file"
+              accept=".pdf,.jpg,.jpeg,.png"
+              onChange={(e) => setLicenseFile(e.target.files?.[0] ?? null)}
+              className="text-sm"
+            />
+            {licenseFile && (
+              <span className="text-xs text-muted-foreground">{licenseFile.name}</span>
+            )}
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="passport_upload_hr">Passport / right to work</Label>
             <Input
               id="passport_upload_hr"
               type="file"
@@ -423,7 +368,7 @@ const DriverOnboardingForm = () => {
             )}
           </div>
           <div className="space-y-2">
-            <Label htmlFor="photo_upload_hr">Photo (profile)</Label>
+            <Label htmlFor="photo_upload_hr">Photo</Label>
             <Input
               id="photo_upload_hr"
               type="file"

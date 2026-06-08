@@ -71,18 +71,6 @@ serve(async (req) => {
         console.error("role insert error", roleErr);
       }
 
-      // Upsert profile for friendly names
-      const { error: profErr } = await supabaseAdmin
-        .from('profiles')
-        .upsert({
-          user_id: created.user.id,
-          first_name: firstName ?? null,
-          surname: surname ?? null,
-          full_name: fullName ?? null,
-          email: email
-        });
-      if (profErr) console.error('profiles upsert error', profErr);
-
       return new Response(
         JSON.stringify({ exists: false, userId: created.user.id, email, fullName: fullName ?? null }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
@@ -137,12 +125,6 @@ serve(async (req) => {
       .from("user_roles")
       .insert({ user_id: newUser.user.id, role });
     if (roleError) throw roleError;
-
-    // create minimal profile
-    const { error: profErr2 } = await supabaseAdmin
-      .from('profiles')
-      .upsert({ user_id: newUser.user.id, full_name: generatedFullName, email: generatedEmail });
-    if (profErr2) console.error('profiles upsert error', profErr2);
 
     return new Response(
       JSON.stringify({ message: "Account created successfully", userId: newUser.user.id, email: generatedEmail, fullName: generatedFullName }),
