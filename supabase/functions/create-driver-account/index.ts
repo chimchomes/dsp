@@ -1,51 +1,70 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { assertDriverOnboardingFields } from "../_shared/ukValidation.ts";
 
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+const DOC_FIELDS = ["license_picture", "passport_upload", "photo_upload"] as const;
+
+async function copyDocToProfile(
+  supabaseAdmin: ReturnType<typeof createClient>,
+  fromPath: string,
+  driverProfileId: string,
+  column: string,
+): Promise<string | null> {
+  const ext = fromPath.split(".").pop() || "bin";
+  const toPath = `${driverProfileId}/${column}.${ext}`;
+  const { data, error: dlErr } = await supabaseAdmin.storage.from("driver-documents").download(fromPath);
+  if (dlErr || !data) return null;
+  const { error: upErr } = await supabaseAdmin.storage
+    .from("driver-documents")
+    .upload(toPath, data, { upsert: true });
+  if (upErr) return null;
+  return toPath;
+}
+
 serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
   }
 
   try {
     const supabaseAdmin = createClient(
-      Deno.env.get('SUPABASE_URL') ?? Deno.env.get('PROJECT_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? Deno.env.get('SERVICE_ROLE_KEY') ?? '',
+      Deno.env.get("SUPABASE_URL") ?? Deno.env.get("PROJECT_URL") ?? "",
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? Deno.env.get("SERVICE_ROLE_KEY") ?? "",
       {
         auth: {
           autoRefreshToken: false,
-          persistSession: false
-        }
-      }
+          persistSession: false,
+        },
+      },
     );
 
-    const authHeader = req.headers.get('Authorization') || '';
+    const authHeader = req.headers.get("Authorization") || "";
     if (!authHeader) {
       return new Response(
-        JSON.stringify({ error: 'Missing authorization header' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
+        JSON.stringify({ error: "Missing authorization header" }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 401 },
       );
     }
-    const token = authHeader.replace('Bearer ', '');
-    
-    // Verify the user is authenticated
+    const token = authHeader.replace("Bearer ", "").trim();
+
     const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
     if (authError || !user) {
-      throw new Error('Unauthorized');
+      throw new Error("Unauthorized");
     }
 
     const { data: roles } = await supabaseAdmin
-      .from('user_roles')
-      .select('role')
-      .eq('user_id', user.id);
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", user.id);
 
-    const hasPermission = roles?.some(r => r.role === 'admin' || r.role === 'hr');
+    const hasPermission = roles?.some((r) => r.role === "admin" || r.role === "hr");
     if (!hasPermission) {
-      throw new Error('Only admins and HR can create driver accounts');
+      throw new Error("Only admins and HR can create driver accounts");
     }
 
     const body = await req.json();
@@ -71,9 +90,11 @@ serve(async (req) => {
       dbsCheck,
       driverAvailability,
       tenant_id: explicitTenantId,
+      licensePicturePath,
+      passportUploadPath,
+      photoUploadPath,
     } = body;
 
-    // Resolve tenant_id
     let tenantId = explicitTenantId;
     if (!tenantId) {
       const { data: callerTenant } = await supabaseAdmin
@@ -86,16 +107,33 @@ serve(async (req) => {
       tenantId = callerTenant?.tenant_id;
     }
     if (!tenantId) {
-      throw new Error('tenant_id is required');
+      throw new Error("tenant_id is required");
     }
 
-    // Validate required fields
     if (!firstName || !surname || !email || !password) {
-      throw new Error('First name, surname, email, and password are required');
+      throw new Error("First name, surname, email, and password are required");
     }
 
     if (password.length < 8) {
-      throw new Error('Password must be at least 8 characters');
+      throw new Error("Password must be at least 8 characters");
+    }
+
+    assertDriverOnboardingFields({
+      email,
+      postCode: postcode,
+      contactPhone,
+      emergencyContactPhone,
+      licenseNumber,
+      nationalInsurance,
+      passportNumber,
+      dvlaCode,
+    });
+
+    const draftPaths = [licensePicturePath, passportUploadPath, photoUploadPath].filter(Boolean) as string[];
+    for (const p of draftPaths) {
+      if (!p.startsWith(`${user.id}/`)) {
+        throw new Error("Invalid document path");
+      }
     }
 
     const fullName = `${firstName} ${surname}`.trim();
@@ -109,17 +147,16 @@ serve(async (req) => {
       return d.toISOString().split("T")[0];
     };
 
-    // Create the user account with the provided password
     const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
       email,
-      password: password,
+      password,
       email_confirm: true,
       user_metadata: {
         name: fullName,
         first_name: firstName,
-        surname: surname,
-        requires_password_change: true
-      }
+        surname,
+        requires_password_change: true,
+      },
     });
 
     if (createError || !newUser.user) {
@@ -127,11 +164,11 @@ serve(async (req) => {
     }
 
     const { error: roleError } = await supabaseAdmin
-      .from('user_roles')
+      .from("user_roles")
       .insert({
         user_id: newUser.user.id,
-        role: 'driver',
-        tenant_id: tenantId
+        role: "driver",
+        tenant_id: tenantId,
       });
 
     if (roleError) {
@@ -139,12 +176,12 @@ serve(async (req) => {
     }
 
     const { error: profileError } = await supabaseAdmin
-      .from('staff_profiles')
+      .from("staff_profiles")
       .upsert({
         user_id: newUser.user.id,
         email,
         first_name: firstName,
-        surname: surname,
+        surname,
         full_name: fullName,
         contact_phone: contactPhone || null,
         address_line_1: addressLine1 || null,
@@ -156,21 +193,20 @@ serve(async (req) => {
         tenant_id: tenantId,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
-      }, { onConflict: 'user_id' });
+      }, { onConflict: "user_id" });
 
     if (profileError) {
-      console.error('Profile creation error:', profileError);
-      // Don't fail - profile might be created by trigger
+      console.error("Profile creation error:", profileError);
     }
 
-    const { error: driverError } = await supabaseAdmin
-      .from('driver_profiles')
+    const { data: driverRow, error: driverError } = await supabaseAdmin
+      .from("driver_profiles")
       .insert({
         user_id: newUser.user.id,
         email,
         name: fullName,
         first_name: firstName,
-        surname: surname,
+        surname,
         contact_phone: contactPhone || null,
         address_line_1: addressLine1 || null,
         address_line_2: addressLine2 || null,
@@ -190,18 +226,43 @@ serve(async (req) => {
         onboarded_by: user.id,
         onboarded_at: new Date().toISOString(),
         active: true,
-        tenant_id: tenantId
-      });
+        tenant_id: tenantId,
+      })
+      .select("id")
+      .single();
 
-    if (driverError) {
-      throw new Error(`Failed to create driver record: ${driverError.message}`);
+    if (driverError || !driverRow?.id) {
+      throw new Error(`Failed to create driver record: ${driverError?.message ?? "unknown"}`);
     }
 
-    // Log the activity
+    const docInputs: Record<string, string | undefined> = {
+      license_picture: licensePicturePath,
+      passport_upload: passportUploadPath,
+      photo_upload: photoUploadPath,
+    };
+
+    const docUpdates: Record<string, string> = {};
+    for (const field of DOC_FIELDS) {
+      const fromPath = docInputs[field];
+      if (!fromPath) continue;
+      const finalPath = await copyDocToProfile(supabaseAdmin, fromPath, driverRow.id, field);
+      if (finalPath) docUpdates[field] = finalPath;
+    }
+
+    if (Object.keys(docUpdates).length > 0) {
+      const { error: docUpdateError } = await supabaseAdmin
+        .from("driver_profiles")
+        .update({ ...docUpdates, updated_at: new Date().toISOString() })
+        .eq("id", driverRow.id);
+      if (docUpdateError) {
+        console.error("Document path update error:", docUpdateError);
+      }
+    }
+
     try {
-      await supabaseAdmin.rpc('log_activity', {
-        p_action_type: 'driver_created',
-        p_resource_type: 'driver',
+      await supabaseAdmin.rpc("log_activity", {
+        p_action_type: "driver_created",
+        p_resource_type: "driver",
         p_resource_id: newUser.user.id,
         p_action_details: {
           name: fullName,
@@ -209,37 +270,35 @@ serve(async (req) => {
           created_by_user_id: user.id,
           created_by_email: user.email,
           tenant_id: tenantId,
-          source: "admin_or_hr_create_driver_account"
-        }
+          source: "admin_or_hr_create_driver_account",
+        },
       });
     } catch (logError) {
-      console.error('Activity log error:', logError);
-      // Don't fail if logging fails
+      console.error("Activity log error:", logError);
     }
 
-    console.log(`Driver account created for ${email} by ${user.email}`);
-    
     return new Response(
-      JSON.stringify({ 
-        success: true, 
+      JSON.stringify({
+        success: true,
         userId: newUser.user.id,
+        driverProfileId: driverRow.id,
         email,
-        message: 'Driver account created successfully. The driver must change their password on first login.'
+        message: "Driver account created successfully. The driver must change their password on first login.",
       }),
-      { 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 200 
-      }
+      {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 200,
+      },
     );
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
-    console.error('Create driver account error:', errorMessage);
+    const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
+    console.error("Create driver account error:", errorMessage);
     return new Response(
       JSON.stringify({ error: errorMessage }),
-      { 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 400 
-      }
+      {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 400,
+      },
     );
   }
 });

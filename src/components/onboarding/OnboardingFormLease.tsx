@@ -24,28 +24,28 @@ import {
 } from "@/components/ui/alert-dialog";
 import { PasswordChangePrompt } from "@/components/PasswordChangePrompt";
 
+import {
+  ONBOARDING_LEASE_FORMAT_STEP_FIELDS,
+  ukDriverPersonalFields,
+  validateStepFormatFields,
+} from "@/lib/ukFieldValidation";
+
 const formSchema = z.object({
   // Page 1 - Personal Details
   first_name: z.string().min(2, "First name must be at least 2 characters").max(100, "First name is too long"),
   surname: z.string().min(2, "Surname must be at least 2 characters").max(100, "Surname is too long"),
-  email: z.string().email("Valid email is required").max(255, "Email is too long"),
-  contact_phone: z.string().max(20, "Phone number is too long").optional(),
+  ...ukDriverPersonalFields,
   address_line_1: z.string().max(200, "Address is too long").optional(),
   address_line_2: z.string().max(200, "Address is too long").optional(),
   address_line_3: z.string().max(200, "Address is too long").optional(),
-  post_code: z.string().max(20, "Post code is too long").optional(),
   emergency_contact_name: z.string().max(100, "Name is too long").optional(),
-  emergency_contact_phone: z.string().max(20, "Phone number is too long").optional(),
   
   // Page 2 - Driver's License
-  drivers_license_number: z.string().max(50, "License number is too long").optional(),
   license_expiry_date: z.string().optional(),
   license_picture: z.string().optional(),
   
   // Page 3 - Right to Work
-  national_insurance_number: z.string().max(20, "NI number is too long").optional(),
   passport_upload: z.string().optional(),
-  passport_number: z.string().max(50, "Passport number is too long").optional(),
   passport_expiry_date: z.string().optional(),
   
   // Page 4 - Leased Vehicle Details
@@ -55,7 +55,6 @@ const formSchema = z.object({
   
   // Page 5 - Identity
   photo_upload: z.string().optional(),
-  dvla_code: z.string().max(50, "DVLA code is too long").optional(),
   dbs_check: z.boolean().optional(),
   
   // Page 6 - Work Availability
@@ -279,6 +278,16 @@ const OnboardingFormLease = ({ existingSession }: Props) => {
             description: "Please fill in First Name, Surname, and Email",
             variant: "destructive",
           });
+          setIsSubmitting(false);
+          return;
+        }
+      }
+
+      const formatFields = ONBOARDING_LEASE_FORMAT_STEP_FIELDS[currentStep];
+      if (formatFields?.length) {
+        const formatError = validateStepFormatFields(values, formatFields);
+        if (formatError) {
+          toast({ title: "Invalid format", description: formatError, variant: "destructive" });
           setIsSubmitting(false);
           return;
         }

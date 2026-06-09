@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
+import { assertDriverOnboardingFields } from "../_shared/ukValidation.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -154,6 +155,17 @@ serve(async (req) => {
       data = {},
       complete = false,
     } = validatedData;
+
+    assertDriverOnboardingFields({
+      email,
+      postCode: data.post_code ?? undefined,
+      contactPhone: data.contact_phone ?? undefined,
+      emergencyContactPhone: data.emergency_contact_phone ?? undefined,
+      licenseNumber: data.drivers_license_number ?? data.license_number ?? undefined,
+      nationalInsurance: data.national_insurance_number ?? undefined,
+      passportNumber: data.passport_number ?? undefined,
+      dvlaCode: data.dvla_code ?? undefined,
+    });
 
     const supabaseAdmin = createClient(
       Deno.env.get("SUPABASE_URL") ?? Deno.env.get("PROJECT_URL") ?? "",
