@@ -1,7 +1,10 @@
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import * as z from "zod";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { z } from "zod";
+import { useTenant } from "@/contexts/TenantContext";
 import {
   Dialog,
   DialogContent,
@@ -10,127 +13,174 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { UserPlus, Loader2 } from "lucide-react";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { UserPlus } from "lucide-react";
+  clearHrDriverDraft,
+  emptyHrDriverForm,
+  loadHrDriverDraft,
+  saveHrDriverDraft,
+  type HrDriverDraftForm,
+} from "@/lib/hrDriverDraft";
+import { uploadHrDriverDocument, type HrDriverDocField } from "@/lib/uploadHrDriverDocument";
+import {
+  HR_DRIVER_FORMAT_STEP_FIELDS,
+  ukDriverPersonalFields,
+  validateStepFormatFields,
+} from "@/lib/ukFieldValidation";
 
-const driverSchema = z.object({
-  firstName: z.string().trim().min(1, "First name is required").max(100),
-  surname: z.string().trim().min(1, "Surname is required").max(100),
-  email: z.string().trim().email("Invalid email").max(255),
+const formSchema = z.object({
+  first_name: z.string().min(2, "First name must be at least 2 characters").max(100),
+  surname: z.string().min(2, "Surname must be at least 2 characters").max(100),
+  ...ukDriverPersonalFields,
   password: z.string().min(8, "Password must be at least 8 characters").max(100),
-  contactPhone: z.string().trim().max(30).optional().or(z.literal("")),
-  licenseNumber: z.string().trim().max(50).optional().or(z.literal("")),
-  licenseExpiry: z.string().optional().or(z.literal("")),
-  addressLine1: z.string().trim().max(200).optional().or(z.literal("")),
-  addressLine2: z.string().trim().max(200).optional().or(z.literal("")),
-  addressLine3: z.string().trim().max(200).optional().or(z.literal("")),
-  postcode: z.string().trim().max(20).optional().or(z.literal("")),
-  emergencyContactName: z.string().trim().max(100).optional().or(z.literal("")),
-  emergencyContactPhone: z.string().trim().max(30).optional().or(z.literal("")),
-  operatorId: z.string().trim().max(50).optional().or(z.literal("")),
-  nationalInsurance: z.string().trim().max(20).optional().or(z.literal("")),
-  passportNumber: z.string().trim().max(30).optional().or(z.literal("")),
-  passportExpiry: z.string().optional().or(z.literal("")),
-  dvlaCode: z.string().trim().max(20).optional().or(z.literal("")),
-  dbsCheck: z.boolean().optional(),
-  driverAvailability: z.string().max(80).optional().or(z.literal("")),
+  operator_id: z.string().max(50).optional().or(z.literal("")),
+  address_line_1: z.string().max(200).optional().or(z.literal("")),
+  address_line_2: z.string().max(200).optional().or(z.literal("")),
+  address_line_3: z.string().max(200).optional().or(z.literal("")),
+  emergency_contact_name: z.string().max(100).optional().or(z.literal("")),
+  license_expiry_date: z.string().optional().or(z.literal("")),
+  license_picture: z.string().optional().or(z.literal("")),
+  passport_upload: z.string().optional().or(z.literal("")),
+  passport_expiry_date: z.string().optional().or(z.literal("")),
+  photo_upload: z.string().optional().or(z.literal("")),
+  dbs_check: z.boolean().optional(),
+  driver_availability: z.string().max(80).optional().or(z.literal("")),
 });
 
-const emptyForm = {
-  firstName: "",
-  surname: "",
-  email: "",
-  password: "",
-  contactPhone: "",
-  licenseNumber: "",
-  licenseExpiry: "",
-  addressLine1: "",
-  addressLine2: "",
-  addressLine3: "",
-  postcode: "",
-  emergencyContactName: "",
-  emergencyContactPhone: "",
-  operatorId: "",
-  nationalInsurance: "",
-  passportNumber: "",
-  passportExpiry: "",
-  dvlaCode: "",
-  dbsCheck: false,
-  driverAvailability: "",
-};
+type FormData = z.infer<typeof formSchema>;
+
+const TOTAL_STEPS = 5;
+
+const DOC_FIELDS = new Set<HrDriverDocField>(["license_picture", "passport_upload", "photo_upload"]);
 
 export const CreateDriverAccountDialog = ({ onSuccess }: { onSuccess: () => void }) => {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [formData, setFormData] = useState(emptyForm);
-  const [licenseFile, setLicenseFile] = useState<File | null>(null);
-  const [passportFile, setPassportFile] = useState<File | null>(null);
-  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [currentStep, setCurrentStep] = useState(1);
+  const [uploadingFiles, setUploadingFiles] = useState<Record<string, boolean>>({});
+  const [showDiscardDialog, setShowDiscardDialog] = useState(false);
+  const [hrUserId, setHrUserId] = useState<string | null>(null);
+  const discardConfirmedRef = useRef(false);
   const { toast } = useToast();
+  const { tenant } = useTenant();
 
-  const uploadDocPaths = async (driverProfileId: string) => {
-    const updates: Record<string, string> = {};
-    const run = async (file: File | null, column: "license_picture" | "passport_upload" | "photo_upload", base: string) => {
-      if (!file) return;
-      const ext = file.name.split(".").pop() || "bin";
-      const path = `${driverProfileId}/${base}.${ext}`;
-      const { error } = await supabase.storage.from("driver-documents").upload(path, file, { upsert: true });
-      if (error) throw error;
-      updates[column] = path;
+  const { register, handleSubmit, formState: { errors }, getValues, setValue, watch, reset } = useForm<FormData>({
+    resolver: zodResolver(formSchema),
+    defaultValues: emptyHrDriverForm(),
+    shouldUnregister: false,
+  });
+
+  const driverAvailability = watch("driver_availability");
+  const formValues = watch();
+
+  const persistDraft = useCallback(() => {
+    if (!tenant?.id || !hrUserId || !open) return;
+    saveHrDriverDraft(tenant.id, hrUserId, {
+      currentStep,
+      form: getValues() as HrDriverDraftForm,
+    });
+  }, [tenant?.id, hrUserId, open, currentStep, getValues]);
+
+  useEffect(() => {
+    const initUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      setHrUserId(user?.id ?? null);
     };
-    await run(licenseFile, "license_picture", "license_picture");
-    await run(passportFile, "passport_upload", "passport_upload");
-    await run(photoFile, "photo_upload", "photo");
-    if (Object.keys(updates).length === 0) return;
-    const { error } = await supabase
-      .from("driver_profiles")
-      .update({ ...updates, updated_at: new Date().toISOString() })
-      .eq("id", driverProfileId);
-    if (error) throw error;
+    void initUser();
+  }, []);
+
+  useEffect(() => {
+    if (!open || !tenant?.id || !hrUserId) return;
+    const draft = loadHrDriverDraft(tenant.id, hrUserId);
+    if (draft) {
+      reset(draft.form as FormData);
+      setCurrentStep(draft.currentStep);
+      toast({ title: "Draft restored", description: "Continue where you left off." });
+    } else {
+      reset(emptyHrDriverForm());
+      setCurrentStep(1);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- toast stable; restore only when dialog opens
+  }, [open, tenant?.id, hrUserId, reset]);
+
+  useEffect(() => {
+    if (!open) return;
+    const t = setTimeout(() => persistDraft(), 400);
+    return () => clearTimeout(t);
+  }, [formValues, currentStep, open, persistDraft]);
+
+  const handleFileUpload = async (file: File, fieldName: keyof FormData) => {
+    if (!hrUserId) {
+      toast({ title: "Not signed in", variant: "destructive" });
+      return;
+    }
+    if (!DOC_FIELDS.has(fieldName as HrDriverDocField)) return;
+
+    setUploadingFiles((prev) => ({ ...prev, [fieldName]: true }));
+    try {
+      const filePath = await uploadHrDriverDocument(file, fieldName as HrDriverDocField);
+      setValue(fieldName, filePath, { shouldDirty: true });
+      persistDraft();
+    } catch (error: unknown) {
+      toast({
+        title: "Upload failed",
+        description: error instanceof Error ? error.message : "Could not upload file",
+        variant: "destructive",
+      });
+    } finally {
+      setUploadingFiles((prev) => ({ ...prev, [fieldName]: false }));
+    }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const onSubmit = async (values: FormData) => {
+    if (!tenant?.id) {
+      toast({ title: "Tenant required", description: "Could not determine company.", variant: "destructive" });
+      return;
+    }
     setLoading(true);
-
     try {
-      const validated = driverSchema.parse(formData);
-
       const { data: fnData, error: fnError } = await supabase.functions.invoke("create-driver-account", {
         body: {
-          firstName: validated.firstName,
-          surname: validated.surname,
-          email: validated.email,
-          password: validated.password,
-          contactPhone: validated.contactPhone || undefined,
-          licenseNumber: validated.licenseNumber || undefined,
-          licenseExpiry: validated.licenseExpiry || undefined,
-          addressLine1: validated.addressLine1 || undefined,
-          addressLine2: validated.addressLine2 || undefined,
-          addressLine3: validated.addressLine3 || undefined,
-          postcode: validated.postcode || undefined,
-          emergencyContactName: validated.emergencyContactName || undefined,
-          emergencyContactPhone: validated.emergencyContactPhone || undefined,
-          operatorId: validated.operatorId || undefined,
-          nationalInsurance: validated.nationalInsurance || undefined,
-          passportNumber: validated.passportNumber || undefined,
-          passportExpiry: validated.passportExpiry || undefined,
-          dvlaCode: validated.dvlaCode || undefined,
-          dbsCheck: validated.dbsCheck ?? false,
-          driverAvailability:
-            validated.driverAvailability && validated.driverAvailability !== "_unset_"
-              ? validated.driverAvailability
-              : undefined,
+          firstName: values.first_name,
+          surname: values.surname,
+          email: values.email,
+          password: values.password,
+          contactPhone: values.contact_phone || undefined,
+          licenseNumber: values.drivers_license_number || undefined,
+          licenseExpiry: values.license_expiry_date || undefined,
+          addressLine1: values.address_line_1 || undefined,
+          addressLine2: values.address_line_2 || undefined,
+          addressLine3: values.address_line_3 || undefined,
+          postcode: values.post_code || undefined,
+          emergencyContactName: values.emergency_contact_name || undefined,
+          emergencyContactPhone: values.emergency_contact_phone || undefined,
+          operatorId: values.operator_id || undefined,
+          nationalInsurance: values.national_insurance_number || undefined,
+          passportNumber: values.passport_number || undefined,
+          passportExpiry: values.passport_expiry_date || undefined,
+          dvlaCode: values.dvla_code || undefined,
+          dbsCheck: values.dbs_check ?? false,
+          driverAvailability: values.driver_availability || undefined,
+          tenant_id: tenant.id,
+          licensePicturePath: values.license_picture || undefined,
+          passportUploadPath: values.passport_upload || undefined,
+          photoUploadPath: values.photo_upload || undefined,
         },
       });
 
@@ -139,353 +189,367 @@ export const CreateDriverAccountDialog = ({ onSuccess }: { onSuccess: () => void
         try {
           const b = await (fnError as { context?: { json?: () => Promise<{ error?: string }> } }).context?.json?.();
           if (b?.error) detail = b.error;
-        } catch {
-          /* ignore */
-        }
+        } catch { /* ignore */ }
         throw new Error(detail);
       }
-      if (fnData?.error) throw new Error(fnData.error);
+      if ((fnData as { error?: string })?.error) throw new Error((fnData as { error: string }).error);
 
-      const userId = (fnData as { userId?: string })?.userId;
-      if (userId && (licenseFile || passportFile || photoFile)) {
-        const { data: row } = await supabase.from("driver_profiles").select("id").eq("user_id", userId).maybeSingle();
-        if (row?.id) {
-          await uploadDocPaths(row.id);
-        }
-      }
-
+      if (tenant.id && hrUserId) clearHrDriverDraft(tenant.id, hrUserId);
+      reset(emptyHrDriverForm());
+      setCurrentStep(1);
+      discardConfirmedRef.current = true;
+      setOpen(false);
       toast({
         title: "Driver account created",
-        description: `Account created for ${validated.firstName} ${validated.surname}. They must change their password on first login.`,
+        description: `${values.first_name} ${values.surname} must change their password on first login.`,
       });
-
-      setFormData({ ...emptyForm });
-      setLicenseFile(null);
-      setPassportFile(null);
-      setPhotoFile(null);
-      setOpen(false);
       onSuccess();
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        toast({
-          title: "Validation error",
-          description: error.errors[0].message,
-          variant: "destructive",
-        });
-      } else {
-        toast({
-          title: "Error",
-          description: error instanceof Error ? error.message : "Failed to create driver account",
-          variant: "destructive",
-        });
-      }
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to create driver",
+        variant: "destructive",
+      });
     } finally {
       setLoading(false);
     }
   };
 
-  const handleOpenChange = (newOpen: boolean) => {
-    setOpen(newOpen);
-    if (!newOpen) {
-      setFormData({ ...emptyForm });
-      setLicenseFile(null);
-      setPassportFile(null);
-      setPhotoFile(null);
+  const validateStep = (step: number, values: FormData): boolean => {
+    if (step === 1) {
+      if (!values.first_name?.trim() || !values.surname?.trim() || !values.email?.trim() || !values.password || values.password.length < 8) {
+        toast({
+          title: "Required fields missing",
+          description: "First name, surname, email, and password (min 8 characters) are required.",
+          variant: "destructive",
+        });
+        return false;
+      }
     }
+    const formatFields = HR_DRIVER_FORMAT_STEP_FIELDS[step];
+    if (formatFields?.length) {
+      const formatError = validateStepFormatFields(values, formatFields);
+      if (formatError) {
+        toast({ title: "Invalid format", description: formatError, variant: "destructive" });
+        return false;
+      }
+    }
+    return true;
   };
 
+  const handleNext = () => {
+    const values = getValues();
+    const anyUploading = Object.values(uploadingFiles).some(Boolean);
+    if (anyUploading) {
+      toast({ title: "Upload in progress", description: "Please wait for the file upload to finish.", variant: "destructive" });
+      return;
+    }
+    if (!validateStep(currentStep, values)) return;
+    persistDraft();
+    if (currentStep < TOTAL_STEPS) setCurrentStep((s) => s + 1);
+  };
+
+  const handleOpenChange = (newOpen: boolean) => {
+    if (!newOpen) {
+      if (discardConfirmedRef.current) {
+        discardConfirmedRef.current = false;
+        setOpen(false);
+        return;
+      }
+      persistDraft();
+      setOpen(false);
+      return;
+    }
+    setOpen(true);
+  };
+
+  const handleDiscardConfirm = () => {
+    if (tenant?.id && hrUserId) clearHrDriverDraft(tenant.id, hrUserId);
+    reset(emptyHrDriverForm());
+    setCurrentStep(1);
+    setShowDiscardDialog(false);
+    discardConfirmedRef.current = true;
+    setOpen(false);
+  };
+
+  const progress = (currentStep / TOTAL_STEPS) * 100;
+
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogTrigger asChild>
-        <Button>
-          <UserPlus className="mr-2 h-4 w-4" />
-          Create Driver Account
-        </Button>
-      </DialogTrigger>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Create Driver Account</DialogTitle>
-          <DialogDescription>
-            Create a driver login and profile with the same fields as driver onboarding. Upload document images after account
-            creation (stored securely).
-          </DialogDescription>
-        </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="firstName">First Name *</Label>
-              <Input
-                id="firstName"
-                value={formData.firstName}
-                onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
-                required
-                maxLength={100}
-              />
+    <>
+      <AlertDialog open={showDiscardDialog} onOpenChange={setShowDiscardDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Discard draft?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Any unsubmitted details will be lost. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep editing</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDiscardConfirm}>Discard</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <Dialog open={open} onOpenChange={handleOpenChange}>
+        <DialogTrigger asChild>
+          <Button>
+            <UserPlus className="mr-2 h-4 w-4" />
+            Create Driver Account
+          </Button>
+        </DialogTrigger>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" onInteractOutside={() => persistDraft()}>
+          <DialogHeader>
+            <DialogTitle>Create Driver Account</DialogTitle>
+            <DialogDescription>
+              Same steps as public driver onboarding. Progress is saved automatically if you close the form.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="mb-4">
+            <div className="flex justify-between text-sm text-muted-foreground mb-2">
+              <span>Step {currentStep} of {TOTAL_STEPS}</span>
+              <span>{Math.round(progress)}%</span>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="surname">Surname *</Label>
-              <Input
-                id="surname"
-                value={formData.surname}
-                onChange={(e) => setFormData({ ...formData, surname: e.target.value })}
-                required
-                maxLength={100}
-              />
-            </div>
+            <Progress value={progress} className="h-2" />
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="email">Email *</Label>
-            <Input
-              id="email"
-              type="email"
-              value={formData.email}
-              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-              required
-              maxLength={255}
-            />
-          </div>
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" autoComplete="off">
+            {currentStep === 1 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Page 1 - Personal Details</CardTitle>
+                  <CardDescription>Driver login and contact information</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="first_name">First Name *</Label>
+                      <Input id="first_name" autoComplete="off" {...register("first_name")} maxLength={100} />
+                      {errors.first_name && <p className="text-sm text-destructive">{errors.first_name.message}</p>}
+                    </div>
+                    <div>
+                      <Label htmlFor="surname">Surname *</Label>
+                      <Input id="surname" autoComplete="off" {...register("surname")} maxLength={100} />
+                      {errors.surname && <p className="text-sm text-destructive">{errors.surname.message}</p>}
+                    </div>
+                  </div>
+                  <div>
+                    <Label htmlFor="email">Email *</Label>
+                    <Input id="email" type="email" autoComplete="off" {...register("email")} maxLength={255} />
+                    {errors.email && <p className="text-sm text-destructive">{errors.email.message}</p>}
+                  </div>
+                  <div>
+                    <Label htmlFor="password">Temporary Password *</Label>
+                    <Input id="password" type="password" autoComplete="new-password" {...register("password")} minLength={8} maxLength={100} placeholder="Min 8 characters" />
+                    {errors.password && <p className="text-sm text-destructive">{errors.password.message}</p>}
+                    <p className="text-xs text-muted-foreground mt-1">Driver must change this on first login</p>
+                  </div>
+                  <div>
+                    <Label htmlFor="operator_id">Operator ID</Label>
+                    <Input id="operator_id" autoComplete="off" {...register("operator_id")} maxLength={50} placeholder="e.g., 0074666" />
+                  </div>
+                  <div>
+                    <Label htmlFor="contact_phone">Contact Number</Label>
+                    <Input id="contact_phone" autoComplete="off" {...register("contact_phone")} maxLength={20} />
+                  </div>
+                  <div>
+                    <Label htmlFor="address_line_1">Address Line 1</Label>
+                    <Input id="address_line_1" autoComplete="off" {...register("address_line_1")} maxLength={200} />
+                  </div>
+                  <div>
+                    <Label htmlFor="address_line_2">Address Line 2</Label>
+                    <Input id="address_line_2" autoComplete="off" {...register("address_line_2")} maxLength={200} />
+                  </div>
+                  <div>
+                    <Label htmlFor="address_line_3">Address Line 3</Label>
+                    <Input id="address_line_3" autoComplete="off" {...register("address_line_3")} maxLength={200} />
+                  </div>
+                  <div>
+                    <Label htmlFor="post_code">Post Code</Label>
+                    <Input id="post_code" autoComplete="off" {...register("post_code")} maxLength={20} />
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="emergency_contact_name">Emergency Contact Name</Label>
+                      <Input id="emergency_contact_name" autoComplete="off" {...register("emergency_contact_name")} maxLength={100} />
+                    </div>
+                    <div>
+                      <Label htmlFor="emergency_contact_phone">Emergency Contact Number</Label>
+                      <Input id="emergency_contact_phone" autoComplete="off" {...register("emergency_contact_phone")} maxLength={20} />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
-          <div className="space-y-2">
-            <Label htmlFor="password">Temporary Password *</Label>
-            <Input
-              id="password"
-              type="password"
-              value={formData.password}
-              onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-              required
-              minLength={8}
-              maxLength={100}
-              placeholder="Min 8 characters"
-            />
-            <p className="text-xs text-muted-foreground">The driver must change this password on their first login</p>
-          </div>
+            {currentStep === 2 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Page 2 - Driver&apos;s License Details</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div>
+                    <Label htmlFor="drivers_license_number">Drivers License Number</Label>
+                    <Input id="drivers_license_number" {...register("drivers_license_number")} maxLength={50} />
+                  </div>
+                  <div>
+                    <Label htmlFor="license_expiry_date">License Expiry Date</Label>
+                    <Input id="license_expiry_date" type="date" {...register("license_expiry_date")} />
+                  </div>
+                  <div>
+                    <Label htmlFor="license_picture">License Picture Upload</Label>
+                    <Input
+                      id="license_picture"
+                      type="file"
+                      accept="image/*,.pdf"
+                      disabled={uploadingFiles.license_picture}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) void handleFileUpload(file, "license_picture");
+                      }}
+                    />
+                    {uploadingFiles.license_picture && <p className="text-sm text-muted-foreground mt-1">Uploading...</p>}
+                    {watch("license_picture") && !uploadingFiles.license_picture && (
+                      <p className="text-sm text-green-600 mt-1">File uploaded</p>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="contactPhone">Contact Phone</Label>
-              <Input
-                id="contactPhone"
-                value={formData.contactPhone}
-                onChange={(e) => setFormData({ ...formData, contactPhone: e.target.value })}
-                maxLength={30}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="driverAvailability">Work availability</Label>
-              <Select
-                value={formData.driverAvailability || "_unset_"}
-                onValueChange={(v) => setFormData({ ...formData, driverAvailability: v === "_unset_" ? "" : v })}
-              >
-                <SelectTrigger id="driverAvailability">
-                  <SelectValue placeholder="Select availability" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="_unset_">Not specified</SelectItem>
-                  <SelectItem value="Full Time">Full Time</SelectItem>
-                  <SelectItem value="Part Time">Part Time</SelectItem>
-                  <SelectItem value="Flexi (Same Day)">Flexi (Same Day)</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
+            {currentStep === 3 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Page 3 - Right to Work Details</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div>
+                    <Label htmlFor="national_insurance_number">National Insurance Number</Label>
+                    <Input id="national_insurance_number" {...register("national_insurance_number")} maxLength={20} />
+                  </div>
+                  <div>
+                    <Label htmlFor="passport_upload">Passport Upload</Label>
+                    <Input
+                      id="passport_upload"
+                      type="file"
+                      accept="image/*,.pdf"
+                      disabled={uploadingFiles.passport_upload}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) void handleFileUpload(file, "passport_upload");
+                      }}
+                    />
+                    {uploadingFiles.passport_upload && <p className="text-sm text-muted-foreground mt-1">Uploading...</p>}
+                    {watch("passport_upload") && !uploadingFiles.passport_upload && (
+                      <p className="text-sm text-green-600 mt-1">File uploaded</p>
+                    )}
+                  </div>
+                  <div>
+                    <Label htmlFor="passport_number">Passport Number</Label>
+                    <Input id="passport_number" {...register("passport_number")} maxLength={50} />
+                  </div>
+                  <div>
+                    <Label htmlFor="passport_expiry_date">Passport Expiry Date</Label>
+                    <Input id="passport_expiry_date" type="date" {...register("passport_expiry_date")} />
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="licenseNumber">Licence number</Label>
-              <Input
-                id="licenseNumber"
-                value={formData.licenseNumber}
-                onChange={(e) => setFormData({ ...formData, licenseNumber: e.target.value })}
-                maxLength={50}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="licenseExpiry">Licence expiry</Label>
-              <Input
-                id="licenseExpiry"
-                type="date"
-                value={formData.licenseExpiry}
-                onChange={(e) => setFormData({ ...formData, licenseExpiry: e.target.value })}
-              />
-            </div>
-          </div>
+            {currentStep === 4 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Page 4 - Identity Details</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div>
+                    <Label htmlFor="photo_upload">Photo Upload</Label>
+                    <Input
+                      id="photo_upload"
+                      type="file"
+                      accept="image/*"
+                      disabled={uploadingFiles.photo_upload}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) void handleFileUpload(file, "photo_upload");
+                      }}
+                    />
+                    {uploadingFiles.photo_upload && <p className="text-sm text-muted-foreground mt-1">Uploading...</p>}
+                    {watch("photo_upload") && !uploadingFiles.photo_upload && (
+                      <p className="text-sm text-green-600 mt-1">File uploaded</p>
+                    )}
+                  </div>
+                  <div>
+                    <Label htmlFor="dvla_code">Enter DVLA Code</Label>
+                    <Input id="dvla_code" {...register("dvla_code")} maxLength={50} placeholder="Enter your DVLA check code" />
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <input type="checkbox" id="dbs_check" {...register("dbs_check")} className="rounded border-gray-300" />
+                    <Label htmlFor="dbs_check" className="font-normal">DBS Check Completed</Label>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="passportNumber">Passport number</Label>
-              <Input
-                id="passportNumber"
-                value={formData.passportNumber}
-                onChange={(e) => setFormData({ ...formData, passportNumber: e.target.value })}
-                maxLength={30}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="passportExpiry">Passport expiry</Label>
-              <Input
-                id="passportExpiry"
-                type="date"
-                value={formData.passportExpiry}
-                onChange={(e) => setFormData({ ...formData, passportExpiry: e.target.value })}
-              />
-            </div>
-          </div>
+            {currentStep === 5 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Page 5 - Work Availability</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <Label htmlFor="driver_availability">Driver Availability</Label>
+                  <Select
+                    value={driverAvailability || ""}
+                    onValueChange={(v) => setValue("driver_availability", v as FormData["driver_availability"], { shouldDirty: true })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select availability" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Full Time">Full Time</SelectItem>
+                      <SelectItem value="Part Time">Part Time</SelectItem>
+                      <SelectItem value="Flexi (Same Day)">Flexi (Same Day)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </CardContent>
+              </Card>
+            )}
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="dvlaCode">DVLA check code</Label>
-              <Input
-                id="dvlaCode"
-                value={formData.dvlaCode}
-                onChange={(e) => setFormData({ ...formData, dvlaCode: e.target.value })}
-                maxLength={20}
-                placeholder="8 characters from DVLA"
-              />
+            <div className="flex flex-wrap gap-2 pt-2">
+              {currentStep > 1 && (
+                <Button type="button" variant="outline" onClick={() => setCurrentStep((s) => s - 1)} disabled={loading}>
+                  Previous
+                </Button>
+              )}
+              <Button type="button" variant="outline" onClick={() => setShowDiscardDialog(true)} disabled={loading}>
+                Cancel
+              </Button>
+              {currentStep < TOTAL_STEPS ? (
+                <Button
+                  type="button"
+                  onClick={handleNext}
+                  disabled={loading || Object.values(uploadingFiles).some(Boolean)}
+                  className="ml-auto"
+                >
+                  Next
+                </Button>
+              ) : (
+                <Button type="submit" disabled={loading} className="ml-auto">
+                  {loading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Creating...
+                    </>
+                  ) : (
+                    "Create Driver"
+                  )}
+                </Button>
+              )}
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="nationalInsurance">National Insurance</Label>
-              <Input
-                id="nationalInsurance"
-                value={formData.nationalInsurance}
-                onChange={(e) => setFormData({ ...formData, nationalInsurance: e.target.value })}
-                placeholder="e.g., AB123456C"
-                maxLength={20}
-              />
-            </div>
-          </div>
-
-          <div className="flex items-center space-x-2">
-            <Checkbox
-              id="dbsCheck"
-              checked={formData.dbsCheck}
-              onCheckedChange={(c) => setFormData({ ...formData, dbsCheck: c === true })}
-            />
-            <Label htmlFor="dbsCheck" className="font-normal cursor-pointer">
-              DBS check completed / required (record only)
-            </Label>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="addressLine1">Address line 1</Label>
-            <Input
-              id="addressLine1"
-              value={formData.addressLine1}
-              onChange={(e) => setFormData({ ...formData, addressLine1: e.target.value })}
-              maxLength={200}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="addressLine2">Address line 2</Label>
-            <Input
-              id="addressLine2"
-              value={formData.addressLine2}
-              onChange={(e) => setFormData({ ...formData, addressLine2: e.target.value })}
-              maxLength={200}
-            />
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="addressLine3">Address line 3</Label>
-              <Input
-                id="addressLine3"
-                value={formData.addressLine3}
-                onChange={(e) => setFormData({ ...formData, addressLine3: e.target.value })}
-                maxLength={200}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="postcode">Postcode</Label>
-              <Input
-                id="postcode"
-                value={formData.postcode}
-                onChange={(e) => setFormData({ ...formData, postcode: e.target.value })}
-                maxLength={20}
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="emergencyContactName">Emergency contact name</Label>
-              <Input
-                id="emergencyContactName"
-                value={formData.emergencyContactName}
-                onChange={(e) => setFormData({ ...formData, emergencyContactName: e.target.value })}
-                maxLength={100}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="emergencyContactPhone">Emergency contact phone</Label>
-              <Input
-                id="emergencyContactPhone"
-                value={formData.emergencyContactPhone}
-                onChange={(e) => setFormData({ ...formData, emergencyContactPhone: e.target.value })}
-                maxLength={30}
-              />
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="operatorId">Operator ID</Label>
-            <Input
-              id="operatorId"
-              value={formData.operatorId}
-              onChange={(e) => setFormData({ ...formData, operatorId: e.target.value })}
-              placeholder="e.g., 0074666"
-              maxLength={50}
-            />
-          </div>
-
-          <div className="space-y-2 border-t pt-4">
-            <p className="text-sm font-medium">Document images (optional)</p>
-            <p className="text-xs text-muted-foreground">Uploaded after the account is created to your driver-documents storage.</p>
-            <div className="grid grid-cols-1 gap-3">
-              <div>
-                <Label htmlFor="fLicense">Licence image</Label>
-                <Input
-                  id="fLicense"
-                  type="file"
-                  accept="image/*,.pdf"
-                  className="mt-1"
-                  onChange={(e) => setLicenseFile(e.target.files?.[0] ?? null)}
-                />
-              </div>
-              <div>
-                <Label htmlFor="fPassport">Passport image</Label>
-                <Input
-                  id="fPassport"
-                  type="file"
-                  accept="image/*,.pdf"
-                  className="mt-1"
-                  onChange={(e) => setPassportFile(e.target.files?.[0] ?? null)}
-                />
-              </div>
-              <div>
-                <Label htmlFor="fPhoto">Photo ID / headshot</Label>
-                <Input
-                  id="fPhoto"
-                  type="file"
-                  accept="image/*,.pdf"
-                  className="mt-1"
-                  onChange={(e) => setPhotoFile(e.target.files?.[0] ?? null)}
-                />
-              </div>
-            </div>
-          </div>
-
-          <div className="flex justify-end gap-2">
-            <Button type="button" variant="outline" onClick={() => setOpen(false)}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={loading}>
-              {loading ? "Creating..." : "Create Driver"}
-            </Button>
-          </div>
-        </form>
-      </DialogContent>
-    </Dialog>
+          </form>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 };

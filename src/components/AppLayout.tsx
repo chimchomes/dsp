@@ -17,7 +17,6 @@ const AppLayout = ({ children }: AppLayoutProps) => {
     "/login",
     "/onboarding",
     "/onboarding-login",
-    "/create-test-onboarding-account",
     "/create-account"
   ];
   

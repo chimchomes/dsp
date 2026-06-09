@@ -19,7 +19,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/select";
 import { Loader2, Edit, Truck } from "lucide-react";
 import { format } from "date-fns";
+import { CreateDriverAccountDialog } from "@/components/admin/CreateDriverAccountDialog";
 
 type DriverProfile = {
   driver_id: string;
@@ -62,7 +63,7 @@ type DriverProfile = {
   onboarded_at: string | null;
 };
 
-export default function DriverManagement() {
+export default function DriverManagement({ onDriversChanged }: { onDriversChanged?: () => void }) {
   const { toast } = useToast();
   const [drivers, setDrivers] = useState<DriverProfile[]>([]);
   const [loading, setLoading] = useState(true);
@@ -429,21 +430,25 @@ export default function DriverManagement() {
 
   return (
     <div className="space-y-4">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+        <div>
+          <h3 className="text-lg font-semibold flex items-center gap-2">
+            <Truck className="h-5 w-5" />
+            Driver Management
+          </h3>
+          <p className="text-sm text-muted-foreground">
+            View and edit driver profiles. Drivers may be added via onboarding or HR create driver.
+          </p>
+        </div>
+        <CreateDriverAccountDialog
+          onSuccess={() => {
+            loadDrivers();
+            onDriversChanged?.();
+          }}
+        />
+      </div>
       <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="flex items-center gap-2">
-                <Truck className="h-5 w-5" />
-                Driver Management
-              </CardTitle>
-              <CardDescription>
-                View and edit driver profiles. Drivers may be added via onboarding or the admin Create Driver flow.
-              </CardDescription>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent>
+        <CardContent className="pt-6">
           <Table>
             <TableHeader>
               <TableRow>

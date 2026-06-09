@@ -9,8 +9,6 @@ import TrainingManagement from "@/components/hr/TrainingManagement";
 import StaffManagement from "@/components/admin/StaffManagement";
 import DriverManagement from "@/components/admin/DriverManagement";
 import { AuthGuard } from "@/components/AuthGuard";
-import { CreateDriverAccountDialog } from "@/components/admin/CreateDriverAccountDialog";
-
 const HRDashboard = () => {
   const [refreshKey, setRefreshKey] = useState(0);
   const navigate = useNavigate();
@@ -28,9 +26,6 @@ const HRDashboard = () => {
                 <h1 className="text-2xl md:text-4xl font-bold text-foreground mb-1 md:mb-2">HR Management Portal</h1>
                 <p className="text-muted-foreground text-sm md:text-base font-medium">Manage drivers and training</p>
               </div>
-            </div>
-            <div className="flex gap-2 shrink-0">
-              <CreateDriverAccountDialog onSuccess={() => setRefreshKey(prev => prev + 1)} />
             </div>
           </div>
 
@@ -67,7 +62,7 @@ const HRDashboard = () => {
             </TabsContent>
 
             <TabsContent value="drivers" className="space-y-4 animate-fade-in">
-              <DriverManagement />
+              <DriverManagement onDriversChanged={() => setRefreshKey((prev) => prev + 1)} />
             </TabsContent>
 
             <TabsContent value="training" className="space-y-4 animate-fade-in">

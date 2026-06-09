@@ -1,4 +1,4 @@
-project_id = "rkrggssktzpczxvjhrxm"
+project_id = "zbovgydgfuiorltbuogd"
 
 [db]
 pooler = { enabled = true, port = 6543, pool_mode = "transaction" }
@@ -7,4 +7,10 @@ pooler = { enabled = true, port = 6543, pool_mode = "transaction" }
 verify_jwt = false
 
 [functions.upsert-onboarding-session]
+verify_jwt = false
+
+[functions.create-driver-account]
+verify_jwt = false
+
+[functions.upload-hr-driver-document]
 verify_jwt = false
